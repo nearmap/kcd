@@ -1,0 +1,9 @@
+version: "2.1"
+services:
+  k8s:
+    build:
+      context: .
+    working_dir: /go/src/github.com/nearmap/cvmanager
+    entrypoint: go test ./...
+    volumes:
+      - .:/go/src/github.com/nearmap/cvmanager

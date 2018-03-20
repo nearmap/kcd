@@ -1,0 +1,179 @@
+version: 2
+
+defaults: &defaults
+  machine: true
+  working_directory: ~/go/src/github.com/nearmap/cvmanager
+
+aliases:
+  - &regression-check
+    |
+      echo "checking for regression with head of master"
+      MASTER_SHA=`git rev-parse master`
+      regression_diff=`git rev-list --left-right --count  $MASTER_SHA...$CIRCLE_SHA1 | awk '{print $1}'`
+      if [[ "$regression_diff" -gt "0" ]]; then
+        msg="Regresion found in exports in environment $ENV.\nCurrently deployed version $MASTER_SHA has changes thats missing in target version $CIRCLE_SHA1"
+        echo $msg
+        curl -X POST -H 'Content-type: application/json' --data '{"text":"'$msg'"}' ${SLACK_API_CHANNEL}
+      else
+        echo "All good! No regression found .. "
+      fi
+
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Build cvmanager container image
+          command: |
+            `aws ecr get-login --no-include-email --region ap-southeast-2`
+            docker pull ${ECR_ENDPOINT}/nearmap/golang
+            docker tag ${ECR_ENDPOINT}/nearmap/golang nearmap/golang
+            docker build -t nearmap/cvmanager .
+      - run:
+          name: Run unit and integration tests
+          command: |
+            docker-compose down
+            docker-compose rm -f
+            docker-compose up --force-recreate --build --abort-on-container-exit
+      - run:
+          name: Go Report Card
+          command: |
+              curl -X POST https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager
+              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager"
+      - deploy:
+          name: Push application docker image
+          command: |
+              echo "Tagging container image with sha: ${CIRCLE_SHA1}"
+              docker tag nearmap/cvmanager ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
+              docker push ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
+
+  regression-check-qa:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Check regression in usqa-api
+          command: |
+            ENV=usqa-api
+      - run: *regression-check
+      - run:
+          name: Check regression in auqa-api
+          command: |
+            ENV=auqa-api
+      - run: *regression-check
+
+  dev-deploy:
+    <<: *defaults
+    steps:
+      - run:
+          name: Remove dev deploy tag env-audev-api and env-usdev-api from current candidate
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+              nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-audev-api,env-usdev-api
+      - run:
+          name: Add deployment tag env-audev-api and env-usdev-api for dev environment
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+              nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-audev-api,env-usdev-api --version ${CIRCLE_SHA1}
+
+  qa-deploy:
+    <<: *defaults
+    steps:
+      - run:
+          name: Remove qa deploy tag env-auqa-api and env-usqa-api from current candidate
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+              nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-auqa-api,env-usqa-api
+      - run:
+          name: Add deployment tag env-auqa-api and env-usqa-api for qa environment
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-auqa-api,env-usqa-api --version ${CIRCLE_SHA1}
+
+  prod-deploy:
+    <<: *defaults
+    steps:
+      - run:
+          name: Remove prod deploy tag env-au-api and env-us-api from current candidate
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+            nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api
+      - run:
+          name: Add deployment tag env-au-api and env-us-api for prod environment
+          command: |
+            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api --version ${CIRCLE_SHA1}
+
+  regression-check-prod:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Check regression in us-api prod
+          command: |
+            ENV=us-api
+      - run: *regression-check
+      - run:
+          name: Check regression in au-api prod
+          command: |
+            ENV=au-api
+      - run: *regression-check
+
+  regression-check-with-qa:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Check regression in usqa-api
+          command: |
+            ENV=usqa-api
+      - run: *regression-check
+      - run:
+          name: Check regression in auqa-api
+          command: |
+            ENV=auqa-api
+      - run: *regression-check
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - regression-check-with-qa:
+          filters:
+            branches:
+              only: master
+      - dev-deploy-hold:
+          type: approval
+          requires:
+            - build
+      - dev-deploy:
+          requires:
+            - dev-deploy-hold
+      - qa-deploy-hold:
+          type: approval
+          requires:
+            - build
+      - regression-check-qa:
+          requires:
+            - qa-deploy-hold
+      - qa-deploy:
+          requires:
+            - regression-check-qa
+      - prod-deploy-hold:
+          type: approval
+          requires:
+            - qa-deploy
+      - regression-check-prod:
+          requires:
+            - prod-deploy-hold
+      - prod-deploy:
+          requires:
+            - regression-check-prod

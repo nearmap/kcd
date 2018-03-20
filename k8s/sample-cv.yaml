@@ -1,0 +1,12 @@
+apiVersion: custom.k8s.io/v1
+kind: ContainerVersion
+metadata:
+  name: photos-cv
+  namespace: photos
+spec:
+  imageRepo: 973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/sourcephotos
+  tag: env-audev-api
+  checkFrequency: 5
+  deployment:
+    name: photosapp
+    container: photosapp-container
