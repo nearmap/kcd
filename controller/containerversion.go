@@ -61,7 +61,7 @@ type configKey struct {
 	ns   string
 }
 
-// NewController returns a new container version controller
+// NewCVController returns a new container version controller
 func NewCVController(configMapKey string, k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
 	statsInstance stats.Stats) (*CVController, error) {
@@ -140,6 +140,7 @@ func NewCVController(configMapKey string, k8sCS kubernetes.Interface, customCS c
 	return cvc, nil
 }
 
+// Run starts the cv controller so it starts acting as cvcontroller
 func (c *CVController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()

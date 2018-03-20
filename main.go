@@ -144,7 +144,6 @@ func newRunCommand() *cobra.Command {
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
 		if err = cvc.Run(2, stopCh); err != nil {
-			scStatus = 2
 			log.Printf("Shutting down container version controller: %v", err)
 			return errors.Wrap(err, "Shutting down container version controller")
 		}
