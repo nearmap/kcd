@@ -35,11 +35,12 @@ var configRule, _ = regexp.Compile("([0-9A-Za-z_]*)/([0-9A-Za-z_]*)")
 func NameAccountRegionFromARN(arn string) (repoName, accountID, region string, err error) {
 	rs := ecrRule.FindStringSubmatch(arn)
 	if len(rs) != 4 {
-		return "", "", "", errors.Errorf("ect repo %s is not valid", arn)
+		return "", "", "", errors.Errorf("ecr repo %s is not valid", arn)
 	}
 	return rs[3], rs[1], rs[2], nil
 }
 
+// Syncer offers capability to periodically sync with docker registry
 type Syncer interface {
 	Sync() error
 }
@@ -65,6 +66,7 @@ type ECRSyncer struct {
 	stats stats.Stats
 }
 
+// SyncConfig describes the arguments required by Syncer
 type SyncConfig struct {
 	Freq    int
 	Tag     string
@@ -90,11 +92,12 @@ func (sc *SyncConfig) validate() bool {
 	return sc.RepoARN != "" && sc.Tag != "" && sc.Deployment != "" && sc.Container != ""
 }
 
+// NewSyncer provides new reference to AWS ECR for periodic Sync
 func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *SyncConfig,
 	stats stats.Stats) (*ECRSyncer, error) {
 
 	if !sc.validate() {
-		return nil, errors.New(fmt.Sprintf("Invalid sync configurations found %v", sc))
+		return nil, fmt.Errorf("Invalid sync configurations found %v", sc)
 	}
 
 	var err error
@@ -137,6 +140,9 @@ func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *S
 	return syncer, nil
 }
 
+// Sync starts the periodic action of checking with ECR repository
+// and acting if differences are found. In case of different expected
+// version is identified, deployment roll-out is performed
 func (s *ECRSyncer) Sync() error {
 	log.Printf("Beginning sync....at every %dm", s.Config.Freq)
 	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.Config.Freq))
@@ -168,7 +174,7 @@ func (s *ECRSyncer) doSync() error {
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.Config.Tag), "", "error",
 			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "More than one image with tag was found")
-		return errors.New(fmt.Sprintf("Bad state: More than one image was tagged with %s", s.Config.Tag))
+		return fmt.Errorf("Bad state: More than one image was tagged with %s", s.Config.Tag)
 	}
 
 	img := result.ImageDetails[0]
@@ -186,7 +192,7 @@ func (s *ECRSyncer) doSync() error {
 		return errors.Wrap(err, "failed to read deployment ")
 	}
 	if ci, err := s.checkDeployment(currentVersion, d); err != nil {
-		if err == VersionMismatchErr {
+		if err == ErrVersionMismatch {
 			s.deploy(ci, d)
 		} else {
 			// Check version raises events as deemed necessary .. for other issues log is ok for now
@@ -289,7 +295,7 @@ func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, e
 					fmt.Sprintf("ECR repo mismatch present %s and requested  %s don't match", parts[0], s.Config.RepoARN), "", "error",
 					time.Now().UTC(), s.Config.Tag, s.Config.accountID)
 				s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "ECR Repository mismatch was found")
-				return "", ValidationErr
+				return "", ErrValidation
 			}
 			if tag != parts[1] {
 				if s.validate(tag) != nil {
@@ -297,9 +303,9 @@ func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, e
 						fmt.Sprintf("Failed to validate image with tag %s", tag), "", "error",
 						time.Now().UTC(), s.Config.Tag, s.Config.accountID)
 					s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "Candidate version failed validation")
-					return "", ValidationErr
+					return "", ErrValidation
 				}
-				return tag, VersionMismatchErr
+				return tag, ErrVersionMismatch
 			}
 		}
 	}

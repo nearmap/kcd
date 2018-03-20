@@ -20,8 +20,8 @@ func SetupSignalHandler() (stopCh <-chan struct{}) {
 	return stop
 }
 
-// SetupSignalHandler registered for SIGINT. A stop channel is returned
-// which is closed on one of these signals.
+// SetupTwoWaySignalHandler registered for SIGINT. It is a
+// two way signal handler
 func SetupTwoWaySignalHandler() chan os.Signal {
 	stop := make(chan os.Signal)
 	signal.Notify(stop, os.Interrupt)

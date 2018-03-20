@@ -22,8 +22,10 @@ func Resource(resource string) schema.GroupResource {
 }
 
 var (
+	// SchemeBuilder for CV resource
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	AddToScheme   = SchemeBuilder.AddToScheme
+	// AddToScheme for CV resource
+	AddToScheme = SchemeBuilder.AddToScheme
 )
 
 // Adds the list of known types to api.Scheme.

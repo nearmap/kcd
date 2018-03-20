@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+// DataDogStats is statsd client wrapper
 type DataDogStats struct {
 	sync.Mutex
 
@@ -38,38 +39,12 @@ func New(address, namespace string, tags ...string) (*DataDogStats, error) {
 	}, nil
 }
 
+// Close closes statsd client
 func (stats *DataDogStats) Close() error {
 	return stats.client.Close()
 }
 
-func (stats *DataDogStats) IncErrorCount() {
-	err := stats.client.Incr("error", nil, 1.0)
-	if err != nil {
-		log.Printf("Error sending Error metric: %+v", err)
-	}
-}
-
-func (stats *DataDogStats) IncRequestCount() {
-	err := stats.client.Incr("request", nil, 1.0)
-	if err != nil {
-		log.Printf("Error sending Request metric: %+v", err)
-	}
-}
-
-func (stats *DataDogStats) IncAuthFailureCount() {
-	err := stats.client.Incr("auth.failure", nil, 1.0)
-	if err != nil {
-		log.Printf("Error sending AuthFailure metric: %+v", err)
-	}
-}
-
-func (stats *DataDogStats) IncBadRequestCount() {
-	err := stats.client.Incr("client.error", nil, 1.0)
-	if err != nil {
-		log.Printf("Error sending ClientError metric: %+v", err)
-	}
-}
-
+// IncCount is used to capture stats are are continuous and increment it by 1
 func (stats *DataDogStats) IncCount(name string, tags ...string) {
 	log.Printf("sending %s metric of tag %s", name, tags)
 	err := stats.client.Incr(name, tags, 1.0)
@@ -78,6 +53,7 @@ func (stats *DataDogStats) IncCount(name string, tags ...string) {
 	}
 }
 
+// IncCountBy decrement stats by specified value
 func (stats *DataDogStats) IncCountBy(name string, value int64, tags ...string) {
 	err := stats.client.Count(name, value, tags, 1.0)
 	if err != nil {
@@ -85,6 +61,7 @@ func (stats *DataDogStats) IncCountBy(name string, value int64, tags ...string) 
 	}
 }
 
+// DecCount decrement stats by 1
 func (stats *DataDogStats) DecCount(name string, tags ...string) {
 	err := stats.client.Decr(name, tags, 1.0)
 	if err != nil {
@@ -92,6 +69,7 @@ func (stats *DataDogStats) DecCount(name string, tags ...string) {
 	}
 }
 
+// DecCountBy decrement stats by specified value
 func (stats *DataDogStats) DecCountBy(name string, value int64, tags ...string) {
 	err := stats.client.Count(name, -1*value, tags, 1.0)
 	if err != nil {
@@ -99,12 +77,14 @@ func (stats *DataDogStats) DecCountBy(name string, value int64, tags ...string) 
 	}
 }
 
+// ElapsedTime captures the timing based on start time and current time
 func (stats *DataDogStats) ElapsedTime(start time.Time, name string, tags ...string) {
 	log.Printf("sending %s metric of tag %s", name, tags)
 	elapsed := time.Since(start)
 	stats.Duration(elapsed, name, tags...)
 }
 
+// Duration captures the duration as timing stats
 func (stats *DataDogStats) Duration(duration time.Duration, name string, tags ...string) {
 	// time.Nanosecond / time.Milisecond below
 	// gives us the ratio between the two constants, which we multiply by
@@ -115,6 +95,7 @@ func (stats *DataDogStats) Duration(duration time.Duration, name string, tags ..
 	}
 }
 
+// Gauge generates Gauge
 func (stats *DataDogStats) Gauge(name string, value int64, tags ...string) {
 	err := stats.client.Gauge(name, float64(value), tags, 1.0)
 	if err != nil {
@@ -122,6 +103,7 @@ func (stats *DataDogStats) Gauge(name string, value int64, tags ...string) {
 	}
 }
 
+// Histogram generates Histogram
 func (stats *DataDogStats) Histogram(name string, value int64, tags ...string) {
 	err := stats.client.Histogram(name, float64(value), tags, 1.0)
 	if err != nil {
@@ -129,6 +111,8 @@ func (stats *DataDogStats) Histogram(name string, value int64, tags ...string) {
 	}
 }
 
+// Event contains details of an activity that was captured and
+// notifies it to stats backend
 func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time.Time, tags ...string) {
 	log.Printf("sending %s event metric of value %s and tag %s", title, mesg, tags)
 	event := &statsd.Event{
@@ -161,8 +145,10 @@ func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time
 	}
 }
 
+// ServiceCheck notifies monitoring backend about the status of
+// service (Ok/Warning/Critical/Unknow).
 func (stats *DataDogStats) ServiceCheck(name, mesg string, status int, timestamp time.Time, tags ...string) {
-	log.Printf("sending %s service check metric of value %s and tag %s", name, status, tags)
+	log.Printf("sending %s service check status %d and tag %s", name, status, tags)
 	sc := &statsd.ServiceCheck{
 		Name:      stats.client.Namespace + name + ".sc",
 		Message:   mesg,

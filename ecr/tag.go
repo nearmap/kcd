@@ -29,6 +29,8 @@ type tagger struct {
 	stats stats.Stats
 }
 
+// NewTagger provides reference to Tagger and offers capability
+// to add/remove/get tags of ECR repos
 func NewTagger(sess *session.Session, stats stats.Stats) *tagger {
 
 	return &tagger{
