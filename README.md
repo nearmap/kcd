@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=ff97517c4d9c98cb6b3c0bf1723d611d61f463cd)](https://circleci.com/gh/nearmap/cvmanager)[![Code Quality](https://goreportcard.au-api.nearmap.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.au-api.nearmapdev.com/report/github.com/nearmap/cvmanager)
+[![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=93af09aa5fc11f748443e0e9ff4b79bb47b80bc7)](https://circleci.com/gh/nearmap/cvmanager)[![Code Quality](https://goreportcard.au-api.nearmap.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.au-api.nearmapdev.com/report/github.com/nearmap/cvmanager)
 
 # cvmanager
 Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 

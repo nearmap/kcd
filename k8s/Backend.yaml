@@ -38,7 +38,7 @@ objects:
               effect: NoSchedule
           containers:
             - name: cvmanagerapp-container
-              image: 973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager:$(VERSION)
+              image: nearmap/cvmanager:$(VERSION)
               ports:
                 - containerPort: 20419
               args:
@@ -62,7 +62,6 @@ objects:
     apiVersion: v1
     data:
       region: "$(REGION)"
-      # This version will be used for sp jobs that are spun by SP service
       version: $(VERSION)
     metadata:
       name: cvmanager
