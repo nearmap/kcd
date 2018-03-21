@@ -403,7 +403,6 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--sync=%d", cv.Spec.CheckFrequency),
 								fmt.Sprintf("--configKey=%s", configKey),
-								"--use-fluentd-log",
 							},
 							Env: []corev1.EnvVar{{
 								Name: "INSTANCENAME",

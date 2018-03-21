@@ -97,7 +97,7 @@ func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *S
 	stats stats.Stats) (*ECRSyncer, error) {
 
 	if !sc.validate() {
-		return nil, fmt.Errorf("Invalid sync configurations found %v", sc)
+		return nil, errors.Errorf("Invalid sync configurations found %v", sc)
 	}
 
 	var err error
@@ -174,7 +174,7 @@ func (s *ECRSyncer) doSync() error {
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.Config.Tag), "", "error",
 			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "More than one image with tag was found")
-		return fmt.Errorf("Bad state: More than one image was tagged with %s", s.Config.Tag)
+		return errors.Errorf("Bad state: More than one image was tagged with %s", s.Config.Tag)
 	}
 
 	img := result.ImageDetails[0]

@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Stats allows sending increment, service check and event message
+// to statsd backend
 type Stats interface {
 	// IncCount captures the continuous stats (identified by name)
 	// and delivers it to statsd backend
@@ -19,9 +21,12 @@ type Stats interface {
 	Event(title, mesg, aggKey, typ string, timestamp time.Time, tags ...string)
 }
 
+// FakeStats implements Stats interface wherein for instead of sending the stats
+// backend, it just logs the messages.
 type FakeStats struct {
 }
 
+// NewFake return an instance of FakeStats
 func NewFake() *FakeStats {
 	log.Printf("Fake stats client in use. Stats are not sent!")
 	return &FakeStats{}
