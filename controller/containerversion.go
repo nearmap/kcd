@@ -393,7 +393,7 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 					Containers: []corev1.Container{
 						{
 							Name:  fmt.Sprintf("%s-container", dName),
-							Image: fmt.Sprintf("973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager:%s", version),
+							Image: fmt.Sprintf("nearmap/cvmanager:%s", version),
 							Args: []string{
 								"ecr-sync",
 								fmt.Sprintf("--tag=%s", cv.Spec.Tag),

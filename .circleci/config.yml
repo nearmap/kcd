@@ -27,8 +27,6 @@ jobs:
           name: Build cvmanager container image
           command: |
             `aws ecr get-login --no-include-email --region ap-southeast-2`
-            docker pull ${ECR_ENDPOINT}/nearmap/golang
-            docker tag ${ECR_ENDPOINT}/nearmap/golang nearmap/golang
             docker build -t nearmap/cvmanager .
       - run:
           name: Run unit and integration tests
@@ -39,7 +37,7 @@ jobs:
       - run:
           name: Go Report Card
           command: |
-              curl -X POST https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager
+              curl -X POST -F 'repo=github.com/nearmap/cvmanager'  https://goreportcard.au-api.nearmap.com/checks
               echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager"
       - deploy:
           name: Push application docker image
@@ -109,7 +107,7 @@ jobs:
           command: |
             docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
               -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api --version ${CIRCLE_SHA1}
+            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api,latest --version ${CIRCLE_SHA1}
 
   push-to-dockerio:
     <<: *defaults
@@ -181,19 +179,20 @@ workflows:
       - qa-deploy:
           requires:
             - regression-check-qa
-      - prod-deploy-hold:
-          type: approval
-          requires:
-            - qa-deploy
       - regression-check-prod:
-          requires:
-            - prod-deploy-hold
+          filters:
+            branches:
+              only: master
       - prod-deploy:
+          filters:
+            branches:
+              only: master
           requires:
             - regression-check-prod
       - push-to-dockerio:
           filters:
             branches:
               only: master
-          requires:
-            - prod-deploy-hold
+          filters:
+            branches:
+              only: master
