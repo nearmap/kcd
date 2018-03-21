@@ -111,6 +111,20 @@ jobs:
               -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
             nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api --version ${CIRCLE_SHA1}
 
+  push-to-dockerio:
+    <<: *defaults
+    steps:
+      - run:
+          name: Push image to dockerio
+          command: |
+            `aws ecr get-login --no-include-email --region ap-southeast-2`
+            docker pull ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
+            docker tag ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1} nearmap/cvmanager:latest
+
+            docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}
+            docker tag nearmap/cvmanager:latest nearmap/cvmanager:${CIRCLE_SHA1}
+            docker push nearmap/cvmanager:${CIRCLE_SHA1}
+
   regression-check-prod:
     <<: *defaults
     steps:
@@ -177,3 +191,9 @@ workflows:
       - prod-deploy:
           requires:
             - regression-check-prod
+      - push-to-dockerio:
+          filters:
+            branches:
+              only: master
+          requires:
+            - prod-deploy-hold
