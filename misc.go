@@ -27,7 +27,7 @@ func newECRTagCommand() *cobra.Command {
 
 	var params ecrTagParams
 
-	cmd.PersistentFlags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. 973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager")
+	cmd.PersistentFlags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. nearmap/cvmanager")
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
 	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of ECR image that is being tagged")
 	(&params.stats).addFlags(cmd)

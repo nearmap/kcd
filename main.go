@@ -32,7 +32,7 @@ func main() {
 func withExitCode() int {
 	root := &cobra.Command{
 		Short: "cvmanager",
-		Long:  "Controller for k8s",
+		Long:  "Container Version Manager (cvmanager): a custom controller and tooling to manage CI/CD on kubernetes clusters",
 	}
 
 	root.AddCommand(newRunCommand())
@@ -91,7 +91,7 @@ func newRunCommand() *cobra.Command {
 	(&params.stats).addFlags(rc)
 
 	rc.RunE = func(cmd *cobra.Command, args []string) (err error) {
-		stats, err := params.stats.stats(params.configMapKey)
+		stats, err := params.stats.stats("cvmanager")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
@@ -180,7 +180,7 @@ func newECRSyncCommand() *cobra.Command {
 	var params ecrSyncParams
 	cmd.Flags().IntVar(&params.syncFreq, "sync", 5, "Sync frequency in minutes")
 	cmd.Flags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
-	cmd.Flags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. 973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager")
+	cmd.Flags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. nearmap/cvmanager")
 	cmd.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace")
 	cmd.Flags().StringVar(&params.deployment, "deployment", "", "name of the deployment to monitor")

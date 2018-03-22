@@ -80,3 +80,4 @@ parameters:
     description: "version of the application for deployment"
     required: true
     parameterType: "string"
+    value: "latest"

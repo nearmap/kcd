@@ -4,7 +4,7 @@ metadata:
   name: photos-cv
   namespace: photos
 spec:
-  imageRepo: 973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/sourcephotos
+  imageRepo: nearmap/photos
   tag: env-audev-api
   checkFrequency: 5
   deployment:

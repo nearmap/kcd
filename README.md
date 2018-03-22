@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=93af09aa5fc11f748443e0e9ff4b79bb47b80bc7)](https://circleci.com/gh/nearmap/cvmanager)[![Code Quality](https://goreportcard.au-api.nearmap.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.au-api.nearmapdev.com/report/github.com/nearmap/cvmanager)
+[![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/cvmanager)[![Code Quality](https://goreportcard.au-api.nearmap.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.au-api.nearmapdev.com/report/github.com/nearmap/cvmanager)
 
 # cvmanager
 Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
@@ -30,7 +30,7 @@ The polling service that frequently check on ECR to see if new version should be
 ```
 INSTANCENAME=<ecrsync-tilesapp-podname> cvmanager ecr-sync \
     --tag=env-audev-api \
-    --ecr=973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/tiles \
+    --ecr=nearmap/tiles \
     --deployment=tilesapp \
     --container=tilesapp-container \
     --namespace=tiles \
@@ -47,14 +47,14 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 #### Get Tag
 ```sh
     cvmanager ecr-tags get \
-    --ecr  973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/k8s-controller  \
+    --ecr  nearmap/cvmanager  \
     --version <SHA>
 ```
 
 #### Add Tag
 ```sh
     cvmanager ecr-tags remove \
-    --ecr  973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager  \
+    --ecr  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api \
     --version <SHA>
 ```
@@ -62,7 +62,7 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 #### Remove Tag
 ```sh
     cvmanager ecr-tags remove \
-    --ecr  973383851042.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/cvmanager  \
+    --ecr  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api
 ```
 

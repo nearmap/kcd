@@ -1,6 +1,5 @@
-FROM nearmap/golang
+FROM golang:alpine
 
-ARG DEBIAN_FRONTEND=noninteractive
 
 ADD . /go/src/github.com/nearmap/cvmanager
 RUN go install github.com/nearmap/cvmanager

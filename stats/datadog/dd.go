@@ -116,7 +116,7 @@ func (stats *DataDogStats) Histogram(name string, value int64, tags ...string) {
 func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time.Time, tags ...string) {
 	log.Printf("sending %s event metric of value %s and tag %s", title, mesg, tags)
 	event := &statsd.Event{
-		Title:          title + ".event",
+		Title:          fmt.Sprintf("%s.%s.event", stats.client.Namespace, title),
 		Text:           mesg,
 		Timestamp:      timestamp,
 		AggregationKey: aggKey,
@@ -150,7 +150,7 @@ func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time
 func (stats *DataDogStats) ServiceCheck(name, mesg string, status int, timestamp time.Time, tags ...string) {
 	log.Printf("sending %s service check status %d and tag %s", name, status, tags)
 	sc := &statsd.ServiceCheck{
-		Name:      stats.client.Namespace + name + ".sc",
+		Name:      fmt.Sprintf("%s.%s.sc", stats.client.Namespace, name),
 		Message:   mesg,
 		Timestamp: timestamp,
 		Tags:      tags,
