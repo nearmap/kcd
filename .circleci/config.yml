@@ -79,7 +79,7 @@ jobs:
       - run:
           name: Set env tag
           command: |
-            echo "export ENV=prod" >> env_file
+            echo "export ENV=prod,latest" >> env_file
       - run:
           <<: *remove-env-tag
       - run:
