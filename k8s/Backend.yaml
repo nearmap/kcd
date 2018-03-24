@@ -39,6 +39,7 @@ objects:
           containers:
             - name: cvmanagerapp-container
               image: nearmap/cvmanager:$(VERSION)
+              imagePullPolicy: Always
               ports:
                 - containerPort: 20419
               args:

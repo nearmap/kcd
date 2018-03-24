@@ -4,6 +4,23 @@ defaults: &defaults
   machine: true
   working_directory: ~/go/src/github.com/nearmap/cvmanager
 
+remove-env-tag: &remove-env-tag
+  name: Remove deploy tag from current deployments
+  command: |
+    source env_file
+    docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+      -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+      nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV
+
+add-env-tag: &add-env-tag
+  name: Add deployment tag for env to this version
+  command: |
+    source env_file
+    docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+      -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+      nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
+
+
 aliases:
   - &regression-check
     |
@@ -46,7 +63,7 @@ jobs:
               docker tag nearmap/cvmanager ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
               docker push ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
 
-  regression-check-qa:
+  regression-check-qa: &regression-check-qa
     <<: *defaults
     steps:
       - checkout
@@ -65,49 +82,37 @@ jobs:
     <<: *defaults
     steps:
       - run:
-          name: Remove dev deploy tag env-audev-api and env-usdev-api from current candidate
+          name: Set env tag
           command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-              nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-audev-api,env-usdev-api
+            echo "export ENV=dev" >> env_file
       - run:
-          name: Add deployment tag env-audev-api and env-usdev-api for dev environment
-          command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-              nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-audev-api,env-usdev-api --version ${CIRCLE_SHA1}
+          <<: *remove-env-tag
+      - run:
+          <<: *add-env-tag
 
   qa-deploy:
     <<: *defaults
     steps:
       - run:
-          name: Remove qa deploy tag env-auqa-api and env-usqa-api from current candidate
+          name: Set env tag
           command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-              nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-auqa-api,env-usqa-api
+            echo "export ENV=qa" >> env_file
       - run:
-          name: Add deployment tag env-auqa-api and env-usqa-api for qa environment
-          command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-auqa-api,env-usqa-api --version ${CIRCLE_SHA1}
+          <<: *remove-env-tag
+      - run:
+          <<: *add-env-tag
 
   prod-deploy:
     <<: *defaults
     steps:
       - run:
-          name: Remove prod deploy tag env-au-api and env-us-api from current candidate
+          name: Set env tag
           command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            nearmap/cvmanager ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api
+            echo "export ENV=prod" >> env_file
       - run:
-          name: Add deployment tag env-au-api and env-us-api for prod environment
-          command: |
-            docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-              -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags env-au-api,env-us-api,latest --version ${CIRCLE_SHA1}
+          <<: *remove-env-tag
+      - run:
+          <<: *add-env-tag
 
   push-to-dockerio:
     <<: *defaults
@@ -183,6 +188,8 @@ workflows:
           filters:
             branches:
               only: master
+          requires:
+            - build
       - prod-deploy:
           filters:
             branches:
@@ -193,6 +200,5 @@ workflows:
           filters:
             branches:
               only: master
-          filters:
-            branches:
-              only: master
+          requires:
+            - prod-deploy
