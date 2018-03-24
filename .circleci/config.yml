@@ -21,20 +21,6 @@ add-env-tag: &add-env-tag
       nearmap/cvmanager ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
 
 
-aliases:
-  - &regression-check
-    |
-      echo "checking for regression with head of master"
-      MASTER_SHA=`git rev-parse master`
-      regression_diff=`git rev-list --left-right --count  $MASTER_SHA...$CIRCLE_SHA1 | awk '{print $1}'`
-      if [[ "$regression_diff" -gt "0" ]]; then
-        msg="Regresion found in exports in environment $ENV.\nCurrently deployed version $MASTER_SHA has changes thats missing in target version $CIRCLE_SHA1"
-        echo $msg
-        curl -X POST -H 'Content-type: application/json' --data '{"text":"'$msg'"}' ${SLACK_API_CHANNEL}
-      else
-        echo "All good! No regression found .. "
-      fi
-
 jobs:
   build:
     <<: *defaults
@@ -62,21 +48,6 @@ jobs:
               echo "Tagging container image with sha: ${CIRCLE_SHA1}"
               docker tag nearmap/cvmanager ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
               docker push ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
-
-  regression-check-qa: &regression-check-qa
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          name: Check regression in usqa-api
-          command: |
-            ENV=usqa-api
-      - run: *regression-check
-      - run:
-          name: Check regression in auqa-api
-          command: |
-            ENV=auqa-api
-      - run: *regression-check
 
   dev-deploy:
     <<: *defaults
@@ -128,42 +99,36 @@ jobs:
             docker tag nearmap/cvmanager:latest nearmap/cvmanager:${CIRCLE_SHA1}
             docker push nearmap/cvmanager:${CIRCLE_SHA1}
 
-  regression-check-prod:
+  regression-check-qa: &regression-check
     <<: *defaults
     steps:
       - checkout
       - run:
-          name: Check regression in us-api prod
+          name: Regression check
           command: |
-            ENV=us-api
-      - run: *regression-check
-      - run:
-          name: Check regression in au-api prod
-          command: |
-            ENV=au-api
-      - run: *regression-check
+            echo "checking for regression with head of master"
+            MASTER_SHA=`git rev-parse master`
+            regression_diff=`git rev-list --left-right --count  $MASTER_SHA...$CIRCLE_SHA1 | awk '{print $1}'`
+            if [[ "$regression_diff" -gt "0" ]]; then
+              msg="Regresion found in ${CIRCLE_PR_USERNAME}'s PR # ${CIRCLE_PR_NUMBER} ie ${CIRCLE_PULL_REQUESTS}' .\nCurrently deployed version $MASTER_SHA has changes thats missing in target version $CIRCLE_SHA1"
+              echo $msg
+              curl -X POST -H 'Content-type: application/json' --data '{"text":"'$msg'"}' ${SLACK_API_CHANNEL}
+            else
+              echo "All good! No regression found .. "
+            fi
 
-  regression-check-with-qa:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          name: Check regression in usqa-api
-          command: |
-            ENV=usqa-api
-      - run: *regression-check
-      - run:
-          name: Check regression in auqa-api
-          command: |
-            ENV=auqa-api
-      - run: *regression-check
+  regression-check-master:
+    <<: *regression-check
+
+  regression-check-prod:
+    <<: *regression-check
 
 workflows:
   version: 2
   build_and_test:
     jobs:
       - build
-      - regression-check-with-qa:
+      - regression-check-master:
           filters:
             branches:
               only: master
