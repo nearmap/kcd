@@ -75,7 +75,10 @@ func (sp *statsParams) stats(namespace string) (stats.Stats, error) {
 type runParams struct {
 	k8sConfig    string
 	configMapKey string
-	stats        statsParams
+
+	cvImgRepo string
+
+	stats statsParams
 }
 
 func newRunCommand() *cobra.Command {
@@ -88,6 +91,7 @@ func newRunCommand() *cobra.Command {
 
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
+	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
 	(&params.stats).addFlags(rc)
 
 	rc.RunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -131,7 +135,7 @@ func newRunCommand() *cobra.Command {
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
 		//Controllers here
-		cvc, err := controller.NewCVController(params.configMapKey, k8sClient, customClient,
+		cvc, err := controller.NewCVController(params.configMapKey, params.cvImgRepo, k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory, stats)
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")

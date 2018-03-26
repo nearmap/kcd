@@ -40,6 +40,8 @@ type CVController struct {
 	cluster string
 	config  *configKey
 
+	cvImgRepo string
+
 	k8sCS    kubernetes.Interface
 	customCS clientset.Interface
 
@@ -62,7 +64,7 @@ type configKey struct {
 }
 
 // NewCVController returns a new container version controller
-func NewCVController(configMapKey string, k8sCS kubernetes.Interface, customCS clientset.Interface,
+func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
 	statsInstance stats.Stats) (*CVController, error) {
 
@@ -90,6 +92,8 @@ func NewCVController(configMapKey string, k8sCS kubernetes.Interface, customCS c
 			name: name,
 			ns:   namespace,
 		},
+
+		cvImgRepo: cvImgRepo,
 
 		k8sCS:    k8sCS,
 		customCS: customCS,
@@ -393,7 +397,7 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 					Containers: []corev1.Container{
 						{
 							Name:  fmt.Sprintf("%s-container", dName),
-							Image: fmt.Sprintf("nearmap/cvmanager:%s", version),
+							Image: fmt.Sprintf("%s:%s", c.cvImgRepo, version),
 							Args: []string{
 								"ecr-sync",
 								fmt.Sprintf("--tag=%s", cv.Spec.Tag),

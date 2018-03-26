@@ -282,9 +282,10 @@ func (s *ECRSyncer) currentVersion(img *ecr.ImageDetail) string {
 
 func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, error) {
 	log.Printf("Checking deployment version %s from ECR %s for deployment %s", tag, s.Config.repoName, s.Config.Deployment)
-
+	match := false
 	for _, c := range d.Spec.Template.Spec.Containers {
 		if c.Name == s.Config.Container {
+			match = true
 			parts := strings.Split(c.Image, ":")
 			if len(parts) != 2 {
 				s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "Invalid image on container")
@@ -308,6 +309,15 @@ func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, e
 				return tag, ErrVersionMismatch
 			}
 		}
+	}
+
+	if !match {
+		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+			"No matching container found", "", "error",
+			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "No matching container found")
+
+		return "", errors.Errorf("No container of name %s was found in deployment %s", s.Config.Container, s.Config.Deployment)
 	}
 
 	log.Printf("Deployment %s is upto date deployment", s.Config.Deployment)
