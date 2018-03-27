@@ -29,14 +29,12 @@ The polling service that frequently check on ECR to see if new version should be
 ### Run locally
 ```
 INSTANCENAME=<ecrsync-tilesapp-podname> cvmanager ecr-sync \
-    --tag=env-audev-api \
+    --tag=dev \
     --ecr=nearmap/tiles \
     --deployment=tilesapp \
     --container=tilesapp-container \
-    --namespace=tiles \
+    --namespace=default \
     --sync=1 \
-    --configKey=tiles/version \
-    --use-fluentd-log \
     --k8s-config ~/.kube/config
 ```
 
@@ -85,6 +83,10 @@ docker run -ti  nearmap/cvmanager <command>
 
 ## Supporting other docker registries
 We plan to support other docker registries as well in future via cvmanager. Dockerhub was first consideration however given [tags on dockerhub can not yet be removed via API](https://github.com/docker/hub-feedback/issues/68) this feature is still into consideration. 
+
+1. https://github.com/kubernetes/kubernetes/issues/33664
+2. https://github.com/kubernetes/kubernetes/issues/11348
+3. https://github.com/kubernetes/kubernetes/issues/1697
 
 
 #### Reference links

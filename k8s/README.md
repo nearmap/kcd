@@ -1,43 +1,62 @@
 
-# Custom resource definition (CRD)
+# Deployment of cvmanager
 
-Contains CRDs:
-- ContainerVersion [CR](cv-crd.yaml)
+CVManager can be deployed using:
 
-## Container version
+1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
+2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager/cvmanager-0.1.0.tgz)
 
-```sh
-kubectl apply -f  k8s/cv-crd.yaml
+
+# ContainerVersion: a Custom Kubernetes Resource 
+ContainerVersion is essentially a custom kubernetes resource definition (CRD) which is controller by the CVManager (a k8s controller). The spec of ContainerVersion is specified [here](kubectl/cv-crd.yaml). 
+
+An example of CV resource is:
+```yaml
+apiVersion: custom.k8s.io/v1
+kind: ContainerVersion
+metadata:
+  name: photos-cv
+  namespace: photos
+spec:
+  imageRepo: nearmap/photos
+  tag: dev
+  checkFrequency: 5
+  deployment:
+    name: photosapp
+    container: photosapp-container
 ```
 
-#### example
+And an example creation of CV resource is:
 ```sh
-kubectl apply -f k8s/sample-cv.yaml  
+cat <<EOF | kubectl create -f -
+apiVersion: custom.k8s.io/v1
+kind: ContainerVersion
+metadata:
+  name: photos-cv
+  namespace: photos
+spec:
+  imageRepo: nearmap/photos
+  tag: dev
+  checkFrequency: 5
+  deployment:
+    name: photosapp
+    container: photosapp-container
+EOF
 ```
 
-
-On API server these are assessible by:
+When ContainerVersion CRD is defined using (or with helm):
+```sh
+kubectl apply -f  kubectl/cv-crd.yaml
+```
+and are avaialble on API server at following interface:
 http://localhost:8001/apis/custom.k8s.io/v1/containerversions/
 http://localhost:8001/apis/custom.k8s.io/v1/namespaces/photos/containerversions
 
 and using *kubectl*:
 ```sh
-    kubectl get cv --all-namespaces --v=8
+    kubectl get cv --all-namespaces
 ```
 
 
-# Deploy cvmanager
-## Configuration on k8s cluster
-Uses [ktmpl](https://github.com/jimmycuadra/ktmpl) based [tool](https://hub.docker.com/r/nearmap/nktmpl/) for yaml templating:
 
-## Deploy controller service
-*Run*
-```
-docker run -ti -v `pwd`:/config nearmap/nktmpl Backend.yaml --parameter ENV dev --parameter VERSION <SHA> |  kubectl apply -f -
-```
-
-*Delete*
-```
-docker run -ti -v `pwd`:/config nearmap/nktmpl Backend.yaml --parameter ENV dev --parameter VERSION <SHA> |  kubectl delete -f -
-```
 

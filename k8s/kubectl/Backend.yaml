@@ -41,7 +41,7 @@ objects:
               image: nearmap/cvmanager:$(VERSION)
               imagePullPolicy: Always
               ports:
-                - containerPort: 20419
+                - containerPort: 80
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
@@ -59,6 +59,23 @@ objects:
                   configMapKeyRef:
                     name: cvmanager
                     key: region
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: cvmanagerapp
+      namespace: kube-system
+      labels:
+        app: cvmanager
+    spec:
+      type: NodePort
+      ports:
+        - port: 80
+          targetPort: http
+          protocol: TCP
+          name: http
+      selector:
+        app: cvmanager
   - kind: ConfigMap
     apiVersion: v1
     data:
@@ -73,10 +90,6 @@ parameters:
     required: true
     parameterType: "string"
     value: "ap-southeast-2"
-  - name: "ENV"
-    description: "Name of the cluster"
-    required: true
-    parameterType: "string"
   - name: "VERSION"
     description: "version of the application for deployment"
     required: true
