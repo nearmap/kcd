@@ -24,7 +24,7 @@ import (
 //     <hr>
 //     <p class="noteContent">{{.Version}}</p>
 //     <hr>
-//     <p class="noteContent">{{.Status}}</p>
+//     <p class="noteContent">{{.AvailablePods}}</p>
 //     </ul>
 //     </span>
 // </div>
@@ -32,11 +32,11 @@ import (
 // `
 
 type CVStatus struct {
-	Namespace  string
-	Deployment string
-	Container  string
-	Version    string
-	Status     bool
+	Namespace     string
+	Deployment    string
+	Container     string
+	Version       string
+	AvailablePods int
 }
 
 func getCVs(cs kubernetes.Interface, customCS clientset.Interface) ([]*CVStatus, error) {
@@ -55,11 +55,11 @@ func getCVs(cs kubernetes.Interface, customCS clientset.Interface) ([]*CVStatus,
 		for _, c := range dd.Spec.Template.Spec.Containers {
 			if cv.Spec.Deployment.Container == c.Name {
 				cvsList = append(cvsList, &CVStatus{
-					Namespace:  cv.Namespace,
-					Deployment: dd.Name,
-					Container:  c.Name,
-					Version:    strings.SplitAfterN(c.Image, ":", 2)[1],
-					Status:     dd.Status.AvailableReplicas > 0,
+					Namespace:     cv.Namespace,
+					Deployment:    dd.Name,
+					Container:     c.Name,
+					Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
+					AvailablePods: dd.Status.AvailableReplicas,
 				})
 			}
 		}
@@ -77,13 +77,17 @@ func genCVHTML(w io.Writer, cvs []*CVStatus) error {
 	return nil
 }
 
+func ExecuteCVStatusList(w io.Writer, cs kubernetes.Interface, customCS clientset.Interface) error {
+	cvs, err := getCVs(cs, customCS)
+	if err != nil {
+		return errors.Wrap(err, "Failed to generate template of CV list")
+	}
+	return genCVHTML(w, cvs)
+}
+
 func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cvs, err := getCVs(cs, customCS)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
-		err = genCVHTML(w, cvs)
+		err := ExecuteCVStatusList(w, cs, customCS)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}

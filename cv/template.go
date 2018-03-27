@@ -26,7 +26,7 @@ const cvListHTML = `
                         <th scope="col">Deployment</th>
                         <th scope="col">Container</th>
                         <th scope="col">Version</th>
-                        <th scope="col">Status</th>
+                        <th scope="col">Available pods/Status</th>
                     </tr>
                     </thead>
                     <!-- Table footer -->
@@ -43,7 +43,7 @@ const cvListHTML = `
 					    <td>{{.Deployment}}</td>
 					    <td>{{.Container}}</td>
 					    <td>{{.Version}}</td>
-					    <td>{{.Status}}</td>
+					    <td>{{.AvailablePods}}</td>
                     </tr>
                     {{end}}
                     </tbody>

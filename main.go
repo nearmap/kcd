@@ -39,6 +39,7 @@ func withExitCode() int {
 	root.AddCommand(newRunCommand())
 	root.AddCommand(newECRSyncCommand())
 	root.AddCommand(newECRTagCommand())
+	root.AddCommand(newCVCommand())
 
 	// TODO: recover
 	err := root.Execute()
