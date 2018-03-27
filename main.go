@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/nearmap/cvmanager/controller"
+	"github.com/nearmap/cvmanager/cv"
 	"github.com/nearmap/cvmanager/ecr"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	informer "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
+	"github.com/nearmap/cvmanager/handler"
 	"github.com/nearmap/cvmanager/signals"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/stats/datadog"
@@ -135,7 +136,7 @@ func newRunCommand() *cobra.Command {
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
 		//Controllers here
-		cvc, err := controller.NewCVController(params.configMapKey, params.cvImgRepo, k8sClient, customClient,
+		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo, k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory, stats)
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")
@@ -147,10 +148,13 @@ func newRunCommand() *cobra.Command {
 
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
-		if err = cvc.Run(2, stopCh); err != nil {
-			log.Printf("Shutting down container version controller: %v", err)
-			return errors.Wrap(err, "Shutting down container version controller")
-		}
+		go func() {
+			if err = cvc.Run(2, stopCh); err != nil {
+				log.Printf("Shutting down container version controller: %v", err)
+				//return errors.Wrap(err, "Shutting down container version controller")
+			}
+		}()
+		handler.NewServer(k8sClient, customClient, stopCh)
 
 		return nil
 	}

@@ -41,7 +41,7 @@ objects:
               image: nearmap/cvmanager:$(VERSION)
               imagePullPolicy: Always
               ports:
-                - containerPort: 80
+                - containerPort: 8081
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
