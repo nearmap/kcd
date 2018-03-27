@@ -31,6 +31,9 @@ import (
 // {{end}}
 // `
 
+// CVStatus maintains a high level status of deployments managed by
+// CV resources including version of current deploy and number of available pods
+// from this deployment/relicaset
 type CVStatus struct {
 	Namespace     string
 	Deployment    string
@@ -77,6 +80,8 @@ func genCVHTML(w io.Writer, cvs []*CVStatus) error {
 	return nil
 }
 
+// ExecuteCVStatusList generates HTML tabular text listing all status of all CV managed resource
+// as represented by CVStatus
 func ExecuteCVStatusList(w io.Writer, cs kubernetes.Interface, customCS clientset.Interface) error {
 	cvs, err := getCVs(cs, customCS)
 	if err != nil {
@@ -85,6 +90,8 @@ func ExecuteCVStatusList(w io.Writer, cs kubernetes.Interface, customCS clientse
 	return genCVHTML(w, cvs)
 }
 
+// NewCVHandler is web handler to generate HTML tabular text listing all status of all CV managed resource
+// as represented by CVStatus
 func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := ExecuteCVStatusList(w, cs, customCS)
