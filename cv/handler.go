@@ -39,7 +39,7 @@ type CVStatus struct {
 	Deployment    string
 	Container     string
 	Version       string
-	AvailablePods int
+	AvailablePods int32
 }
 
 func getCVs(cs kubernetes.Interface, customCS clientset.Interface) ([]*CVStatus, error) {

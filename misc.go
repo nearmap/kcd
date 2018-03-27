@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/nearmap/cvmanager/cv"
 	"github.com/nearmap/cvmanager/ecr"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	"github.com/nearmap/cvmanager/signals"
+	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
@@ -16,35 +19,215 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type ecrTagParams struct {
+type DRProvider int
+
+const (
+	ECR DRProvider = iota
+	DOCKERHUB
+)
+
+func (dr DRProvider) String() string {
+	switch dr {
+	case ECR:
+		return "ecr"
+	case DOCKERHUB:
+		return "dockerhub"
+	default:
+		return "ecr"
+	}
+}
+
+func NewDRProvider(typ string) (DRProvider, error) {
+	switch typ {
+	case "ecr":
+		return ECR, nil
+	case "dockerhub":
+		return DOCKERHUB, nil
+	default:
+		return ECR, errors.New("Request docker registry is not supported")
+	}
+}
+
+type drRoot struct {
+	*cobra.Command
+
+	stats stats.Stats
+	sess  *session.Session
+
+	stopChan chan os.Signal
+
+	params *drParams
+}
+
+type drParams struct {
+	tag      string
+	ecr      string
+	provider string
+
+	stats statsParams
+}
+
+func newDRRootCommand() *drRoot {
+	var params drParams
+
+	root := &drRoot{
+		params: &params,
+		Command: &cobra.Command{
+			Use:   "dr",
+			Short: "Command to perform docker registry operations",
+			Long:  "Command to perform docker registry operations such as registry sync, tag images etc",
+		},
+	}
+	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
+	root.PersistentFlags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. nearmap/cvmanager")
+	root.PersistentFlags().StringVar(&params.provider, "provider", "ecr", "Identifier for docker registry provider. Supported values are ecr/dockerhub")
+	(&params.stats).addFlags(root.Command)
+
+	root.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		if params.ecr == "" {
+			return errors.New("ECR repository name/URI must be provided")
+		}
+		return nil
+	}
+
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		var err error
+
+		root.sess, err = session.NewSession()
+		if err != nil {
+			return errors.Wrap(err, "failed to obtain AWS session")
+		}
+		root.stopChan = signals.SetupTwoWaySignalHandler()
+
+		return nil
+	}
+
+	return root
+}
+
+type drSyncParams struct {
+	k8sConfig string
+	namespace string
+
+	syncFreq int
+
+	deployment string
+	container  string
+
+	configKey string
+}
+
+func newDRSyncCommand(root *drRoot) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sync",
+		Short: "Poll ECR to check for deployoments",
+		Long:  "Continuously polls ECR to check if the a service deployment needs updates and if so, performs the update via k8s APIs",
+	}
+
+	var params drSyncParams
+	cmd.Flags().IntVar(&params.syncFreq, "sync", 5, "Sync frequency in minutes")
+	cmd.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
+	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace")
+	cmd.Flags().StringVar(&params.deployment, "deployment", "", "name of the deployment to monitor")
+	cmd.Flags().StringVar(&params.container, "container", "", "name of the container in specified deployment to monitor")
+	cmd.Flags().StringVar(&params.configKey, "configKey", "", "full path key of configmap containing version in format <configmapname>/<key> eg photos/version")
+
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		if root.params.tag == "" || params.deployment == "" || params.namespace == "" || params.container == "" {
+			return errors.New("Deployment, ecr repository name, tag, namespace, container to watch on must be provided.")
+		}
+		return nil
+	}
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		log.Print("Starting ECR Sync")
+
+		stats, err := root.params.stats.stats(fmt.Sprintf("%s/%s", params.namespace, params.deployment))
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize stats")
+		}
+
+		scStatus := 0
+		defer stats.ServiceCheck("drsync.exec", "", scStatus, time.Now())
+
+		// sess, err := session.NewSession()
+		// if err != nil {
+		// 	return errors.Wrap(err, "failed to obtain AWS session")
+		// }
+		// stopChan := signals.SetupTwoWaySignalHandler()
+
+		var cfg *rest.Config
+		if params.k8sConfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", params.k8sConfig)
+		} else {
+			cfg, err = rest.InClusterConfig()
+		}
+		if err != nil {
+			scStatus = 2
+			log.Printf("Failed to get k8s config: %v", err)
+			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
+		}
+
+		k8sClient, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			scStatus = 2
+			log.Printf("Error building k8s clientset: %v", err)
+			return errors.Wrap(err, "Error building k8s clientset")
+		}
+
+		ecrSyncer, err := ecr.NewSyncer(root.sess, k8sClient, params.namespace, &ecr.SyncConfig{
+			Freq:       params.syncFreq,
+			Tag:        root.params.tag,
+			RepoARN:    root.params.ecr,
+			Deployment: params.deployment,
+			Container:  params.container,
+			ConfigKey:  params.configKey,
+		}, stats)
+		if err != nil {
+			log.Printf("Failed to create syncer with syncfrequnecy=%v, ecrName=%v, tag=%v, deployment=%v, error=%v",
+				params.syncFreq, root.params.ecr, root.params.tag, params.deployment, err)
+			return errors.Wrap(err, "Failed to create syncer")
+		}
+
+		log.Printf("Starting ECR syncer with syncfrequnecy=%v, ecrName=%v, tag=%v, deployment=%v",
+			params.syncFreq, root.params.ecr, root.params.tag, params.deployment)
+
+		stats.ServiceCheck("drsync.exec", "", scStatus, time.Now())
+		go func() {
+			if err := ecrSyncer.Sync(); err != nil {
+				log.Printf("Server error during ecr sync: %v", err)
+				root.stopChan <- os.Interrupt
+			}
+		}()
+
+		<-root.stopChan
+		log.Printf("ECRsync Server gracefully stopped")
+
+		return nil
+	}
+
+	return cmd
+}
+
+type drTagParams struct {
 	tags    []string
-	ecr     string
 	version string
 
 	stats statsParams
 }
 
-// newECRTagCommand is CLI interface to managing tags on ECR images
-func newECRTagCommand() *cobra.Command {
+// newDRTagCommand is CLI interface to managing tags on ECR images
+func newDRTagCommand(root *drRoot) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "ecr-tags",
+		Use:   "tags",
 		Short: "Manages tags of ECR repository",
 		Long:  "Manages adds/removes tags on ECR repositories",
 	}
 
-	var params ecrTagParams
+	var params drTagParams
 
-	cmd.PersistentFlags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. nearmap/cvmanager")
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
 	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of ECR image that is being tagged")
-	(&params.stats).addFlags(cmd)
-
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		if params.ecr == "" {
-			return errors.New("ecr repository is required.")
-		}
-		return nil
-	}
 
 	addTagCmd := &cobra.Command{
 		Use:   "add",
@@ -58,17 +241,12 @@ func newECRTagCommand() *cobra.Command {
 		return nil
 	}
 	addTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		sess, err := session.NewSession()
-		if err != nil {
-			return errors.Wrap(err, "failed to obtain AWS session")
-		}
-
-		stats, err := params.stats.stats("ecr")
+		stats, err := root.params.stats.stats("dr")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
-		tagger := ecr.NewTagger(sess, stats)
-		return tagger.Add(params.ecr, params.version, params.tags...)
+		tagger := ecr.NewTagger(root.sess, stats)
+		return tagger.Add(root.params.ecr, params.version, params.tags...)
 	}
 
 	rmTagCmd := &cobra.Command{
@@ -83,17 +261,13 @@ func newECRTagCommand() *cobra.Command {
 		return nil
 	}
 	rmTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		sess, err := session.NewSession()
-		if err != nil {
-			return errors.Wrap(err, "failed to obtain AWS session")
-		}
 
 		stats, err := params.stats.stats("ecr")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
-		tagger := ecr.NewTagger(sess, stats)
-		return tagger.Remove(params.ecr, params.tags...)
+		tagger := ecr.NewTagger(root.sess, stats)
+		return tagger.Remove(root.params.ecr, params.tags...)
 	}
 
 	getTagCmd := &cobra.Command{
@@ -108,17 +282,12 @@ func newECRTagCommand() *cobra.Command {
 		return nil
 	}
 	getTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		sess, err := session.NewSession()
-		if err != nil {
-			return errors.Wrap(err, "failed to obtain AWS session")
-		}
-
 		stats, err := params.stats.stats("ecr")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
-		tagger := ecr.NewTagger(sess, stats)
-		t, err := tagger.Get(params.ecr, params.version)
+		tagger := ecr.NewTagger(root.sess, stats)
+		t, err := tagger.Get(root.params.ecr, params.version)
 		fmt.Printf("Found tags %s on requested ECR repository of image %s \n", t, params.version)
 		return err
 	}
