@@ -59,7 +59,7 @@ func newDRRootCommand() *drRoot {
 		},
 	}
 	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
-	root.PersistentFlags().StringVar(&params.ecr, "ecr", "", "ECR repository ARN ex. nearmap/cvmanager")
+	root.PersistentFlags().StringVar(&params.ecr, "repo", "", "Docker/ECR repository ARN ex. nearmap/cvmanager")
 	root.PersistentFlags().StringVar(&params.provider, "provider", "ecr", "Identifier for docker registry provider. Supported values are ecr/dockerhub")
 	(&params.stats).addFlags(root.Command)
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/nearmap/cvmanager/registry/config"
+	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
 	"github.com/nearmap/cvmanager/stats"
 	"k8s.io/client-go/kubernetes"
@@ -104,9 +105,9 @@ func (dr *drProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *conf
 	case ECR:
 		return ecr.NewSyncer(dr.sess, cs, ns, syncConf, dr.stats)
 	case DOCKERHUB:
-		return nil, errors.New("Not yet immplemented")
+		return dh.NewSyncer(cs, ns, syncConf, dr.stats)
 	default:
-		return nil, errors.New("Not yet immplemented")
+		return nil, errors.New("Invalid type specified")
 	}
 
 }
@@ -116,9 +117,9 @@ func (dr *drProvider) Tagger() (Tagger, error) {
 	case ECR:
 		return ecr.NewTagger(dr.sess, dr.stats), nil
 	case DOCKERHUB:
-		return nil, errors.New("Not yet immplemented")
+		return dh.NewTagger(), nil
 	default:
-		return nil, errors.New("Not yet immplemented")
+		return nil, errors.New("Invalid type specified")
 	}
 
 }

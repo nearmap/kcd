@@ -51,9 +51,6 @@ const cvListHTML = `
             </blockquote>
         </div>
     </section>
-    <footer class="bg-light-green pa4 tc">
-        <span class="f6">CVManager</span>
-    </footer>
 </main>
 </body>
 </html>

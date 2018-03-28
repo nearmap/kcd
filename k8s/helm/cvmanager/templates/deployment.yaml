@@ -42,11 +42,11 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /
+              path: /alive
               port: http
           readinessProbe:
             httpGet:
-              path: /
+              path: /alive
               port: http
           resources:
 {{ toYaml .Values.resources | indent 12 }}

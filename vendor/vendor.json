@@ -183,6 +183,48 @@
 			"revisionTime": "2017-10-02T20:02:53Z"
 		},
 		{
+			"checksumSHA1": "FEPeCQIxL6gTGa0h9M6rZpN1gD0=",
+			"path": "github.com/docker/distribution",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "Gj+xR1VgFKKmFXYOJMnAczC3Znk=",
+			"path": "github.com/docker/distribution/digestset",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "oYy5Q1HBImMQvh9t96cmNzWar80=",
+			"path": "github.com/docker/distribution/manifest",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "GojB6hHvelpO/mtCTYr2wJyEpww=",
+			"path": "github.com/docker/distribution/manifest/schema1",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "6k51UuibpKYVlnXXlqI3Ox5h9dQ=",
+			"path": "github.com/docker/distribution/manifest/schema2",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "2Fe4D6PGaVE2he4fUeenLmhC1lE=",
+			"path": "github.com/docker/distribution/reference",
+			"revision": "83389a148052d74ac602f5f1d62f86ff2f3c4aa5",
+			"revisionTime": "2018-03-27T20:24:08Z"
+		},
+		{
+			"checksumSHA1": "sNAU9ojYVUhO6dVXey6T3JhRQpw=",
+			"path": "github.com/docker/libtrust",
+			"revision": "aabc10ec26b754e797f9028f4589c5b7bd90dc20",
+			"revisionTime": "2016-07-08T17:25:13Z"
+		},
+		{
 			"checksumSHA1": "TYSGkh0h648wwbQv+qmqMcqNP4Y=",
 			"path": "github.com/emicklei/go-restful",
 			"revision": "2dd44038f0b95ae693b266c5f87593b5d2fdd78d",
@@ -339,6 +381,12 @@
 			"revisionTime": "2016-08-13T22:13:03Z"
 		},
 		{
+			"checksumSHA1": "Pr2KOfZMaOvhfygJIqdx0kdRMyw=",
+			"path": "github.com/heroku/docker-registry-client/registry",
+			"revision": "fd2fe803496897db70c236ee244f41487ea92ec2",
+			"revisionTime": "2017-10-19T18:30:14Z"
+		},
+		{
 			"checksumSHA1": "K6exl2ouL7d8cR2i378EzZOdRVI=",
 			"origin": "k8s.io/client-go/vendor/github.com/howeyc/gopass",
 			"path": "github.com/howeyc/gopass",
@@ -395,6 +443,12 @@
 			"revisionTime": "2017-11-20T08:03:33Z"
 		},
 		{
+			"checksumSHA1": "OFNit1Qx2DdWhotfREKodDNUwCM=",
+			"path": "github.com/opencontainers/go-digest",
+			"revision": "279bed98673dd5bef374d3b6e4b09e2af76183bf",
+			"revisionTime": "2017-06-07T19:53:33Z"
+		},
+		{
 			"checksumSHA1": "K1Y3/a6mmpc31MzB2pvsC5fHrek=",
 			"path": "github.com/peterbourgon/diskv",
 			"revision": "2973218375c3d13162e1d3afe1708aaee318ef3f",
@@ -405,6 +459,12 @@
 			"path": "github.com/pkg/errors",
 			"revision": "e881fd58d78e04cf6d0de1217f8707c8cc2249bc",
 			"revisionTime": "2017-12-16T07:03:16Z"
+		},
+		{
+			"checksumSHA1": "ByFN6xh/YGP/D3DM9c8p0D9D1XM=",
+			"path": "github.com/sirupsen/logrus",
+			"revision": "90150a8ed11b6ce285e77e8af2b0109559ce4777",
+			"revisionTime": "2018-03-15T01:07:03Z"
 		},
 		{
 			"checksumSHA1": "aG5wPXVGAEu90TjPFNZFRtox2Zo=",

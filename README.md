@@ -9,8 +9,8 @@ CVManager assumes ECR as the container registry. Supporting other registeries is
 
 The tool has 3 main parts:
 - CV Manager
-- ECR Syncer
-- ECR Tagger
+- Docker Registry Syncer (supports ECR and Dockerhub)
+- Docker Registry Tagger (supports ECR, with limited Dockerhub support)
 
 Docker images are on [docker.io](https://hub.docker.com/r/nearmap/cvmanager/)
 
@@ -23,19 +23,28 @@ ContainerVersion controller that manages ContainerVersion resources.
     --k8s-config ~/.kube/config 
 ```
 
-### ECR Sync service
-The polling service that frequently check on ECR to see if new version should be rolled out for a given deployment/container.
+### Docker registry sync service
+
+Registry sync service is a polling service that frequently check on registry (AWS ECR and dockerhub only) to see if new version should be rolled out for a given deployment/container.
+
+Sync service default to using AWS ECR as regisrty provider but dockerhub is also supported. Use ```--provider dockerhub``` to use syncer service against dockerhub repo.
+
+Dockerhub *note*: 
+Dockerhub has very limited support w.r.t. tags via API and also multi-tag support is very limited. see [1](https://github.com/kubernetes/kubernetes/issues/33664), [2](https://github.com/kubernetes/kubernetes/issues/11348), [3](https://github.com/docker/hub-feedback/issues/68) and [4](https://github.com/kubernetes/kubernetes/issues/1697) for more info.
+When using dockerhub, regisrty syncer monitors a tag (example latest) and when the latest image is change i.e. the digest of the image is changed Syncer picks it up as a candidate deployment and deploys new version. 
+
 
 ### Run locally
-```
-INSTANCENAME=<ecrsync-tilesapp-podname> cvmanager ecr-sync \
-    --tag=dev \
-    --ecr=nearmap/tiles \
-    --deployment=tilesapp \
-    --container=tilesapp-container \
-    --namespace=default \
-    --sync=1 \
+```sh
+    INSTANCENAME=ecrsync-photoapp-6b7d47c58f-xtdp6  cvmanager dr sync \
+    --tag=env-usdev-api \
+    --repo=<>.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/photo \
+    --deployment=photoapp \
+    --container=photoapp-container \
+    --namespace=photo \
+    --sync=1  \
     --k8s-config ~/.kube/config
+
 ```
 
 
@@ -44,25 +53,29 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 
 #### Get Tag
 ```sh
-    cvmanager ecr-tags get \
-    --ecr  nearmap/cvmanager  \
+    cvmanager dr tags get \
+    --repo  nearmap/cvmanager  \
     --version <SHA>
 ```
 
 #### Add Tag
 ```sh
-    cvmanager ecr-tags remove \
-    --ecr  nearmap/cvmanager  \
+    cvmanager dr tags remove \
+    --repo  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api \
     --version <SHA>
 ```
 
 #### Remove Tag
 ```sh
-    cvmanager ecr-tags remove \
-    --ecr  nearmap/cvmanager  \
+    cvmanager dr tags remove \
+    --repo  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api
 ```
+
+
+#### Supporting other docker registries
+We plan to support other docker registries as well in future via cvmanager. 
 
 
 ## Docker 
@@ -81,12 +94,7 @@ docker run -ti  nearmap/cvmanager <command>
 ```
 
 
-## Supporting other docker registries
-We plan to support other docker registries as well in future via cvmanager. Dockerhub was first consideration however given [tags on dockerhub can not yet be removed via API](https://github.com/docker/hub-feedback/issues/68) this feature is still into consideration. 
 
-1. https://github.com/kubernetes/kubernetes/issues/33664
-2. https://github.com/kubernetes/kubernetes/issues/11348
-3. https://github.com/kubernetes/kubernetes/issues/1697
 
 
 #### Reference links
