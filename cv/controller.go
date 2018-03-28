@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -359,14 +360,19 @@ func (c *CVController) syncDeployments(namespace, key, version string, cv *cv1.C
 // TODO We need to improve on auto-upgrading ECRsync deployments ..
 func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
-	var configKey string
+	var configKey, provider string
 	if cv.Spec.Config != nil {
 		configKey = fmt.Sprintf("%s/%s", cv.Spec.Config.Name, cv.Spec.Config.Key)
 	}
 	dName := syncDeployment(cv.Spec.Deployment.Name)
+	if strings.Contains(cv.Spec.ImageRepo, "amazonaws.com") {
+		provider = "ecr"
+	} else {
+		provider = "dockerhub"
+	}
 
 	labels := map[string]string{
-		"app":        "ecr-syncer",
+		"app":        "dr-syncer",
 		"controller": cv.Name,
 	}
 	return &appsv1.Deployment{
@@ -399,14 +405,15 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 							Name:  fmt.Sprintf("%s-container", dName),
 							Image: fmt.Sprintf("%s:%s", c.cvImgRepo, version),
 							Args: []string{
-								"ecr-sync",
+								"dr sync",
 								fmt.Sprintf("--tag=%s", cv.Spec.Tag),
-								fmt.Sprintf("--ecr=%s", cv.Spec.ImageRepo),
+								fmt.Sprintf("--repo=%s", cv.Spec.ImageRepo),
 								fmt.Sprintf("--deployment=%s", cv.Spec.Deployment.Name),
 								fmt.Sprintf("--container=%s", cv.Spec.Deployment.Container),
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--sync=%d", cv.Spec.CheckFrequency),
 								fmt.Sprintf("--configKey=%s", configKey),
+								fmt.Sprintf("--provider=%s", provider),
 							},
 							Env: []corev1.EnvVar{{
 								Name: "INSTANCENAME",
