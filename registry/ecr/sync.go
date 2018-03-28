@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/nearmap/cvmanager/registry/config"
+	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -40,19 +42,14 @@ func NameAccountRegionFromARN(arn string) (repoName, accountID, region string, e
 	return rs[3], rs[1], rs[2], nil
 }
 
-// Syncer offers capability to periodically sync with docker registry
-type Syncer interface {
-	Sync() error
-}
-
-// ECRSyncer is responsible to syncing with the ecr repository and
+// ecrSyncer is responsible to syncing with the ecr repository and
 // ensuring that the deployment it is monitoring is up to date. If it finds
 // the deployment outdated from what Tag is indicating the deployment version should be.
 // it performs an update in deployment which then based on update strategy of deployment
 // is further rolled out.
 // In cases, where it cant resolves
-type ECRSyncer struct {
-	Config *SyncConfig
+type ecrSyncer struct {
+	Config *config.SyncConfig
 
 	sess *session.Session
 	ecr  *ecr.ECR
@@ -66,43 +63,17 @@ type ECRSyncer struct {
 	stats stats.Stats
 }
 
-// SyncConfig describes the arguments required by Syncer
-type SyncConfig struct {
-	Freq    int
-	Tag     string
-	RepoARN string
-
-	Deployment string
-	Container  string
-
-	ConfigKey string
-
-	accountID string
-	repoName  string
-
-	configMap *configKey
-}
-
-type configKey struct {
-	name string
-	key  string
-}
-
-func (sc *SyncConfig) validate() bool {
-	return sc.RepoARN != "" && sc.Tag != "" && sc.Deployment != "" && sc.Container != ""
-}
-
 // NewSyncer provides new reference to AWS ECR for periodic Sync
-func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *SyncConfig,
-	stats stats.Stats) (*ECRSyncer, error) {
+func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *config.SyncConfig,
+	stats stats.Stats) (*ecrSyncer, error) {
 
-	if !sc.validate() {
+	if !sc.Validate() {
 		return nil, errors.Errorf("Invalid sync configurations found %v", sc)
 	}
 
 	var err error
 	var region string
-	sc.repoName, sc.accountID, region, err = NameAccountRegionFromARN(sc.RepoARN)
+	sc.RepoName, sc.AccountID, region, err = NameAccountRegionFromARN(sc.RepoARN)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -118,13 +89,13 @@ func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *S
 		return nil, errors.Wrap(err, "failed to get ECR sync pod")
 	}
 
-	sc.configMap, err = getConfigMap(ns, sc.ConfigKey)
+	sc.ConfigMap, err = getConfigMap(ns, sc.ConfigKey)
 	if err != nil {
 		recorder.Event(pod, corev1.EventTypeWarning, "ConfigKeyMisconfigiured", "ConfigKey is misconfigured")
 		return nil, errors.Wrap(err, "bad config key")
 	}
 
-	syncer := &ECRSyncer{
+	syncer := &ecrSyncer{
 		Config: sc,
 
 		sess:      sess,
@@ -143,7 +114,7 @@ func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string, sc *S
 // Sync starts the periodic action of checking with ECR repository
 // and acting if differences are found. In case of different expected
 // version is identified, deployment roll-out is performed
-func (s *ECRSyncer) Sync() error {
+func (s *ecrSyncer) Sync() error {
 	log.Printf("Beginning sync....at every %dm", s.Config.Freq)
 	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.Config.Freq))
 	for range time.Tick(d) {
@@ -154,15 +125,15 @@ func (s *ECRSyncer) Sync() error {
 	return nil
 }
 
-func (s *ECRSyncer) doSync() error {
+func (s *ecrSyncer) doSync() error {
 	req := &ecr.DescribeImagesInput{
 		ImageIds: []*ecr.ImageIdentifier{
 			{
 				ImageTag: aws.String(s.Config.Tag),
 			},
 		},
-		RegistryId:     aws.String(s.Config.accountID),
-		RepositoryName: aws.String(s.Config.repoName),
+		RegistryId:     aws.String(s.Config.AccountID),
+		RepositoryName: aws.String(s.Config.RepoName),
 	}
 	result, err := s.ecr.DescribeImages(req)
 	if err != nil {
@@ -170,9 +141,9 @@ func (s *ECRSyncer) doSync() error {
 		return errors.Wrap(err, "failed to get ecr")
 	}
 	if len(result.ImageDetails) != 1 {
-		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.Config.Tag), "", "error",
-			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+			time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "More than one image with tag was found")
 		return errors.Errorf("Bad state: More than one image was tagged with %s", s.Config.Tag)
 	}
@@ -181,7 +152,7 @@ func (s *ECRSyncer) doSync() error {
 
 	currentVersion := s.currentVersion(img)
 	if currentVersion == "" {
-		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.Config.repoName, s.Config.Deployment))
+		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.Config.RepoName, s.Config.Deployment))
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "Tagged image missing SHA1")
 		return nil
 	}
@@ -192,7 +163,7 @@ func (s *ECRSyncer) doSync() error {
 		return errors.Wrap(err, "failed to read deployment ")
 	}
 	if ci, err := s.checkDeployment(currentVersion, d); err != nil {
-		if err == ErrVersionMismatch {
+		if err == errs.ErrVersionMismatch {
 			s.deploy(ci, d)
 		} else {
 			// Check version raises events as deemed necessary .. for other issues log is ok for now
@@ -214,43 +185,43 @@ func (s *ECRSyncer) doSync() error {
 // The controller is not responsible for managing the config resource it reference but only for updating
 // and ensuring its present. If the reference to config was removed from CV resource its not the responsibility
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource
-func (s *ECRSyncer) syncConfig(version string) error {
-	if s.Config.configMap == nil {
+func (s *ecrSyncer) syncConfig(version string) error {
+	if s.Config.ConfigMap == nil {
 		return nil
 	}
-	cm, err := s.k8sClient.CoreV1().ConfigMaps(s.namespace).Get(s.Config.configMap.name, metav1.GetOptions{})
+	cm, err := s.k8sClient.CoreV1().ConfigMaps(s.namespace).Get(s.Config.ConfigMap.Name, metav1.GetOptions{})
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			_, err = s.k8sClient.CoreV1().ConfigMaps(s.namespace).Create(
-				newVersionConfig(s.namespace, s.Config.configMap.name, s.Config.configMap.key, version))
+				newVersionConfig(s.namespace, s.Config.ConfigMap.Name, s.Config.ConfigMap.Key, version))
 			if err != nil {
 				s.recorder.Event(s.pod, corev1.EventTypeWarning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
 				return errors.Wrapf(err, "failed to create version configmap from %s/%s:%s",
-					s.namespace, s.Config.configMap.name, s.Config.configMap.key)
+					s.namespace, s.Config.ConfigMap.Name, s.Config.ConfigMap.Key)
 			}
 			return nil
 		}
 		return errors.Wrapf(err, "failed to get version configmap from %s/%s:%s",
-			s.namespace, s.Config.configMap.name, s.Config.configMap.key)
+			s.namespace, s.Config.ConfigMap.Name, s.Config.ConfigMap.Key)
 	}
 
-	if version == cm.Data[s.Config.configMap.key] {
+	if version == cm.Data[s.Config.ConfigMap.Key] {
 		return nil
 	}
 
-	cm.Data[s.Config.configMap.key] = version
+	cm.Data[s.Config.ConfigMap.Key] = version
 
 	// TODO enable this when patchstretegy is supported on config map https://github.com/kubernetes/client-go/blob/7ac1236/pkg/api/v1/types.go#L3979
 	// _, err = s.k8sClient.CoreV1().ConfigMaps(s.namespace).Patch(cm.ObjectMeta.Name, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{
 	// 	"Data": {
 	// 		"%s": "%s",
 	// 	},
-	// }`, s.Config.configMap.key, version)))
+	// }`, s.Config.ConfigMap.Key, version)))
 	_, err = s.k8sClient.CoreV1().ConfigMaps(s.namespace).Update(cm)
 	if err != nil {
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
 		return errors.Wrapf(err, "failed to update version configmap from %s/%s:%s",
-			s.namespace, s.Config.configMap.name, s.Config.configMap.key)
+			s.namespace, s.Config.ConfigMap.Name, s.Config.ConfigMap.Key)
 	}
 	return nil
 }
@@ -268,7 +239,7 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 	}
 }
 
-func (s *ECRSyncer) currentVersion(img *ecr.ImageDetail) string {
+func (s *ecrSyncer) currentVersion(img *ecr.ImageDetail) string {
 	var tag string
 	for _, t := range aws.StringValueSlice(img.ImageTags) {
 
@@ -280,8 +251,8 @@ func (s *ECRSyncer) currentVersion(img *ecr.ImageDetail) string {
 	return tag
 }
 
-func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, error) {
-	log.Printf("Checking deployment version %s from ECR %s for deployment %s", tag, s.Config.repoName, s.Config.Deployment)
+func (s *ecrSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, error) {
+	log.Printf("Checking deployment version %s from ECR %s for deployment %s", tag, s.Config.RepoName, s.Config.Deployment)
 	match := false
 	for _, c := range d.Spec.Template.Spec.Containers {
 		if c.Name == s.Config.Container {
@@ -292,29 +263,29 @@ func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, e
 				return "", errors.New("Invalid image found on container")
 			}
 			if parts[0] != s.Config.RepoARN {
-				s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+				s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 					fmt.Sprintf("ECR repo mismatch present %s and requested  %s don't match", parts[0], s.Config.RepoARN), "", "error",
-					time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+					time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
 				s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "ECR Repository mismatch was found")
-				return "", ErrValidation
+				return "", errs.ErrValidation
 			}
 			if tag != parts[1] {
 				if s.validate(tag) != nil {
-					s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+					s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 						fmt.Sprintf("Failed to validate image with tag %s", tag), "", "error",
-						time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+						time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
 					s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "Candidate version failed validation")
-					return "", ErrValidation
+					return "", errs.ErrValidation
 				}
-				return tag, ErrVersionMismatch
+				return tag, errs.ErrVersionMismatch
 			}
 		}
 	}
 
 	if !match {
-		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 			"No matching container found", "", "error",
-			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+			time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "ECRSyncFailed", "No matching container found")
 
 		return "", errors.Errorf("No container of name %s was found in deployment %s", s.Config.Container, s.Config.Deployment)
@@ -324,13 +295,13 @@ func (s *ECRSyncer) checkDeployment(tag string, d *appsv1.Deployment) (string, e
 	return "", nil
 }
 
-func (s *ECRSyncer) validate(v string) error {
+func (s *ecrSyncer) validate(v string) error {
 	//TODO later regression check etc
 	return nil
 }
 
 // rollback tag logic is not needed revisionHistoryLimit automatically maintains 6 revisions limits
-func (s *ECRSyncer) deploy(tag string, d *appsv1.Deployment) error {
+func (s *ecrSyncer) deploy(tag string, d *appsv1.Deployment) error {
 	log.Printf("Beginning deploy for deployment %s with version %s", s.Config.Deployment, tag)
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -374,21 +345,21 @@ func (s *ECRSyncer) deploy(tag string, d *appsv1.Deployment) error {
 		return nil
 	})
 	if retryErr != nil {
-		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.deploy.failure", s.namespace, s.Config.repoName, s.Config.Deployment),
+		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.deploy.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 			fmt.Sprintf("Failed to validate image with %s", tag), "", "error",
-			time.Now().UTC(), s.Config.Tag, s.Config.accountID)
+			time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
 		log.Printf("Failed to update container version after maximum retries: version=%v, deployment=%v, error=%v",
 			tag, s.Config.Deployment, retryErr)
 		s.recorder.Event(s.pod, corev1.EventTypeWarning, "DeploymentFailed", "Failed to perform the deployment")
 	}
 
 	log.Printf("Update completed: deployment=%v", s.Config.Deployment)
-	s.stats.IncCount(fmt.Sprintf("%s.%s.%s.success", s.namespace, s.Config.repoName, s.Config.Deployment))
+	s.stats.IncCount(fmt.Sprintf("%s.%s.%s.success", s.namespace, s.Config.RepoName, s.Config.Deployment))
 	s.recorder.Event(s.pod, corev1.EventTypeNormal, "DeploymentSuccess", "Deployment completed successfully")
 	return nil
 }
 
-func getConfigMap(namespace, key string) (*configKey, error) {
+func getConfigMap(namespace, key string) (*config.ConfigKey, error) {
 	if key == "" {
 		return nil, nil
 	}
@@ -396,8 +367,8 @@ func getConfigMap(namespace, key string) (*configKey, error) {
 	if len(cms) != 3 {
 		return nil, errors.New("Invalid config map key for version passed")
 	}
-	return &configKey{
-		name: cms[1],
-		key:  cms[2],
+	return &config.ConfigKey{
+		Name: cms[1],
+		Key:  cms[2],
 	}, nil
 }

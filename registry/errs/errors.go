@@ -1,4 +1,4 @@
-package ecr
+package registry
 
 import (
 	"github.com/pkg/errors"

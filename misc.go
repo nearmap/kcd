@@ -8,8 +8,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/nearmap/cvmanager/cv"
-	"github.com/nearmap/cvmanager/ecr"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	"github.com/nearmap/cvmanager/registry"
+	"github.com/nearmap/cvmanager/registry/config"
 	"github.com/nearmap/cvmanager/signals"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
@@ -19,42 +20,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type DRProvider int
-
-const (
-	ECR DRProvider = iota
-	DOCKERHUB
-)
-
-func (dr DRProvider) String() string {
-	switch dr {
-	case ECR:
-		return "ecr"
-	case DOCKERHUB:
-		return "dockerhub"
-	default:
-		return "ecr"
-	}
-}
-
-func NewDRProvider(typ string) (DRProvider, error) {
-	switch typ {
-	case "ecr":
-		return ECR, nil
-	case "dockerhub":
-		return DOCKERHUB, nil
-	default:
-		return ECR, errors.New("Request docker registry is not supported")
-	}
-}
-
 type drRoot struct {
 	*cobra.Command
 
 	stats stats.Stats
 	sess  *session.Session
 
-	stopChan chan os.Signal
+	drProvider registry.DRProvider
+	stopChan   chan os.Signal
 
 	params *drParams
 }
@@ -93,10 +66,24 @@ func newDRRootCommand() *drRoot {
 	root.RunE = func(cmd *cobra.Command, args []string) error {
 		var err error
 
+		root.stats, err = root.params.stats.stats("dr")
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize stats")
+		}
+
 		root.sess, err = session.NewSession()
 		if err != nil {
 			return errors.Wrap(err, "failed to obtain AWS session")
 		}
+
+		drTyp, err := registry.NewDRType(root.params.provider)
+		if err != nil {
+			log.Printf("Error building k8s clientset: %v", err)
+			return errors.Wrap(err, "Invalid Registry type provided")
+		}
+
+		root.drProvider = registry.NewDRProvider(root.sess, root.stats, registry.Registry(drTyp))
+
 		root.stopChan = signals.SetupTwoWaySignalHandler()
 
 		return nil
@@ -146,6 +133,8 @@ func newDRSyncCommand(root *drRoot) *cobra.Command {
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
+		// Syncer sends stats with different prefixes thats why it gets overwritten here
+		root.drProvider.Stats(stats)
 
 		scStatus := 0
 		defer stats.ServiceCheck("drsync.exec", "", scStatus, time.Now())
@@ -175,14 +164,14 @@ func newDRSyncCommand(root *drRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
-		ecrSyncer, err := ecr.NewSyncer(root.sess, k8sClient, params.namespace, &ecr.SyncConfig{
+		ecrSyncer, err := root.drProvider.Syncer(k8sClient, params.namespace, &config.SyncConfig{
 			Freq:       params.syncFreq,
 			Tag:        root.params.tag,
 			RepoARN:    root.params.ecr,
 			Deployment: params.deployment,
 			Container:  params.container,
 			ConfigKey:  params.configKey,
-		}, stats)
+		})
 		if err != nil {
 			log.Printf("Failed to create syncer with syncfrequnecy=%v, ecrName=%v, tag=%v, deployment=%v, error=%v",
 				params.syncFreq, root.params.ecr, root.params.tag, params.deployment, err)
@@ -241,11 +230,10 @@ func newDRTagCommand(root *drRoot) *cobra.Command {
 		return nil
 	}
 	addTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		stats, err := root.params.stats.stats("dr")
+		tagger, err := root.drProvider.Tagger()
 		if err != nil {
-			return errors.Wrap(err, "failed to initialize stats")
+			return errors.Wrap(err, "failed to initialize docker registry tagger")
 		}
-		tagger := ecr.NewTagger(root.sess, stats)
 		return tagger.Add(root.params.ecr, params.version, params.tags...)
 	}
 
@@ -261,12 +249,11 @@ func newDRTagCommand(root *drRoot) *cobra.Command {
 		return nil
 	}
 	rmTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-
-		stats, err := params.stats.stats("ecr")
+		tagger, err := root.drProvider.Tagger()
 		if err != nil {
-			return errors.Wrap(err, "failed to initialize stats")
+			return errors.Wrap(err, "failed to initialize docker registry tagger")
 		}
-		tagger := ecr.NewTagger(root.sess, stats)
+
 		return tagger.Remove(root.params.ecr, params.tags...)
 	}
 
@@ -282,11 +269,11 @@ func newDRTagCommand(root *drRoot) *cobra.Command {
 		return nil
 	}
 	getTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		stats, err := params.stats.stats("ecr")
+		tagger, err := root.drProvider.Tagger()
 		if err != nil {
-			return errors.Wrap(err, "failed to initialize stats")
+			return errors.Wrap(err, "failed to initialize docker registry tagger")
 		}
-		tagger := ecr.NewTagger(root.sess, stats)
+
 		t, err := tagger.Get(root.params.ecr, params.version)
 		fmt.Printf("Found tags %s on requested ECR repository of image %s \n", t, params.version)
 		return err
