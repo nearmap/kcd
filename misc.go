@@ -40,6 +40,13 @@ type drParams struct {
 	stats statsParams
 }
 
+func newDRCommands() *cobra.Command {
+	drRoot := newDRRootCommand()
+	drRoot.AddCommand(newDRSyncCommand(drRoot))
+	drRoot.AddCommand(newDRTagCommand(drRoot))
+	return drRoot.Command
+}
+
 func newDRRootCommand() *drRoot {
 	var params drParams
 
@@ -56,15 +63,10 @@ func newDRRootCommand() *drRoot {
 	root.PersistentFlags().StringVar(&params.provider, "provider", "ecr", "Identifier for docker registry provider. Supported values are ecr/dockerhub")
 	(&params.stats).addFlags(root.Command)
 
-	root.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.ecr == "" {
 			return errors.New("ECR repository name/URI must be provided")
 		}
-		return nil
-	}
-
-	root.RunE = func(cmd *cobra.Command, args []string) error {
-		var err error
 
 		root.stats, err = root.params.stats.stats("dr")
 		if err != nil {

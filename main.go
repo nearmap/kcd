@@ -35,10 +35,7 @@ func withExitCode() int {
 	}
 
 	root.AddCommand(newRunCommand())
-	drRoot := newDRRootCommand()
-	drRoot.AddCommand(newDRSyncCommand(drRoot))
-	drRoot.AddCommand(newDRTagCommand(drRoot))
-	root.AddCommand(drRoot.Command)
+	root.AddCommand(newDRCommands())
 	root.AddCommand(newCVCommand())
 
 	// TODO: recover
