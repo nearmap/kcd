@@ -1,6 +1,6 @@
 [![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/cvmanager)[![Code Quality](https://goreportcard.au-api.nearmap.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.au-api.nearmapdev.com/report/github.com/nearmap/cvmanager)
 
-# cvmanager
+# CVManager
 Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
 
 Deployments that requires CI/CD, can declare [ContainerVersion](k8s/cv-crd.yaml) resource. [CVManager](k8s/Backend.yaml), ContainerVersion controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
@@ -14,7 +14,7 @@ The tool has 3 main parts:
 
 Docker images are on [docker.io](https://hub.docker.com/r/nearmap/cvmanager/)
 
-## CV Manager
+## CVManager: Controller service
 ContainerVersion controller that manages ContainerVersion resources.
 
 ### Run locally
@@ -23,7 +23,7 @@ ContainerVersion controller that manages ContainerVersion resources.
     --k8s-config ~/.kube/config 
 ```
 
-### Docker registry sync service
+## Docker registry sync service
 
 Registry sync service is a polling service that frequently check on registry (AWS ECR and dockerhub only) to see if new version should be rolled out for a given deployment/container.
 
@@ -78,7 +78,7 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 We plan to support other docker registries as well in future via cvmanager. 
 
 
-## Docker 
+## Building and running CVManager
 
 ### Build & Run
 ```sh
@@ -93,6 +93,14 @@ docker run -ti  nearmap/cvmanager <command>
  docker-compose up --force-recreate --build --abort-on-container-exit
 ```
 
+
+## Deploying CVManager to Kubernetes cluster
+CVManager can be deployed using:
+
+1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
+2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager/cvmanager-0.1.0.tgz)
+
+Please [see](k8s/README.md) for more info.
 
 
 
