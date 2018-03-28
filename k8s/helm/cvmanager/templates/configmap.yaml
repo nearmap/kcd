@@ -4,4 +4,4 @@ data:
   version: {{ .Values.image.tag }}
 metadata:
   name: {{ template "cvmanager.fullname" . }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}

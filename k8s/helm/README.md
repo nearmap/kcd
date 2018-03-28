@@ -7,13 +7,13 @@ Use [helm](https://github.com/kubernetes/helm/) Kubernetes package manager to in
 ### Dry run
 ```
 helm install --dry-run --name cvmanagerapp --debug ./cvmanager \
-    --set service.type=NodePort   
+    --set service.type=NodePort --namespace kube-system
 ```
 
 ### Install
 ```
  helm install --name cvmanagerapp ./cvmanager \
-    --set service.type=NodePort   
+    --set service.type=NodePort --namespace kube-system
 ```
 
 ### Delete

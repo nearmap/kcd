@@ -1,7 +1,7 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   name: {{ template "cvmanager.fullname" . }}
   labels:
     app: {{ template "cvmanager.name" . }}
@@ -26,7 +26,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "run"
-            - "--configmap-key={{ .Values.namespace }}/{{ template "cvmanager.fullname" . }}"
+            - "--configmap-key={{ .Release.Namespace }}/{{ template "cvmanager.fullname" . }}"
           env:
           - name: INSTANCENAME
             valueFrom:
