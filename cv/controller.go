@@ -34,9 +34,9 @@ import (
 // CVController manages ContainerVersion (CV) kind (a custom resource definition) of resources.
 // It ensures that any changes in CV resources are picked up and acted upon.
 // The responsibility of CVController is to make sure that the container versions specified by CV resources
-// are up-to date. CVController does this by starting a ECRSync for the container CV resource requests.
-// It is then ECRSync service's responsibility to keep the version of a container up to date and perform
-// a rolling deployment whenever the container version needs to be updated as per tags of the ECR repository.
+// are up-to date. CVController does this by starting a DRSync for the container CV resource requests.
+// It is then DRSync service's responsibility to keep the version of a container up to date and perform
+// a rolling deployment whenever the container version needs to be updated as per tags of the DR repository.
 type CVController struct {
 	cluster string
 	config  *configKey
@@ -122,9 +122,9 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 		DeleteFunc: cvc.dequeueCV,
 	})
 
-	// TODO : We need deploymentInformer to monitor ECR sycn deployments specs if they were modified
+	// TODO : We need deploymentInformer to monitor DR sycn deployments specs if they were modified
 	// outside the controller scope. This need some more work as following snippet causes infinite cycle.
-	// Probably checking if state of ECR deployment is different than whats specified by CV CRD
+	// Probably checking if state of DR deployment is different than whats specified by CV CRD
 	// but we can worry about it later
 
 	// deploymentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -236,7 +236,7 @@ func (c *CVController) syncHandler(key string) error {
 
 	version, err := c.fetchVersion()
 	if err != nil {
-		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateECRSync", "Cant find config for ECRSync version")
+		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateDRSync", "Cant find config for DRSync version")
 		return errors.Wrap(err, "Failed to find container version")
 	}
 	if err = c.syncDeployments(namespace, key, version, cv); err != nil {
@@ -336,29 +336,29 @@ func (c *CVController) syncDeployments(namespace, key, version string, cv *cv1.C
 	_, err := c.deployLister.Deployments(namespace).Get(syncDeployment(cv.Spec.Deployment.Name))
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			_, err = c.k8sCS.AppsV1().Deployments(namespace).Create(c.newECRSyncDeployment(cv, version))
+			_, err = c.k8sCS.AppsV1().Deployments(namespace).Create(c.newDRSyncDeployment(cv, version))
 			if err != nil {
-				c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateECRSync", "Failed to create ECR Sync deployment")
-				return errors.Wrapf(err, "Failed to create ECR Sync deployment %s", key)
+				c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateDRSync", "Failed to create DR Sync deployment")
+				return errors.Wrapf(err, "Failed to create DR Sync deployment %s", key)
 			}
 			return nil
 		}
-		return errors.Wrapf(err, "Failed to find ECR Sync deployment %s", key)
+		return errors.Wrapf(err, "Failed to find DR Sync deployment %s", key)
 	}
 
-	_, err = c.k8sCS.AppsV1().Deployments(namespace).Update(c.newECRSyncDeployment(cv, version))
+	_, err = c.k8sCS.AppsV1().Deployments(namespace).Update(c.newDRSyncDeployment(cv, version))
 	if err != nil {
-		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedUpdateECRSync", "Failed to update ECR Sync deployment")
-		return errors.Wrapf(err, "Failed to update ECR Sync deployment %s", key)
+		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedUpdateDRSync", "Failed to update DR Sync deployment")
+		return errors.Wrapf(err, "Failed to update DR Sync deployment %s", key)
 	}
 	return nil
 }
 
-// newECRSyncDeployment creates a new Deployment for a ContainerVersion resource. It also sets
+// newDRSyncDeployment creates a new Deployment for a ContainerVersion resource. It also sets
 // the appropriate OwnerReferences on the resource so we can discover
 // the ContainerVersion resource that 'owns' it.
-// TODO We need to improve on auto-upgrading ECRsync deployments ..
-func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
+// TODO We need to improve on auto-upgrading DRsync deployments ..
+func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
 	var configKey, provider string
 	if cv.Spec.Config != nil {
@@ -405,7 +405,8 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 							Name:  fmt.Sprintf("%s-container", dName),
 							Image: fmt.Sprintf("%s:%s", c.cvImgRepo, version),
 							Args: []string{
-								"dr sync",
+								"dr",
+								"sync",
 								fmt.Sprintf("--tag=%s", cv.Spec.Tag),
 								fmt.Sprintf("--repo=%s", cv.Spec.ImageRepo),
 								fmt.Sprintf("--deployment=%s", cv.Spec.Deployment.Name),
@@ -441,7 +442,7 @@ func (c *CVController) newECRSyncDeployment(cv *cv1.ContainerVersion, version st
 }
 
 func syncDeployment(targetDeployment string) string {
-	return fmt.Sprintf("ecrsync-%s", targetDeployment)
+	return fmt.Sprintf("drsync-%s", targetDeployment)
 }
 
 // fetchVersion gets container version from config map as specified in configMapKey

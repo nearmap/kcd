@@ -27,6 +27,7 @@ spec:
           args:
             - "run"
             - "--configmap-key={{ .Release.Namespace }}/{{ template "cvmanager.fullname" . }}"
+            - "--cv-img-repo={{ .Values.image.repository }}"
           env:
           - name: INSTANCENAME
             valueFrom:

@@ -36,7 +36,7 @@ When using dockerhub, regisrty syncer monitors a tag (example latest) and when t
 
 ### Run locally
 ```sh
-    INSTANCENAME=ecrsync-photoapp-6b7d47c58f-xtdp6  cvmanager dr sync \
+    INSTANCENAME=drsync-photoapp-6b7d47c58f-xtdp6  cvmanager dr sync \
     --tag=env-usdev-api \
     --repo=<>.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/photo \
     --deployment=photoapp \
