@@ -49,7 +49,8 @@ type ecrSyncer struct {
 	stats stats.Stats
 }
 
-// NewSyncer provides new reference to AWS ECR for periodic Sync
+// NewSyncer provides new reference of dhSyncer
+// to manage AWS ECR repository and sync deployments periodically
 func NewSyncer(sess *session.Session, cs *kubernetes.Clientset,
 	ns string,
 	sc *config.SyncConfig,

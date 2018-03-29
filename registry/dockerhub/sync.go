@@ -16,7 +16,7 @@ import (
 
 const dockerhubURL = "https://registry-1.docker.io/"
 
-// ecrSyncer is responsible to syncing with the ecr repository and
+// dhSyncer is responsible to syncing with the docker registry (dr) repository and
 // ensuring that the deployment it is monitoring is up to date. If it finds
 // the deployment outdated from what Tag is indicating the deployment version should be.
 // it performs an update in deployment which then based on update strategy of deployment
@@ -32,7 +32,8 @@ type dhSyncer struct {
 	stats stats.Stats
 }
 
-// NewSyncer provides new reference to AWS ECR for periodic Sync
+// NewSyncer provides new reference of dhSyncer
+// to manage Dockerhub repository and sync deployments periodically
 func NewSyncer(cs *kubernetes.Clientset, ns string,
 	sc *config.SyncConfig,
 	stats stats.Stats) (*dhSyncer, error) {
@@ -63,7 +64,7 @@ func NewSyncer(cs *kubernetes.Clientset, ns string,
 	return syncer, nil
 }
 
-// Sync starts the periodic action of checking with ECR repository
+// Sync starts the periodic action of checking with docker repository
 // and acting if differences are found. In case of different expected
 // version is identified, deployment roll-out is performed
 func (s *dhSyncer) Sync() error {

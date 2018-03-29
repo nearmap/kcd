@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -23,14 +24,15 @@ func StaticContentHandler(content string) http.HandlerFunc {
 	}
 }
 
-func NewServer(cs kubernetes.Interface, customCS clientset.Interface, stopCh <-chan struct{}) {
-
+// NewServer creates and starts an http server to serve alive and deployment status endpoints
+// if server fails to start then, stop channel is closed notifying all listeners to the channel
+func NewServer(port int, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
-	mux.Handle(pat.Get("/v1/cv"), cv.NewCVHandler(cs, customCS))
+	mux.Handle(pat.Get("/v1/cv"), cv.NewCVHandler(cs, cvCS))
 
 	srv := &http.Server{
-		Addr:         ":8081",
+		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 2 * time.Minute,
@@ -39,7 +41,7 @@ func NewServer(cs kubernetes.Interface, customCS clientset.Interface, stopCh <-c
 		if err := srv.ListenAndServe(); err != nil {
 			if err.Error() != "http: Server closed" {
 				log.Printf("Server error during ListenAndServe: %v", err)
-				//stopCh <- os.Interrupt
+				close(stopCh)
 			}
 		}
 	}()

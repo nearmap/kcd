@@ -16,7 +16,6 @@ objects:
         app: cvmanager
     spec:
       replicas: 1
-      revisionHistoryLimit: 15
       selector:
         matchLabels:
           app: cvmanager
@@ -41,7 +40,9 @@ objects:
               image: nearmap/cvmanager:$(VERSION)
               imagePullPolicy: Always
               ports:
-                - containerPort: 8081
+                - name: http
+                  protocol: TCP
+                  containerPort: 8081
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
@@ -59,7 +60,14 @@ objects:
                   configMapKeyRef:
                     name: cvmanager
                     key: region
-
+              livenessProbe:
+                httpGet:
+                  path: /alive
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /alive
+                  port: http
   - kind: Service
     apiVersion: v1
     metadata:

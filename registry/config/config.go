@@ -7,7 +7,7 @@ import (
 
 var configRule, _ = regexp.Compile("([0-9A-Za-z_]*)/([0-9A-Za-z_]*)")
 
-// SyncConfig describes the arguments required by Syncer
+// SyncConfig describes the arguments required by Docker Registry (DR) Syncer
 type SyncConfig struct {
 	Freq    int
 	Tag     string
@@ -24,6 +24,8 @@ type SyncConfig struct {
 	ConfigMap *ConfigKey
 }
 
+// ConfigKey reflects key value pair of a config that maps
+// directly with ConfigMap entry
 type ConfigKey struct {
 	Name string
 	Key  string

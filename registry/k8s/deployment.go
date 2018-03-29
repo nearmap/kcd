@@ -34,6 +34,8 @@ type K8sProvider struct {
 	stats stats.Stats
 }
 
+// NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
+// config maps etc
 func NewK8sProvider(cs *kubernetes.Clientset, ns string, stats stats.Stats) (*K8sProvider, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(log.Printf)
@@ -59,6 +61,8 @@ func NewK8sProvider(cs *kubernetes.Clientset, ns string, stats stats.Stats) (*K8
 
 }
 
+// SyncDeployment checks if deployment is up to date with the version thats requested, if not its
+// performs a rollout with specified roll-out strategy on deployment
 func (k *K8sProvider) SyncDeployment(name, version string, c *config.SyncConfig) error {
 	// Check deployment
 	d, err := k.cs.AppsV1().Deployments(k.namespace).Get(name, metav1.GetOptions{})
@@ -178,7 +182,7 @@ func (k *K8sProvider) deploy(tag string, d *appsv1.Deployment, conf *config.Sync
 	return nil
 }
 
-// syncConfig sync the config map referenced by CV resource - creates if absent and updates if required
+// SyncConfig sync the config map referenced by CV resource - creates if absent and updates if required
 // The controller is not responsible for managing the config resource it reference but only for updating
 // and ensuring its present. If the reference to config was removed from CV resource its not the responsibility
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource

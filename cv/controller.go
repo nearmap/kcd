@@ -64,7 +64,10 @@ type configKey struct {
 	ns   string
 }
 
-// NewCVController returns a new container version controller
+// NewCVController returns a new container version (CV) controller which is responsible for managing
+// acting on add/update/delete of CV resources. On add of CV resources, it creates a deployment for docker register
+// (DR) Sync service that polls in to docker registry to find any new deployments that needs to be rolled out
+// and thus performing the roll-out if required (using the roll-out strategy specified in deployment.
 func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
 	statsInstance stats.Stats) (*CVController, error) {
@@ -145,7 +148,7 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 	return cvc, nil
 }
 
-// Run starts the cv controller so it starts acting as cvcontroller
+// Run starts the cv controller so it starts acting as cv resources
 func (c *CVController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()

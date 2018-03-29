@@ -12,25 +12,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// const cvListHTML = `
-// <div class="timeline">
-// {{range .}}
-// <div class="note">
-//     <p class="noteHeading">{{.Namespace}}</p>
-//     <hr>
-//     <p class="noteContent">{{.Deployment}}</p>
-//     <hr>
-//     <p class="noteContent">{{.Container}}</p>
-//     <hr>
-//     <p class="noteContent">{{.Version}}</p>
-//     <hr>
-//     <p class="noteContent">{{.AvailablePods}}</p>
-//     </ul>
-//     </span>
-// </div>
-// {{end}}
-// `
-
 // CVStatus maintains a high level status of deployments managed by
 // CV resources including version of current deploy and number of available pods
 // from this deployment/relicaset

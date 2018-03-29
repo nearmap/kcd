@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// Type specifies docker registry types thats supported
 type Type int
 
 const (
@@ -29,6 +30,7 @@ func (dr Type) String() string {
 	}
 }
 
+// NewDRType generates Type based on string equivalent
 func NewDRType(typ string) (Type, error) {
 	switch typ {
 	case "ecr":
@@ -80,10 +82,14 @@ type drProvider struct {
 	stats        stats.Stats
 }
 
+// Options is optional configurations for drProvider
 type Options struct {
 	RegistryType Type
 }
 
+// NewDRProvider provides interface to interact with docker registry of specified Type.
+// Defaults to ECR if DR type is not specified
+// Implements Tagger and Syncer interface
 func NewDRProvider(sess *session.Session, stats stats.Stats, options ...func(*Options)) *drProvider {
 
 	opts := &Options{
@@ -100,6 +106,8 @@ func NewDRProvider(sess *session.Session, stats stats.Stats, options ...func(*Op
 	}
 }
 
+// Syncer offers capability to periodically sync with docker registry
+// returns Syncer interface of docker registry
 func (dr *drProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *config.SyncConfig) (Syncer, error) {
 	switch dr.registryType {
 	case ECR:
@@ -112,6 +120,7 @@ func (dr *drProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *conf
 
 }
 
+// Tagger provider Tagger interface for docker registry
 func (dr *drProvider) Tagger() (Tagger, error) {
 	switch dr.registryType {
 	case ECR:

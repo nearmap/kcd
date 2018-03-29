@@ -77,6 +77,8 @@ type runParams struct {
 
 	cvImgRepo string
 
+	port int
+
 	stats statsParams
 }
 
@@ -91,6 +93,7 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
 	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
+	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
 	rc.RunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -152,7 +155,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(k8sClient, customClient, stopCh)
+		handler.NewServer(params.port, k8sClient, customClient, stopCh)
 
 		return nil
 	}

@@ -25,6 +25,7 @@ func NewTagger(sess *session.Session, stats stats.Stats) *tagger {
 	}
 }
 
+// Add adds list of tags to the image identified with version
 func (t *tagger) Add(ecrARN string, version string, tags ...string) error {
 	repoName, accountID, region, err := nameAccountRegionFromARN(ecrARN)
 	if err != nil {
@@ -71,6 +72,8 @@ func (t *tagger) Add(ecrARN string, version string, tags ...string) error {
 	return nil
 }
 
+// Remove removes the list of tags from ECR repository such that no image contains these
+// tags
 func (t *tagger) Remove(ecrARN string, tags ...string) error {
 	repoName, accountID, region, err := nameAccountRegionFromARN(ecrARN)
 	if err != nil {
@@ -121,6 +124,7 @@ func (t *tagger) Remove(ecrARN string, tags ...string) error {
 	return nil
 }
 
+// Get gets the list of tags to the image identified with version
 func (t *tagger) Get(ecrARN string, version string) ([]string, error) {
 	repoName, accountID, region, err := nameAccountRegionFromARN(ecrARN)
 	if err != nil {
