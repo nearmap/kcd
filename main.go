@@ -35,7 +35,7 @@ func withExitCode() int {
 	}
 
 	root.AddCommand(newRunCommand())
-	root.AddCommand(newDRCommands())
+	root.AddCommand(newCRCommands())
 	root.AddCommand(newCVCommand())
 
 	// TODO: recover

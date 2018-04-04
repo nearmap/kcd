@@ -82,7 +82,7 @@ func (s *dhSyncer) doSync() error {
 	currentVersion, err := getDigest(s.Config.RepoARN, s.Config.Tag)
 	if err != nil {
 		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.Config.RepoName, s.Config.Deployment))
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "No image found with correct tags")
+		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No image found with correct tags")
 		return nil
 	}
 	if err := s.k8sProvider.SyncDeployment(s.Config.Deployment, currentVersion, s.Config); err != nil {

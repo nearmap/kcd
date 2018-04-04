@@ -125,7 +125,7 @@ func (s *ecrSyncer) doSync() error {
 		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.Config.RepoName, s.Config.Deployment),
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.Config.Tag), "", "error",
 			time.Now().UTC(), s.Config.Tag, s.Config.AccountID)
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "More than one image with tag was found")
+		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "More than one image with tag was found")
 		return errors.Errorf("Bad state: More than one image was tagged with %s", s.Config.Tag)
 	}
 
@@ -134,7 +134,7 @@ func (s *ecrSyncer) doSync() error {
 	currentVersion := s.currentVersion(img)
 	if currentVersion == "" {
 		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.Config.RepoName, s.Config.Deployment))
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "Tagged image missing SHA1")
+		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Tagged image missing SHA1")
 		return nil
 	}
 	// Check deployment

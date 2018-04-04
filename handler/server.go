@@ -35,7 +35,7 @@ func NewServer(port int, cs kubernetes.Interface, cvCS clientset.Interface, stop
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 2 * time.Minute,
+		WriteTimeout: 1 * time.Minute,
 	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {

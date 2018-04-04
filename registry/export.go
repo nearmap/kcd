@@ -19,8 +19,8 @@ const (
 	DOCKERHUB
 )
 
-func (dr Type) String() string {
-	switch dr {
+func (cr Type) String() string {
+	switch cr {
 	case ECR:
 		return "ecr"
 	case DOCKERHUB:
@@ -30,8 +30,8 @@ func (dr Type) String() string {
 	}
 }
 
-// NewDRType generates Type based on string equivalent
-func NewDRType(typ string) (Type, error) {
+// NewCRType generates Type based on string equivalent
+func NewCRType(typ string) (Type, error) {
 	switch typ {
 	case "ecr":
 		return ECR, nil
@@ -68,29 +68,29 @@ type Tagger interface {
 	Get(ecr string, version string) ([]string, error)
 }
 
-// DRProvider offers interfaces to interact with docker registry for syncing and tagging purposes
+// CRProvider offers interfaces to interact with docker registry for syncing and tagging purposes
 // Conforms to Syncer and Tagger
-type DRProvider interface {
+type CRProvider interface {
 	Syncer(cs *kubernetes.Clientset, ns string, syncConf *config.SyncConfig) (Syncer, error)
 	Tagger() (Tagger, error)
 	Stats(sts stats.Stats)
 }
 
-type drProvider struct {
+type crProvider struct {
 	registryType Type
 	sess         *session.Session
 	stats        stats.Stats
 }
 
-// Options is optional configurations for drProvider
+// Options is optional configurations for crProvider
 type Options struct {
 	RegistryType Type
 }
 
-// NewDRProvider provides interface to interact with docker registry of specified Type.
-// Defaults to ECR if DR type is not specified
+// NewCRProvider provides interface to interact with docker registry of specified Type.
+// Defaults to ECR if CR type is not specified
 // Implements Tagger and Syncer interface
-func NewDRProvider(sess *session.Session, stats stats.Stats, options ...func(*Options)) *drProvider {
+func NewCRProvider(sess *session.Session, stats stats.Stats, options ...func(*Options)) *crProvider {
 
 	opts := &Options{
 		RegistryType: ECR,
@@ -99,7 +99,7 @@ func NewDRProvider(sess *session.Session, stats stats.Stats, options ...func(*Op
 		option(opts)
 	}
 
-	return &drProvider{
+	return &crProvider{
 		registryType: opts.RegistryType,
 		sess:         sess,
 		stats:        stats,
@@ -108,12 +108,12 @@ func NewDRProvider(sess *session.Session, stats stats.Stats, options ...func(*Op
 
 // Syncer offers capability to periodically sync with docker registry
 // returns Syncer interface of docker registry
-func (dr *drProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *config.SyncConfig) (Syncer, error) {
-	switch dr.registryType {
+func (cr *crProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *config.SyncConfig) (Syncer, error) {
+	switch cr.registryType {
 	case ECR:
-		return ecr.NewSyncer(dr.sess, cs, ns, syncConf, dr.stats)
+		return ecr.NewSyncer(cr.sess, cs, ns, syncConf, cr.stats)
 	case DOCKERHUB:
-		return dh.NewSyncer(cs, ns, syncConf, dr.stats)
+		return dh.NewSyncer(cs, ns, syncConf, cr.stats)
 	default:
 		return nil, errors.New("Invalid type specified")
 	}
@@ -121,10 +121,10 @@ func (dr *drProvider) Syncer(cs *kubernetes.Clientset, ns string, syncConf *conf
 }
 
 // Tagger provider Tagger interface for docker registry
-func (dr *drProvider) Tagger() (Tagger, error) {
-	switch dr.registryType {
+func (cr *crProvider) Tagger() (Tagger, error) {
+	switch cr.registryType {
 	case ECR:
-		return ecr.NewTagger(dr.sess, dr.stats), nil
+		return ecr.NewTagger(cr.sess, cr.stats), nil
 	case DOCKERHUB:
 		return dh.NewTagger(), nil
 	default:
@@ -133,6 +133,6 @@ func (dr *drProvider) Tagger() (Tagger, error) {
 
 }
 
-func (dr *drProvider) Stats(sts stats.Stats) {
-	dr.stats = sts
+func (cr *crProvider) Stats(sts stats.Stats) {
+	cr.stats = sts
 }

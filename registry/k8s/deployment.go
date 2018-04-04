@@ -67,7 +67,7 @@ func (k *K8sProvider) SyncDeployment(name, version string, c *config.SyncConfig)
 	// Check deployment
 	d, err := k.cs.AppsV1().Deployments(k.namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "Failed to get dependent deployment")
+		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent deployment")
 		return errors.Wrap(err, "failed to read deployment ")
 	}
 	if ci, err := k.checkDeployment(version, d, c); err != nil {
@@ -95,14 +95,14 @@ func (k *K8sProvider) checkDeployment(tag string, d *appsv1.Deployment, conf *co
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
 			if len(parts) > 2 {
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "Invalid image on container")
+				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Invalid image on container")
 				return "", errors.New("Invalid image found on container")
 			}
 			if parts[0] != conf.RepoARN {
 				k.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", k.namespace, conf.RepoName, conf.Deployment),
 					fmt.Sprintf("ECR repo mismatch present %s and requested  %s don't match", parts[0], conf.RepoARN), "", "error",
 					time.Now().UTC(), conf.Tag)
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "ECR Repository mismatch was found")
+				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "ECR Repository mismatch was found")
 				return "", errs.ErrValidation
 			}
 			if tag != parts[1] {
@@ -110,7 +110,7 @@ func (k *K8sProvider) checkDeployment(tag string, d *appsv1.Deployment, conf *co
 					k.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", k.namespace, conf.RepoName, conf.Deployment),
 						fmt.Sprintf("Failed to validate image with tag %s", tag), "", "error",
 						time.Now().UTC(), conf.Tag)
-					k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "Candidate version failed validation")
+					k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Candidate version failed validation")
 					return "", errs.ErrValidation
 				}
 				return tag, errs.ErrVersionMismatch
@@ -122,7 +122,7 @@ func (k *K8sProvider) checkDeployment(tag string, d *appsv1.Deployment, conf *co
 		k.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", k.namespace, conf.RepoName, conf.Deployment),
 			"No matching container found", "", "error",
 			time.Now().UTC(), conf.Tag)
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "ECRSyncFailed", "No matching container found")
+		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No matching container found")
 
 		return "", errors.Errorf("No container of name %s was found in deployment %s", conf.Container, conf.Deployment)
 	}
