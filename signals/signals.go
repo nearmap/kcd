@@ -7,7 +7,7 @@ import (
 
 // SetupSignalHandler registered for SIGINT. A stop channel is returned
 // which is closed on one of these signals.
-func SetupSignalHandler() (stopCh <-chan struct{}) {
+func SetupSignalHandler() chan struct{} {
 	stop := make(chan struct{})
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt)

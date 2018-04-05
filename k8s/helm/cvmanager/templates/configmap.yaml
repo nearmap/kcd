@@ -1,0 +1,7 @@
+kind: ConfigMap
+apiVersion: v1
+data:
+  version: {{ .Values.image.tag }}
+metadata:
+  name: {{ template "cvmanager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
