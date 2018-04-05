@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nearmap/cvmanager/cv"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	k8s "github.com/nearmap/cvmanager/gok8s/cv"
 	goji "goji.io"
 	"goji.io/pat"
 	"k8s.io/client-go/kubernetes"
@@ -29,7 +29,7 @@ func StaticContentHandler(content string) http.HandlerFunc {
 func NewServer(port int, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
-	mux.Handle(pat.Get("/v1/cv/workloads"), cv.NewCVHandler(cs, cvCS))
+	mux.Handle(pat.Get("/v1/cv/workloads"), k8s.NewCVHandler(cs, cvCS))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

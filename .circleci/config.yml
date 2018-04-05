@@ -41,9 +41,7 @@ jobs:
       - run:
           name: Run unit and integration tests
           command: |
-            docker-compose down
-            docker-compose rm -f
-            docker-compose up --force-recreate --build --abort-on-container-exit
+            docker-compose up --abort-on-container-exit
       - run:
           name: Go Report Card
           command: |

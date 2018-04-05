@@ -19,10 +19,6 @@ limitations under the License.
 package externalversions
 
 import (
-	reflect "reflect"
-	sync "sync"
-	time "time"
-
 	versioned "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	custom "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/custom"
 	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
@@ -30,6 +26,9 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
+	reflect "reflect"
+	sync "sync"
+	time "time"
 )
 
 type sharedInformerFactory struct {
