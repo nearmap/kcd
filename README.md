@@ -38,15 +38,14 @@ When using dockerhub, regisrty syncer monitors a tag (example latest) and when t
 
 ### Run locally
 ```sh
-    INSTANCENAME=drsync-photoapp-6b7d47c58f-xtdp6  cvmanager dr sync \
+    INSTANCENAME=crsync-photoapp-<>  cvmanager cr sync \
     --tag=env-usdev-api \
-    --repo=<>.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/photo \
+    --repo=<>.dkr.ecr.ap-southeast-2.amazonaws.com/nearmap/photos \
     --deployment=photoapp \
     --container=photoapp-container \
     --namespace=photo \
     --sync=1  \
     --k8s-config ~/.kube/config
-
 ```
 
 
@@ -55,14 +54,14 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 
 #### Get Tag
 ```sh
-    cvmanager dr tags get \
+    cvmanager cr tags get \
     --repo  nearmap/cvmanager  \
     --version <SHA>
 ```
 
 #### Add Tag
 ```sh
-    cvmanager dr tags remove \
+    cvmanager cr tags remove \
     --repo  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api \
     --version <SHA>
@@ -70,7 +69,7 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 
 #### Remove Tag
 ```sh
-    cvmanager dr tags remove \
+    cvmanager cr tags remove \
     --repo  nearmap/cvmanager  \
     --tags env-audev-api,env-usdev-api
 ```

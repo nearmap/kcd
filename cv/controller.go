@@ -375,7 +375,7 @@ func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version str
 	}
 
 	labels := map[string]string{
-		"app":        "dr-syncer",
+		"app":        "cr-syncer",
 		"controller": cv.Name,
 	}
 	return &appsv1.Deployment{
@@ -408,7 +408,7 @@ func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version str
 							Name:  fmt.Sprintf("%s-container", dName),
 							Image: fmt.Sprintf("%s:%s", c.cvImgRepo, version),
 							Args: []string{
-								"dr",
+								"cr",
 								"sync",
 								fmt.Sprintf("--tag=%s", cv.Spec.Tag),
 								fmt.Sprintf("--repo=%s", cv.Spec.ImageRepo),
@@ -445,7 +445,7 @@ func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version str
 }
 
 func syncDeployment(targetDeployment string) string {
-	return fmt.Sprintf("drsync-%s", targetDeployment)
+	return fmt.Sprintf("crsync-%s", targetDeployment)
 }
 
 // fetchVersion gets container version from config map as specified in configMapKey

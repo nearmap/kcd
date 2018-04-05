@@ -25,7 +25,7 @@ add-env-tag: &add-env-tag
       nearmap/cvmanager:39891f1f2e80e9ada3c13d4a522ebd207ac4acea \
       ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
       # nearmap/cvmanager \
-      # dr tags add --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
+      # cr tags add --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
 
 
 jobs:

@@ -60,7 +60,7 @@ func newCRRootCommand() *crRoot {
 	}
 	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
 	root.PersistentFlags().StringVar(&params.cr, "repo", "", "Container repository ARN of Docker or cr  ex. nearmap/cvmanager")
-	root.PersistentFlags().StringVar(&params.provider, "provider", "cr", "Identifier for docker registry provider. Supported values are cr/dockerhub")
+	root.PersistentFlags().StringVar(&params.provider, "provider", "ecr", "Identifier for docker registry provider. Supported values are cr/dockerhub")
 	(&params.stats).addFlags(root.Command)
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
