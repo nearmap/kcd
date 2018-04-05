@@ -93,6 +93,8 @@ func (s *dhSyncer) doSync() error {
 		// Check version raises events as deemed necessary .. for other issues log is ok for now
 		// and continue checking
 		log.Printf("Failed sync config: %v", err)
+		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.Config.ConfigKey))
+		return errors.Wrapf(err, "Failed to sync config version %s", s.Config.ConfigKey)
 	}
 	return nil
 }

@@ -144,9 +144,10 @@ func (s *ecrSyncer) doSync() error {
 
 	// Syncup config if unspecified
 	if err := s.k8sProvider.SyncConfig(currentVersion, s.Config); err != nil {
-		// Check version raises events as deemed necessary .. for other issues log is ok for now
-		// and continue checking
+		// Check version raises events as deemed necessary
 		log.Printf("Failed sync config: %v", err)
+		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.Config.ConfigKey))
+		return errors.Wrapf(err, "Failed to sync config version %s", s.Config.ConfigKey)
 	}
 
 	return nil
