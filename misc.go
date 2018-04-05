@@ -330,7 +330,7 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		return cv.ExecuteCVStatusList(os.Stdout, k8sClient, customClient)
+		return cv.ExecuteWorkloadsList(os.Stdout, "json", k8sClient, customClient)
 	}
 
 	cmd.AddCommand(listCmd)

@@ -13,14 +13,14 @@ const cvListHTML = `
 </head>
 <body>
 <main>
-    <h1>List of current version of CV managed deployments</h1>
+    <h1>List of current version of CV managed workloads</h1>
     <section>
         <div>
             <table >
                 <thead>
                 <tr>
                     <th scope="col">Namespace</th>
-                    <th scope="col">Deployment</th>
+                    <th scope="col">Name</th>
                     <th scope="col">Container</th>
                     <th scope="col">Version</th>
                     <th scope="col">Available pods/Status</th>
@@ -30,7 +30,7 @@ const cvListHTML = `
                 {{range .}}
                 <tr>
 				    <td>{{.Namespace}}</td>
-				    <td>{{.Deployment}}</td>
+				    <td>{{.Name}}</td>
 				    <td>{{.Container}}</td>
 				    <td>{{.Version}}</td>
 				    <td>{{.AvailablePods}}</td>

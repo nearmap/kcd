@@ -29,7 +29,7 @@ func StaticContentHandler(content string) http.HandlerFunc {
 func NewServer(port int, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
-	mux.Handle(pat.Get("/v1/cv"), cv.NewCVHandler(cs, cvCS))
+	mux.Handle(pat.Get("/v1/cv/workloads"), cv.NewCVHandler(cs, cvCS))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
