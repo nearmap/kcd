@@ -127,8 +127,9 @@ eg.
 ```
 
 
-## Release history 
-size https://github.com/kubernetes/kubernetes/issues/19781
+## Release history
+Use ```--history``` CLI option on CVManager to capture release history in configmap. 
+
 
 #### Reference links
 - https://kccnceu18.sched.com/event/DquY/continuous-delivery-meets-custom-kubernetes-controller-a-declarative-configuration-approach-to-cicd-suneeta-mall-simon-cochrane-nearmap-intermediate-skill-level?iframe=no&w=100%&sidebar=yes&bg=no

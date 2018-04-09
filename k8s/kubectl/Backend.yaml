@@ -106,6 +106,7 @@ objects:
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
+                - "--history=$(USE_HISTORY)"
               env:
               - name: INSTANCENAME
                 valueFrom:
@@ -163,3 +164,8 @@ parameters:
     required: true
     parameterType: "string"
     value: "latest"
+  - name: "USE_HISTORY"
+    description: "version of the application for deployment"
+    required: true
+    value: false
+    parameterType: "bool"

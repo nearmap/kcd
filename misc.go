@@ -113,7 +113,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace of container version resource that the syncer is based on.")
 	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
-	cmd.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <namespace>_<resource_name>_<app>")
+	cmd.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {

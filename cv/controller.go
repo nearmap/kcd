@@ -57,6 +57,8 @@ type CVController struct {
 	recorder record.EventRecorder
 
 	stats stats.Stats
+
+	useHistory bool
 }
 
 type configKey struct {
@@ -70,7 +72,7 @@ type configKey struct {
 // and thus performing the roll-out if required (using the roll-out strategy specified in deployment.
 func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
-	statsInstance stats.Stats) (*CVController, error) {
+	statsInstance stats.Stats, useHistory bool) (*CVController, error) {
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(configMapKey)
 	if err != nil {
@@ -111,6 +113,8 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ContainerVersions"),
 		recorder: recorder,
 		stats:    statsInstance,
+
+		useHistory: useHistory,
 	}
 
 	log.Printf("Setting up event handlers in container version controller")
@@ -404,7 +408,7 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
 								fmt.Sprintf("--cv=%s", cv.Name),
-								"--history",
+								fmt.Sprintf("--history=%t", c.useHistory),
 							},
 							Env: []corev1.EnvVar{{
 								Name: "INSTANCENAME",
