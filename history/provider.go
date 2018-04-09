@@ -24,11 +24,11 @@ type Record struct {
 	Type    string
 	Name    string
 	Version string
-	time    time.Time
+	Time    time.Time
 }
 
 func (r *Record) String() string {
-	return fmt.Sprintf("Update occurred at:%s:\nWorkload:%s to version:%s\n", r.time, r.Name, r.Version)
+	return fmt.Sprintf("Update occurred at:%s:\nWorkload:%s to version:%s\n", r.Time, r.Name, r.Version)
 }
 
 // Provider is an interface to add and fetch cv release/update history

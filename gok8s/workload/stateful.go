@@ -12,6 +12,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const stateful = "Stateful"
+
 func (k *K8sProvider) syncStatefulSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().StatefulSets(k.namespace).List(listOpts)
 	if err != nil {
@@ -25,9 +27,9 @@ func (k *K8sProvider) syncStatefulSet(cv *cv1.ContainerVersion, version string, 
 					_, err := k.cs.AppsV1().StatefulSets(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
-				})
+				}, func() string { return stateful })
 			} else {
-				k.raiseSyncPodErrEvents(err, "Stateful", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, stateful, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -46,7 +48,7 @@ func (k *K8sProvider) cvStatefulSets(cv *cv1.ContainerVersion, listOpts metav1.L
 				cvsList = append(cvsList, &Resource{
 					Namespace: cv.Namespace,
 					Name:      dd.Name,
-					Type:      "StatefulSet",
+					Type:      stateful,
 					Container: c.Name,
 					Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
 					CV:        cv.Name,

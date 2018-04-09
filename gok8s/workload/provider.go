@@ -5,6 +5,7 @@ import (
 	"os"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +40,7 @@ type K8sProvider struct {
 
 	namespace string
 
+	hp    history.Provider
 	stats stats.Stats
 }
 
@@ -65,6 +67,7 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats) *K8sP
 
 		namespace: ns,
 
+		hp:    history.NewProvider(cs, stats),
 		stats: stats,
 	}
 

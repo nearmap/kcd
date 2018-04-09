@@ -12,6 +12,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const daemonSet = "DaemonSet"
+
 func (k *K8sProvider) syncDaemonSets(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().DaemonSets(k.namespace).List(listOpts)
 	if err != nil {
@@ -26,9 +28,9 @@ func (k *K8sProvider) syncDaemonSets(cv *cv1.ContainerVersion, version string, l
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
 
-				})
+				}, func() string { return daemonSet })
 			} else {
-				k.raiseSyncPodErrEvents(err, "DaemonSet", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, daemonSet, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -47,7 +49,7 @@ func (k *K8sProvider) cvDaemonSets(cv *cv1.ContainerVersion, listOpts metav1.Lis
 				cvsList = append(cvsList, &Resource{
 					Namespace:     cv.Namespace,
 					Name:          dd.Name,
-					Type:          "DaemonSet",
+					Type:          daemonSet,
 					Container:     c.Name,
 					Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
 					AvailablePods: dd.Status.NumberAvailable,

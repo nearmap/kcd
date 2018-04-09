@@ -13,6 +13,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const cronJobs = "CronJob"
+
 func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	// BatchV2alpha1 is 10.x onwards
 	ds, err := k.cs.BatchV1beta1().CronJobs(k.namespace).List(listOpts)
@@ -34,9 +36,9 @@ func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, lis
 						}
 						`, podTemplateSpec), d.Spec.JobTemplate.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
-				})
+				}, func() string { return cronJobs })
 			} else {
-				k.raiseSyncPodErrEvents(err, "CronJob", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, cronJobs, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -58,7 +60,7 @@ func (k *K8sProvider) cvCronJobs(cv *cv1.ContainerVersion, listOpts metav1.ListO
 				cvsList = append(cvsList, &Resource{
 					Namespace: cv.Namespace,
 					Name:      dd.Name,
-					Type:      "CronJob",
+					Type:      cronJobs,
 					Container: c.Name,
 					Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
 					CV:        cv.Name,

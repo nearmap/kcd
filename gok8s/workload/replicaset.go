@@ -13,6 +13,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const replicaSet = "ReplicaSet"
+
 func (k *K8sProvider) syncReplicaSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().ReplicaSets(k.namespace).List(listOpts)
 	if err != nil {
@@ -27,9 +29,9 @@ func (k *K8sProvider) syncReplicaSet(cv *cv1.ContainerVersion, version string, l
 					_, err := k.cs.AppsV1().ReplicaSets(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
-				})
+				}, func() string { return replicaSet })
 			} else {
-				k.raiseSyncPodErrEvents(err, "ReplicaSet", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, replicaSet, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -48,7 +50,7 @@ func (k *K8sProvider) cvReplicaSets(cv *cv1.ContainerVersion, listOpts metav1.Li
 				cvsList = append(cvsList, &Resource{
 					Namespace:     cv.Namespace,
 					Name:          dd.Name,
-					Type:          "ReplicaSet",
+					Type:          replicaSet,
 					Container:     c.Name,
 					Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
 					AvailablePods: dd.Status.AvailableReplicas,

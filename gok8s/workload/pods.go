@@ -7,6 +7,7 @@ import (
 	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/cvmanager/history"
 	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +34,7 @@ const podTemplateSpec = `
 						`
 
 type patchPodSpecFn func(i int) error
+type typeFn func() string
 
 func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion) (string, error) {
 	log.Printf("Checking daemonSet version %s from ECR for daemonSet %s", tag, name)
@@ -78,7 +80,9 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 }
 
 // rollback tag logic is not needed revisionHistoryLimit automatically maintains 6 revisions limits
-func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion, ppfn patchPodSpecFn) error {
+func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion, ppfn patchPodSpecFn,
+	typFn typeFn) error {
+
 	log.Printf("Beginning deploy for deployment %s with version %s", name, tag)
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -102,6 +106,17 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 		log.Printf("Failed to update container version after maximum retries: version=%v, deployment=%v, error=%v",
 			tag, name, retryErr)
 		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", "Failed to perform the deployment")
+	}
+
+	err := k.hp.Add(k.namespace, name, &history.Record{
+		Type:    typFn(),
+		Name:    name,
+		Version: tag,
+		Time:    time.Now(),
+	})
+	if err != nil {
+		k.stats.IncCount(fmt.Sprintf("cvc.%s.%s.history.save.failure", k.namespace, name))
+		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "SaveHistoryFailed", "Failed to record update history")
 	}
 
 	log.Printf("Update completed: deployment=%v", name)

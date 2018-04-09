@@ -12,6 +12,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const job = "Job"
+
 func (k *K8sProvider) syncJobs(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.BatchV1().Jobs(k.namespace).List(listOpts)
 	if err != nil {
@@ -25,9 +27,9 @@ func (k *K8sProvider) syncJobs(cv *cv1.ContainerVersion, version string, listOpt
 					_, err := k.cs.BatchV1().Jobs(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
-				})
+				}, func() string { return job })
 			} else {
-				k.raiseSyncPodErrEvents(err, "Job", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, job, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -46,7 +48,7 @@ func (k *K8sProvider) cvJobs(cv *cv1.ContainerVersion, listOpts metav1.ListOptio
 				cvsList = append(cvsList, &Resource{
 					Namespace: cv.Namespace,
 					Name:      dd.Name,
-					Type:      "Job",
+					Type:      job,
 					Container: c.Name,
 					Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
 					CV:        cv.Name,

@@ -12,6 +12,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 )
 
+const deploy = "Deployment"
+
 func (k *K8sProvider) syncDeployments(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().Deployments(k.namespace).List(listOpts)
 	if err != nil {
@@ -25,9 +27,9 @@ func (k *K8sProvider) syncDeployments(cv *cv1.ContainerVersion, version string, 
 					_, err := k.cs.AppsV1().Deployments(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
-				})
+				}, func() string { return deploy })
 			} else {
-				k.raiseSyncPodErrEvents(err, "Deployment", d.Name, cv.Spec.Tag, version)
+				k.raiseSyncPodErrEvents(err, deploy, d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
@@ -46,7 +48,7 @@ func (k *K8sProvider) cvDeployment(cv *cv1.ContainerVersion, listOpts metav1.Lis
 				cvsList = append(cvsList, &Resource{
 					Namespace:     cv.Namespace,
 					Name:          dd.Name,
-					Type:          "Deployment",
+					Type:          deploy,
 					Container:     c.Name,
 					Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
 					AvailablePods: dd.Status.AvailableReplicas,
