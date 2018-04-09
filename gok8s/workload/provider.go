@@ -69,7 +69,9 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recor
 
 		namespace: ns,
 
-		hp:    history.NewProvider(cs, stats),
+		hp:            history.NewProvider(cs, stats),
+		recordHistory: recordHistory,
+
 		stats: stats,
 	}
 

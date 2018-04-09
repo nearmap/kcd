@@ -38,6 +38,7 @@ type typeFn func() string
 
 func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion) (string, error) {
 	log.Printf("Checking version %s from ECR for workload %s", tag, name)
+
 	match := false
 	for _, c := range d.Spec.Containers {
 		if c.Name == cv.Spec.Container {

@@ -84,7 +84,7 @@ func (p *provider) Add(namespace, name string, record *Record) error {
 }
 
 func configName(name string) string {
-	return fmt.Sprintf("%s_history", name)
+	return fmt.Sprintf("%s.history", name)
 }
 
 // newRecordConfig creates a new configmap to capture update history performed by cvmanager
@@ -97,7 +97,7 @@ func newRecordConfig(namespace, name string, records ...*Record) *corev1.ConfigM
 	msg := strings.Join(strRecords, "\n")
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      configName(name),
 			Namespace: namespace,
 			Labels:    labels(),
 		},
@@ -126,6 +126,6 @@ func updateRecordConfig(cm *corev1.ConfigMap, records ...*Record) *corev1.Config
 func labels() map[string]string {
 	return map[string]string{
 		"OWNED_BY":    "CVManager",
-		"MODIFIED_AT": fmt.Sprintf("%s", time.Now().String()),
+		"MODIFIED_AT": time.Now().Format("Mon-2Jan2006-15.04"),
 	}
 }
