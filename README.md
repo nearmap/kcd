@@ -127,8 +127,14 @@ eg.
 ```
 
 
-## Release history
+## Rollout history
 Use ```--history``` CLI option on CVManager to capture release history in configmap. 
+- When history option is chosen, REST interface ```http://<host>:8081/v1/cv/workloads/cvmanagerapp?namespace=kube-system```, details the update/rollout history. 
+![see example](release_history.png "Example")
+
+- The history is stored in configmap under same namespace as workload resource with configmap name <workload_resource_name>.history eg cvmanagerapp.history
+![see example](history_configmap.png "Example")
+
 
 
 #### Reference links
