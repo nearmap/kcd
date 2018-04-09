@@ -30,12 +30,12 @@ const cvListHTML = `
                 <tbody>
                 {{range .}}
                 <tr>
-				    <td>{{.Namespace}}</td>
-				    <td>{{.Name}}</td>
+                    <td>{{.Namespace}}</td>
+                    <td>{{.Name}}</td>
                     <td>{{.Type}}</td>
-				    <td>{{.Container}}</td>
-				    <td>{{.Version}}</td>
-				    <td>{{.AvailablePods}}</td>
+                    <td>{{.Container}}</td>
+                    <td>{{.Version}}</td>
+                    <td>{{.AvailablePods}}</td>
                 </tr>
                 {{end}}
                 </tbody>

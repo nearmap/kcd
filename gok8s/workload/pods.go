@@ -91,3 +91,13 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 	k.Recorder.Event(k.Pod, corev1.EventTypeNormal, "StatefulSetSuccess", "StatefulSet completed successfully")
 	return nil
 }
+
+// raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
+func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
+	log.Printf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
+	k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
+		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
+		time.Now().UTC())
+	k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
+
+}

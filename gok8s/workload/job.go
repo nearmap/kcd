@@ -2,9 +2,7 @@ package k8s
 
 import (
 	"fmt"
-	"log"
 	"strings"
-	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	errs "github.com/nearmap/cvmanager/registry/errs"
@@ -50,13 +48,7 @@ func (k *K8sProvider) syncJobs(cv *cv1.ContainerVersion, version string, listOpt
 					return err
 				})
 			} else {
-				// Check version raises events as deemed necessary ..
-				// for other issues log is ok for now and continue checking
-				log.Printf("Failed sync job with image: digest=%v, tag=%v, err=%v", version, cv.Spec.Tag, err)
-				k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, d.Name),
-					fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
-					time.Now().UTC())
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", "Error syncing job")
+				k.raiseSyncPodErrEvents(err, "Job", d.Name, cv.Spec.Tag, version)
 			}
 		}
 	}
