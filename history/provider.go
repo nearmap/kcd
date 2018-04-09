@@ -99,6 +99,7 @@ func newRecordConfig(namespace, name string, records ...*Record) *corev1.ConfigM
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    labels(),
 		},
 		Data: map[string]string{
 			key: msg,
@@ -115,8 +116,16 @@ func updateRecordConfig(cm *corev1.ConfigMap, records ...*Record) *corev1.Config
 	msg := strings.Join(strRecords, "\n")
 	msg = fmt.Sprintf("%s\n%s", msg, cm.Data[key])
 
+	cm.ObjectMeta.Labels = labels()
 	// ConfigMap can only hold 1MB size data
 	// see https://github.com/kubernetes/kubernetes/issues/19781
 	cm.Data[key] = string(msg[:sizeLimit])
 	return cm
+}
+
+func labels() map[string]string {
+	return map[string]string{
+		"OWNED_BY":    "CVManager",
+		"MODIFIED_AT": fmt.Sprintf("%s", time.Now().String()),
+	}
 }

@@ -17,6 +17,9 @@ func NewHandler(cs kubernetes.Interface) http.HandlerFunc {
 		p := NewProvider(cs, stats.NewFake())
 		name := pat.Param(r, "name")
 		ns := r.URL.Query().Get("namespace")
+		if ns == "" {
+			ns = "default"
+		}
 
 		msg, err := p.History(ns, name)
 		if err != nil {
