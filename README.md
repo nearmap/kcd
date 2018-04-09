@@ -126,5 +126,9 @@ eg.
     cvmanager cv get --k8s-config ~/.kube/config
 ```
 
+
+## Release history 
+size https://github.com/kubernetes/kubernetes/issues/19781
+
 #### Reference links
 - https://kccnceu18.sched.com/event/DquY/continuous-delivery-meets-custom-kubernetes-controller-a-declarative-configuration-approach-to-cicd-suneeta-mall-simon-cochrane-nearmap-intermediate-skill-level?iframe=no&w=100%&sidebar=yes&bg=no
