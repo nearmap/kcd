@@ -119,7 +119,11 @@ func updateRecordConfig(cm *corev1.ConfigMap, records ...*Record) *corev1.Config
 	cm.ObjectMeta.Labels = labels()
 	// ConfigMap can only hold 1MB size data
 	// see https://github.com/kubernetes/kubernetes/issues/19781
-	cm.Data[key] = string(msg[:sizeLimit])
+	bytLen := len([]byte(msg))
+	if bytLen > sizeLimit {
+		msg = msg[:sizeLimit]
+	}
+	cm.Data[key] = string(msg)
 	return cm
 }
 
