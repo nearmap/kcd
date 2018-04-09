@@ -52,14 +52,14 @@ type syncer struct {
 // NewSyncer provides new reference of dhSyncer
 // to manage AWS ECR repository and sync deployments periodically
 func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string,
-	cv *cv1.ContainerVersion, stats stats.Stats) (*syncer, error) {
+	cv *cv1.ContainerVersion, stats stats.Stats, recordHistory bool) (*syncer, error) {
 
 	repoName, accountID, region, err := nameAccountRegionFromARN(cv.Spec.ImageRepo)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	k8sProvider := k8s.NewK8sProvider(cs, ns, stats)
+	k8sProvider := k8s.NewK8sProvider(cs, ns, stats, recordHistory)
 
 	syncer := &syncer{
 		k8sProvider: k8sProvider,

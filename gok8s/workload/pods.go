@@ -108,15 +108,17 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", "Failed to perform the deployment")
 	}
 
-	err := k.hp.Add(k.namespace, name, &history.Record{
-		Type:    typFn(),
-		Name:    name,
-		Version: tag,
-		Time:    time.Now(),
-	})
-	if err != nil {
-		k.stats.IncCount(fmt.Sprintf("cvc.%s.%s.history.save.failure", k.namespace, name))
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "SaveHistoryFailed", "Failed to record update history")
+	if k.recordHistory {
+		err := k.hp.Add(k.namespace, name, &history.Record{
+			Type:    typFn(),
+			Name:    name,
+			Version: tag,
+			Time:    time.Now(),
+		})
+		if err != nil {
+			k.stats.IncCount(fmt.Sprintf("cvc.%s.%s.history.save.failure", k.namespace, name))
+			k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "SaveHistoryFailed", "Failed to record update history")
+		}
 	}
 
 	log.Printf("Update completed: deployment=%v", name)

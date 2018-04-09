@@ -120,10 +120,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.New("CV  and namespace to watch on must be provided.")
 		}
 
-		if params.history {
-			log.Printf("No history is stored at the moment - still WIP")
-		}
-
 		return nil
 	}
 
@@ -174,9 +170,9 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		var crSyncer registry.Syncer
 		switch root.params.provider {
 		case "ecr":
-			crSyncer, err = ecr.NewSyncer(root.sess, k8sClient, params.namespace, cv, stats)
+			crSyncer, err = ecr.NewSyncer(root.sess, k8sClient, params.namespace, cv, stats, params.history)
 		case "dockerhub":
-			crSyncer, err = dh.NewSyncer(k8sClient, params.namespace, cv, stats)
+			crSyncer, err = dh.NewSyncer(k8sClient, params.namespace, cv, stats, params.history)
 		}
 		if err != nil {
 			log.Printf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
@@ -344,7 +340,7 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, "", stats.NewFake())
+		k8sProvider := k8s.NewK8sProvider(k8sClient, "", stats.NewFake(), false)
 
 		return cv.ExecuteWorkloadsList(os.Stdout, "json", k8sProvider, customClient)
 	}

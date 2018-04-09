@@ -72,7 +72,7 @@ func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.Ha
 			typ = "json"
 		}
 
-		k8sProvider := k8s.NewK8sProvider(cs, "", stats.NewFake())
+		k8sProvider := k8s.NewK8sProvider(cs, "", stats.NewFake(), false)
 		err := ExecuteWorkloadsList(w, typ, k8sProvider, customCS)
 		if err != nil {
 			log.Printf("failed to get workload list %v", err)

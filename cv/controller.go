@@ -404,6 +404,7 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
 								fmt.Sprintf("--cv=%s", cv.Name),
+								"--history",
 							},
 							Env: []corev1.EnvVar{{
 								Name: "INSTANCENAME",

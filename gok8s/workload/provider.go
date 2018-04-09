@@ -40,13 +40,15 @@ type K8sProvider struct {
 
 	namespace string
 
-	hp    history.Provider
+	hp            history.Provider
+	recordHistory bool
+
 	stats stats.Stats
 }
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats) *K8sProvider {
+func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recordHistory bool) *K8sProvider {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(log.Printf)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: cs.CoreV1().Events("")})
