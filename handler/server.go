@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	k8s "github.com/nearmap/cvmanager/cv"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	k8s "github.com/nearmap/cvmanager/gok8s/cv"
 	goji "goji.io"
 	"goji.io/pat"
 	"k8s.io/client-go/kubernetes"

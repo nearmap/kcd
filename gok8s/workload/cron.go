@@ -25,23 +25,14 @@ func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, lis
 			if err == errs.ErrVersionMismatch {
 				return k.patchPodSpec(d.Spec.JobTemplate.Spec.Template, d.Name, ci, cv, func(i int) error {
 					_, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
-						[]byte(fmt.Sprintf(`
+						[]byte(fmt.Sprintf(fmt.Sprintf(`
 						{
 							"spec": {
-								"template": {
-									"spec": {
-										"containers": [
-												{
-													"name":  "%s",
-													"image": "%s:%s"
-												}
-											]
-										}
-									}
+								"jobTemplate": %s
 								}
 							}
 						}
-						`, d.Spec.JobTemplate.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
+						`, podTemplateSpec), d.Spec.JobTemplate.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
 				})
 			} else {

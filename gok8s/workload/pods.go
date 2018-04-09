@@ -14,6 +14,24 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+const podTemplateSpec = `
+						{
+							"spec": {
+								"template": {
+									"spec": {
+										"containers": [
+												{
+													"name":  "%s",
+													"image": "%s:%s"
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+						`
+
 type patchPodSpecFn func(i int) error
 
 func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion) (string, error) {
