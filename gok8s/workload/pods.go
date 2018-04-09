@@ -37,7 +37,7 @@ type patchPodSpecFn func(i int) error
 type typeFn func() string
 
 func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion) (string, error) {
-	log.Printf("Checking daemonSet version %s from ECR for daemonSet %s", tag, name)
+	log.Printf("Checking version %s from ECR for workload %s", tag, name)
 	match := false
 	for _, c := range d.Spec.Containers {
 		if c.Name == cv.Spec.Container {
@@ -72,7 +72,7 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 			"error", time.Now().UTC())
 		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No matching container found")
 
-		return "", errors.Errorf("No container of name %s was found in daemonSet %s", cv.Spec.Container, name)
+		return "", errors.Errorf("No container of name %s was found in workload %s", cv.Spec.Container, name)
 	}
 
 	log.Printf("workload resource %s is upto date", name)
@@ -83,13 +83,13 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion, ppfn patchPodSpecFn,
 	typFn typeFn) error {
 
-	log.Printf("Beginning deploy for deployment %s with version %s", name, tag)
+	log.Printf("Beginning rollout for workload %s with version %s", name, tag)
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for i, c := range d.Spec.Containers {
 			if c.Name == cv.Spec.Container {
 				if updateErr := ppfn(i); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, deployment=%v, error=%v",
+					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
 						tag, d.Name, updateErr)
 
 					return updateErr
@@ -100,12 +100,12 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 		return nil
 	})
 	if retryErr != nil {
-		k.stats.Event(fmt.Sprintf("%s.%s.sync.deploy.failure", k.namespace, name),
+		k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
 			fmt.Sprintf("Failed to validate image with %s", tag), "", "error",
 			time.Now().UTC())
-		log.Printf("Failed to update container version after maximum retries: version=%v, deployment=%v, error=%v",
+		log.Printf("Failed to update container version after maximum retries: version=%v, workload=%v, error=%v",
 			tag, name, retryErr)
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", "Failed to perform the deployment")
+		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to perform the workload")
 	}
 
 	if k.recordHistory {
@@ -121,9 +121,9 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 		}
 	}
 
-	log.Printf("Update completed: deployment=%v", name)
-	k.stats.IncCount(fmt.Sprintf("%s.%s.success", k.namespace, name))
-	k.Recorder.Event(k.Pod, corev1.EventTypeNormal, "StatefulSetSuccess", "StatefulSet completed successfully")
+	log.Printf("Update completed: workload=%v", name)
+	k.stats.IncCount(fmt.Sprintf("%s.%s.sync.success", k.namespace, name))
+	k.Recorder.Event(k.Pod, corev1.EventTypeNormal, "Success", "Updated completed successfully")
 	return nil
 }
 
@@ -133,6 +133,6 @@ func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version s
 	k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
-	k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "StatefulSetFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
+	k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
 
 }
