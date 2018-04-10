@@ -32,7 +32,7 @@ func New(address, namespace string, tags ...string) (*DataDogStats, error) {
 		return &DataDogStats{}, fmt.Errorf("failed to connect to statsd port at %s: %v", address, err)
 	}
 	client.Namespace = namespace
-	client.Tags = tags
+	client.Tags = append(tags, fmt.Sprintf("env:%s", namespace))
 
 	return &DataDogStats{
 		client: client,
@@ -116,7 +116,7 @@ func (stats *DataDogStats) Histogram(name string, value int64, tags ...string) {
 func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time.Time, tags ...string) {
 	log.Printf("sending %s event metric of value %s and tag %s", title, mesg, tags)
 	event := &statsd.Event{
-		Title:          fmt.Sprintf("%s.%s.event", stats.client.Namespace, title),
+		Title:          fmt.Sprintf("%s.event", title),
 		Text:           mesg,
 		Timestamp:      timestamp,
 		AggregationKey: aggKey,
@@ -150,7 +150,7 @@ func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time
 func (stats *DataDogStats) ServiceCheck(name, mesg string, status int, timestamp time.Time, tags ...string) {
 	log.Printf("sending %s service check status %d and tag %s", name, status, tags)
 	sc := &statsd.ServiceCheck{
-		Name:      fmt.Sprintf("%s.%s.sc", stats.client.Namespace, name),
+		Name:      fmt.Sprintf("%s.sc", name),
 		Message:   mesg,
 		Timestamp: timestamp,
 		Tags:      tags,

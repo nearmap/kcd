@@ -49,7 +49,7 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 				return "", errors.New("Invalid image found on container")
 			}
 			if parts[0] != cv.Spec.ImageRepo {
-				k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
+				k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
 					fmt.Sprintf("ECR repo mismatch present %s and requested  %s don't match", parts[0], cv.Spec.ImageRepo), "", "error",
 					time.Now().UTC())
 				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "ECR Repository mismatch was found")
@@ -57,7 +57,7 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 			}
 			if tag != parts[1] {
 				if k.validate(tag) != nil {
-					k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
+					k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
 						fmt.Sprintf("Failed to validate image with tag %s", tag), "", "error",
 						time.Now().UTC())
 					k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Candidate version failed validation")
@@ -69,7 +69,7 @@ func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 	}
 
 	if !match {
-		k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name), "No matching container found", "",
+		k.stats.Event(fmt.Sprintf("%s.sync.failure", name), "No matching container found", "",
 			"error", time.Now().UTC())
 		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No matching container found")
 
@@ -101,7 +101,7 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 		return nil
 	})
 	if retryErr != nil {
-		k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
+		k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
 			fmt.Sprintf("Failed to validate image with %s", tag), "", "error",
 			time.Now().UTC())
 		log.Printf("Failed to update container version after maximum retries: version=%v, workload=%v, error=%v",
@@ -117,13 +117,13 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 			Time:    time.Now(),
 		})
 		if err != nil {
-			k.stats.IncCount(fmt.Sprintf("cvc.%s.%s.history.save.failure", k.namespace, name))
+			k.stats.IncCount(fmt.Sprintf("cvc.%s.history.save.failure", name))
 			k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "SaveHistoryFailed", "Failed to record update history")
 		}
 	}
 
 	log.Printf("Update completed: workload=%v", name)
-	k.stats.IncCount(fmt.Sprintf("%s.%s.sync.success", k.namespace, name))
+	k.stats.IncCount(fmt.Sprintf("%s.sync.success", name))
 	k.Recorder.Event(k.Pod, corev1.EventTypeNormal, "Success", "Updated completed successfully")
 	return nil
 }
@@ -131,7 +131,7 @@ func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *c
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
 func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
 	log.Printf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
-	k.stats.Event(fmt.Sprintf("%s.%s.sync.failure", k.namespace, name),
+	k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
 	k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))

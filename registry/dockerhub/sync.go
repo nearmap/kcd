@@ -65,7 +65,7 @@ func (s *syncer) Sync() error {
 func (s *syncer) doSync() error {
 	currentVersion, err := getDigest(s.cv.Spec.ImageRepo, s.cv.Spec.Tag)
 	if err != nil {
-		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.cv.Spec.ImageRepo, s.cv.Spec.Selector[cv1.CVAPP]))
+		s.stats.IncCount(fmt.Sprintf("%s.%s.badsha.failure", s.cv.Spec.ImageRepo, s.cv.Spec.Selector[cv1.CVAPP]))
 		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No image found with correct tags")
 		return nil
 	}
@@ -75,7 +75,7 @@ func (s *syncer) doSync() error {
 
 	if err := s.k8sProvider.SyncVersionConfig(s.cv, currentVersion); err != nil {
 		log.Printf("Failed sync config: %v", err)
-		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.cv.Spec.Config.Name))
+		s.stats.IncCount(fmt.Sprintf("%s.configsyn.failure", s.cv.Spec.Config.Name))
 		return errors.Wrapf(err, "Failed to sync config version %s", s.cv.Spec.Selector[cv1.CVAPP])
 	}
 	return nil
