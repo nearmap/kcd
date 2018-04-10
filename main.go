@@ -58,14 +58,14 @@ func (sp *statsParams) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&sp.host, "stats-host", os.Getenv("STATS_HOST"), "Host to send stats.")
 }
 
-func (sp *statsParams) stats(namespace string) (stats.Stats, error) {
+func (sp *statsParams) stats(namespace string, tags ...string) (stats.Stats, error) {
 	if sp.host == "" {
 		return stats.NewFake(), nil
 	}
 
 	switch sp.provider {
 	case "datadog":
-		return datadog.New(sp.host, namespace)
+		return datadog.New(sp.host, namespace, tags...)
 	default:
 		return stats.NewFake(), nil
 	}

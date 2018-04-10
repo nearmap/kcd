@@ -204,7 +204,6 @@ func (c *CVController) processNextWorkItem() bool {
 		// Run the syncHandler, passing it the namespace/name string of the
 		// ContainerVersion resource to be synced.
 		if err := c.syncHandler(key); err != nil {
-			c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", key))
 			return errors.Wrapf(err, "error syncing '%s'", key)
 		}
 		c.queue.Forget(obj)
@@ -243,10 +242,12 @@ func (c *CVController) syncHandler(key string) error {
 
 	version, err := c.fetchVersion()
 	if err != nil {
+		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
 		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateCRSync", "Cant find config for CRSync version")
 		return errors.Wrap(err, "Failed to find container version")
 	}
 	if err = c.syncDeployNames(namespace, key, version, cv); err != nil {
+		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
 		return errors.Wrap(err, "Failed to sync deployment")
 	}
 

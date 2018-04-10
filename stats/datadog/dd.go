@@ -32,7 +32,7 @@ func New(address, namespace string, tags ...string) (*DataDogStats, error) {
 		return &DataDogStats{}, fmt.Errorf("failed to connect to statsd port at %s: %v", address, err)
 	}
 	client.Namespace = namespace
-	client.Tags = append(tags, fmt.Sprintf("env:%s", namespace))
+	client.Tags = tags
 
 	return &DataDogStats{
 		client: client,
