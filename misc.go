@@ -67,7 +67,7 @@ func newCRRootCommand() *crRoot {
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
 
-		root.stats, err = root.params.stats.stats("cr")
+		root.stats, err = root.params.stats.stats("crsync")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
@@ -126,7 +126,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		log.Print("Starting cr Sync")
 
-		stats, err := root.params.stats.stats(params.cvName, params.namespace)
+		stats, err := root.params.stats.stats(fmt.Sprintf("crsync.%s", params.cvName), params.namespace)
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
