@@ -158,7 +158,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(params.port, k8sClient, customClient, stopCh)
+		handler.NewServer(params.port, Version, k8sClient, customClient, stopCh)
 
 		return nil
 	}

@@ -34,9 +34,16 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build cvmanager container image
+          name: Login AWS
           command: |
             `aws ecr get-login --no-include-email --region ap-southeast-2`
+      - run:
+          name: Update version file
+          command: |
+            sed -i "s/NA/$CIRCLE_SHA1/g" version
+      - run:
+          name: Build cvmanager container image
+          command: |
             docker build -t nearmap/cvmanager .
       - run:
           name: Run unit and integration tests

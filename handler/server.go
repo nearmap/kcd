@@ -27,9 +27,10 @@ func StaticContentHandler(content string) http.HandlerFunc {
 
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
-func NewServer(port int, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
+func NewServer(port int, version string, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
+	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
 	mux.Handle(pat.Get("/v1/cv/workloads"), k8s.NewCVHandler(cs, cvCS))
 	mux.Handle(pat.Get("/v1/cv/workloads/:name"), history.NewHandler(cs))
 
