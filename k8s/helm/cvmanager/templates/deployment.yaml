@@ -5,6 +5,7 @@ metadata:
   name: {{ template "cvmanager.fullname" . }}
   labels:
     app: {{ template "cvmanager.name" . }}
+{{ toYaml .Values.cvCD.selector | indent 4 }}
     chart: {{ template "cvmanager.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -29,6 +30,7 @@ spec:
             - "--configmap-key={{ .Release.Namespace }}/{{ template "cvmanager.fullname" . }}"
             - "--cv-img-repo={{ .Values.image.repository }}"
             - "--port={{ .Values.service.port }}"
+            - "--history={{ .Values.useHistory }}"
           env:
           - name: INSTANCENAME
             valueFrom:

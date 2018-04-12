@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"strings"
 	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -12,6 +11,7 @@ import (
 	scheme "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
 	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
 	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
+	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,8 +34,8 @@ import (
 // CVController manages ContainerVersion (CV) kind (a custom resource definition) of resources.
 // It ensures that any changes in CV resources are picked up and acted upon.
 // The responsibility of CVController is to make sure that the container versions specified by CV resources
-// are up-to date. CVController does this by starting a DRSync for the container CV resource requests.
-// It is then DRSync service's responsibility to keep the version of a container up to date and perform
+// are up-to date. CVController does this by starting a CRSync for the container CV resource requests.
+// It is then CRSync service's responsibility to keep the version of a container up to date and perform
 // a rolling deployment whenever the container version needs to be updated as per tags of the DR repository.
 type CVController struct {
 	cluster string
@@ -57,6 +57,8 @@ type CVController struct {
 	recorder record.EventRecorder
 
 	stats stats.Stats
+
+	useHistory bool
 }
 
 type configKey struct {
@@ -70,7 +72,7 @@ type configKey struct {
 // and thus performing the roll-out if required (using the roll-out strategy specified in deployment.
 func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
-	statsInstance stats.Stats) (*CVController, error) {
+	statsInstance stats.Stats, useHistory bool) (*CVController, error) {
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(configMapKey)
 	if err != nil {
@@ -111,6 +113,8 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ContainerVersions"),
 		recorder: recorder,
 		stats:    statsInstance,
+
+		useHistory: useHistory,
 	}
 
 	log.Printf("Setting up event handlers in container version controller")
@@ -200,7 +204,6 @@ func (c *CVController) processNextWorkItem() bool {
 		// Run the syncHandler, passing it the namespace/name string of the
 		// ContainerVersion resource to be synced.
 		if err := c.syncHandler(key); err != nil {
-			c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", key))
 			return errors.Wrapf(err, "error syncing '%s'", key)
 		}
 		c.queue.Forget(obj)
@@ -239,10 +242,12 @@ func (c *CVController) syncHandler(key string) error {
 
 	version, err := c.fetchVersion()
 	if err != nil {
-		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateDRSync", "Cant find config for DRSync version")
+		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
+		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateCRSync", "Cant find config for CRSync version")
 		return errors.Wrap(err, "Failed to find container version")
 	}
-	if err = c.syncDeployments(namespace, key, version, cv); err != nil {
+	if err = c.syncDeployNames(namespace, key, version, cv); err != nil {
+		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
 		return errors.Wrap(err, "Failed to sync deployment")
 	}
 
@@ -332,16 +337,16 @@ func (c *CVController) handleCVOwnedObj(obj interface{}) {
 	}
 }
 
-// syncDeployments sync the deployment referenced by CV resource - creates if absent and updates if required
+// syncDeployNames sync the deployment referenced by CV resource - creates if absent and updates if required
 // The synce deployments are automatically updated when controller is updated so the syncers do not need CV
 // resource or auto update mechanism
-func (c *CVController) syncDeployments(namespace, key, version string, cv *cv1.ContainerVersion) error {
-	_, err := c.deployLister.Deployments(namespace).Get(syncDeployment(cv.Spec.Deployment.Name))
+func (c *CVController) syncDeployNames(namespace, key, version string, cv *cv1.ContainerVersion) error {
+	_, err := c.deployLister.Deployments(namespace).Get(syncDeployName(cv.Name))
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			_, err = c.k8sCS.AppsV1().Deployments(namespace).Create(c.newDRSyncDeployment(cv, version))
+			_, err = c.k8sCS.AppsV1().Deployments(namespace).Create(c.newCRSyncDeployment(cv, version))
 			if err != nil {
-				c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateDRSync", "Failed to create DR Sync deployment")
+				c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateCRSync", "Failed to create DR Sync deployment")
 				return errors.Wrapf(err, "Failed to create DR Sync deployment %s", key)
 			}
 			return nil
@@ -349,30 +354,21 @@ func (c *CVController) syncDeployments(namespace, key, version string, cv *cv1.C
 		return errors.Wrapf(err, "Failed to find DR Sync deployment %s", key)
 	}
 
-	_, err = c.k8sCS.AppsV1().Deployments(namespace).Update(c.newDRSyncDeployment(cv, version))
+	_, err = c.k8sCS.AppsV1().Deployments(namespace).Update(c.newCRSyncDeployment(cv, version))
 	if err != nil {
-		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedUpdateDRSync", "Failed to update DR Sync deployment")
+		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedUpdateCRSync", "Failed to update DR Sync deployment")
 		return errors.Wrapf(err, "Failed to update DR Sync deployment %s", key)
 	}
 	return nil
 }
 
-// newDRSyncDeployment creates a new Deployment for a ContainerVersion resource. It also sets
+// newCRSyncDeployment creates a new Deployment for a ContainerVersion resource. It also sets
 // the appropriate OwnerReferences on the resource so we can discover
 // the ContainerVersion resource that 'owns' it.
 // TODO We need to improve on auto-upgrading DRsync deployments ..
-func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
+func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
-	var configKey, provider string
-	if cv.Spec.Config != nil {
-		configKey = fmt.Sprintf("%s/%s", cv.Spec.Config.Name, cv.Spec.Config.Key)
-	}
-	dName := syncDeployment(cv.Spec.Deployment.Name)
-	if strings.Contains(cv.Spec.ImageRepo, "amazonaws.com") {
-		provider = "ecr"
-	} else {
-		provider = "dockerhub"
-	}
+	dName := syncDeployName(cv.Name)
 
 	labels := map[string]string{
 		"app":        "cr-syncer",
@@ -410,14 +406,10 @@ func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version str
 							Args: []string{
 								"cr",
 								"sync",
-								fmt.Sprintf("--tag=%s", cv.Spec.Tag),
-								fmt.Sprintf("--repo=%s", cv.Spec.ImageRepo),
-								fmt.Sprintf("--deployment=%s", cv.Spec.Deployment.Name),
-								fmt.Sprintf("--container=%s", cv.Spec.Deployment.Container),
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
-								fmt.Sprintf("--sync=%d", cv.Spec.CheckFrequency),
-								fmt.Sprintf("--configKey=%s", configKey),
-								fmt.Sprintf("--provider=%s", provider),
+								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
+								fmt.Sprintf("--cv=%s", cv.Name),
+								fmt.Sprintf("--history=%t", c.useHistory),
 							},
 							Env: []corev1.EnvVar{{
 								Name: "INSTANCENAME",
@@ -444,8 +436,8 @@ func (c *CVController) newDRSyncDeployment(cv *cv1.ContainerVersion, version str
 	}
 }
 
-func syncDeployment(targetDeployment string) string {
-	return fmt.Sprintf("crsync-%s", targetDeployment)
+func syncDeployName(cvName string) string {
+	return fmt.Sprintf("crsync-%s", cvName)
 }
 
 // fetchVersion gets container version from config map as specified in configMapKey

@@ -26,13 +26,26 @@ spec:
             imageRepo:
               type: string
               pattern: '^[^:]*$'
+            # selector:
+            #   type: objects
+            selector:
+              properties:
+                cvapp:
+                  type: string
+              required:
+                - cvapp
+              # type: object
+              # See https://github.com/kubernetes/kubernetes/issues/59485 maps not supported fully
+              # additionalProperties:
+              #   type: string
+              # # This would work .. map should only be keyed on string type
+              # # so not using it
+              # additionalProperties: true
+
             ## Would be better to use label selector but this will be done later
             ## Simple for now
-            deployment:
-              name:
-                type: string
-              container:
-                type: string
+            container:
+              type: string
             checkFrequency:
               ## frequency in minutes
               type: integer

@@ -19,8 +19,6 @@ limitations under the License.
 package v1
 
 import (
-	time "time"
-
 	custom_v1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	versioned "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
@@ -29,6 +27,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+	time "time"
 )
 
 // ContainerVersionInformer provides access to a shared informer and lister for

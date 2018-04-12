@@ -5,7 +5,7 @@ Uses [ktmpl](https://github.com/jimmycuadra/ktmpl) based [tool](https://hub.dock
 
 ## Custom resource definition (CRD)
 
-- ContainerVersion [CR](cv-crd.yaml)
+- ContainerVersion [CR](cv-crd.yaml) is defined.
 
 ## Container version
 
@@ -22,9 +22,13 @@ and using *kubectl*:
     kubectl get cv --all-namespaces
 ```
 
+*Note*: CV resource will be applied as a part of deploymenet process so this step is not nessasary.
 
-## Deploy CVManager
+
+## Deploy CVManager and all required resources
+
 *Run*
+
 ```
 docker run -ti -v `pwd`:/config nearmap/nktmpl Backend.yaml --parameter REGION ap-southeast-2  --parameter VERSION <SHA> |  kubectl apply -f -
 ```

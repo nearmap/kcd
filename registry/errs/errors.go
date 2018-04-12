@@ -1,4 +1,4 @@
-package registry
+package errs
 
 import (
 	"github.com/pkg/errors"

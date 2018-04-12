@@ -4,6 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const CVAPP = "cvapp"
+
 // +genclient
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -23,15 +25,11 @@ type ContainerVersionSpec struct {
 	Tag            string `json:"tag"`
 	CheckFrequency int    `json:"checkFrequency"`
 
-	Deployment DeploymentSpec `json:"deployment"`
+	Selector map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
+
+	Container string `json:"container"`
 
 	Config *ConfigSpec `json:"config"`
-}
-
-// DeploymentSpec is spec for Deployment resources
-type DeploymentSpec struct {
-	Name      string `json:"name"`
-	Container string `json:"container"`
 }
 
 // ConfigSpec is spec for Config resources

@@ -21,6 +21,7 @@ const cvListHTML = `
                 <tr>
                     <th scope="col">Namespace</th>
                     <th scope="col">Name</th>
+                    <th scope="col">Type</th>
                     <th scope="col">Container</th>
                     <th scope="col">Version</th>
                     <th scope="col">Available pods/Status</th>
@@ -29,11 +30,12 @@ const cvListHTML = `
                 <tbody>
                 {{range .}}
                 <tr>
-				    <td>{{.Namespace}}</td>
-				    <td>{{.Name}}</td>
-				    <td>{{.Container}}</td>
-				    <td>{{.Version}}</td>
-				    <td>{{.AvailablePods}}</td>
+                    <td>{{.Namespace}}</td>
+                    <td>{{.Name}}</td>
+                    <td>{{.Type}}</td>
+                    <td>{{.Container}}</td>
+                    <td>{{.Version}}</td>
+                    <td>{{.AvailablePods}}</td>
                 </tr>
                 {{end}}
                 </tbody>

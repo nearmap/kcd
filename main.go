@@ -58,14 +58,14 @@ func (sp *statsParams) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&sp.host, "stats-host", os.Getenv("STATS_HOST"), "Host to send stats.")
 }
 
-func (sp *statsParams) stats(namespace string) (stats.Stats, error) {
+func (sp *statsParams) stats(namespace string, tags ...string) (stats.Stats, error) {
 	if sp.host == "" {
 		return stats.NewFake(), nil
 	}
 
 	switch sp.provider {
 	case "datadog":
-		return datadog.New(sp.host, namespace)
+		return datadog.New(sp.host, namespace, tags...)
 	default:
 		return stats.NewFake(), nil
 	}
@@ -78,6 +78,8 @@ type runParams struct {
 	cvImgRepo string
 
 	port int
+
+	history bool
 
 	stats statsParams
 }
@@ -93,6 +95,7 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
 	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
+	rc.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
@@ -138,7 +141,7 @@ func newRunCommand() *cobra.Command {
 
 		//Controllers here
 		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo, k8sClient, customClient,
-			k8sInformerFactory, customInformerFactory, stats)
+			k8sInformerFactory, customInformerFactory, stats, params.history)
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")
 		}
@@ -155,7 +158,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(params.port, k8sClient, customClient, stopCh)
+		handler.NewServer(params.port, Version, k8sClient, customClient, stopCh)
 
 		return nil
 	}

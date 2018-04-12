@@ -16,14 +16,13 @@ apiVersion: custom.k8s.io/v1
 kind: ContainerVersion
 metadata:
   name: photos-cv
-  namespace: photos
 spec:
   imageRepo: nearmap/photos
   tag: dev
   checkFrequency: 5
-  deployment:
-    name: photosapp
-    container: photosapp-container
+  container: photosapp-container
+  selector:
+    cvapp: photocv
 ```
 
 And an example creation of CV resource is:
@@ -33,14 +32,13 @@ apiVersion: custom.k8s.io/v1
 kind: ContainerVersion
 metadata:
   name: photos-cv
-  namespace: photos
 spec:
   imageRepo: nearmap/photos
   tag: dev
   checkFrequency: 5
-  deployment:
-    name: photosapp
-    container: photosapp-container
+  container: photosapp-container
+  selector:
+    cvapp: photocv
 EOF
 ```
 

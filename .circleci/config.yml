@@ -4,29 +4,23 @@ defaults: &defaults
   machine: true
   working_directory: ~/go/src/github.com/nearmap/cvmanager
 
-remove-env-tag: &remove-env-tag
-  name: Remove deploy tag from current deployments
+deploy-env: &deploy-env
+  name: Tag current image as deploy candidate
   command: |
     source env_file
-    docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+    echo "Remove deploy tag from current deployments"
+    docker run \
+      -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
       -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-      nearmap/cvmanager:39891f1f2e80e9ada3c13d4a522ebd207ac4acea \
-      ecr-tags remove --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV
-      # nearmap/cvmanager \
-      # dr tags remove --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV
-
-
-add-env-tag: &add-env-tag
-  name: Add deployment tag for env to this version
-  command: |
-    source env_file
-    docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+      nearmap/cvmanager cr tags remove \
+      --repo ${ECR_ENDPOINT}/nearmap/cvmanager \
+      --tags $ENV
+    echo "Add deployment tag for env to this version"
+    docker run \
+      -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
       -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-      nearmap/cvmanager:39891f1f2e80e9ada3c13d4a522ebd207ac4acea \
-      ecr-tags add --ecr ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
-      # nearmap/cvmanager \
-      # cr tags add --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
-
+      nearmap/cvmanager cr tags add \
+      --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
 
 jobs:
   build:
@@ -34,16 +28,21 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build cvmanager container image
+          name: Login AWS
           command: |
             `aws ecr get-login --no-include-email --region ap-southeast-2`
+      - run:
+          name: Update version file
+          command: |
+            sed -i "s/NA/$CIRCLE_SHA1/g" version
+      - run:
+          name: Build cvmanager container image
+          command: |
             docker build -t nearmap/cvmanager .
       - run:
           name: Run unit and integration tests
           command: |
-            docker-compose down
-            docker-compose rm -f
-            docker-compose up --force-recreate --build --abort-on-container-exit
+            docker-compose up --abort-on-container-exit
       - run:
           name: Go Report Card
           command: |
@@ -64,9 +63,7 @@ jobs:
           command: |
             echo "export ENV=dev" >> env_file
       - run:
-          <<: *remove-env-tag
-      - run:
-          <<: *add-env-tag
+          <<: *deploy-env
 
   qa-deploy:
     <<: *defaults
@@ -76,9 +73,7 @@ jobs:
           command: |
             echo "export ENV=qa" >> env_file
       - run:
-          <<: *remove-env-tag
-      - run:
-          <<: *add-env-tag
+          <<: *deploy-env
 
   prod-deploy:
     <<: *defaults
@@ -88,9 +83,7 @@ jobs:
           command: |
             echo "export ENV=prod,latest" >> env_file
       - run:
-          <<: *remove-env-tag
-      - run:
-          <<: *add-env-tag
+          <<: *deploy-env
 
   push-to-dockerio:
     <<: *defaults
