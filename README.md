@@ -1,7 +1,7 @@
 [![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/cvmanager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.com/report/github.com/nearmap/cvmanager)
 [![GoDoc](https://godoc.org/github.com/nearmap/cvmanager?status.svg "GoDoc")](https://godoc.org/github.com/nearmap/cvmanager)
-[![Docker](https://img.shields.io/docker/pulls/nearmap/cvmanager.svg "Docker")](https://hub.docker.com/r/nearmap/cvmanager/)
+![Docker Pulls](https://img.shields.io/docker/pulls/nearmap/cvmanager.svg)
 ![GitHub (pre-)release](https://img.shields.io/github/release/nearmap/cvmanager/all.svg)
 
 
