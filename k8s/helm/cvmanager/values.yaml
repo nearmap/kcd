@@ -49,6 +49,8 @@ tolerations:
 
 affinity: {}
 
+autoUpdateCVM: false
+
 cvCD:
   frequecy: 5
   refTag: latest

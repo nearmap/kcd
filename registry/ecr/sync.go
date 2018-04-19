@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecr"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	rgs "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -85,9 +86,11 @@ func (s *syncer) Sync() error {
 	// d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.CheckFrequency))
 	d, _ := time.ParseDuration("1m")
 	for range time.Tick(d) {
+		rgs.CaptureSyncStart()
 		if err := s.doSync(); err != nil {
 			return err
 		}
+		rgs.CaptureSyncComplete()
 	}
 	return nil
 }

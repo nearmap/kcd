@@ -32,10 +32,6 @@ spec:
             - "--port={{ .Values.service.port }}"
             - "--history={{ .Values.useHistory }}"
           env:
-          - name: INSTANCENAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
           - name: STATS_HOST
             valueFrom:
               fieldRef:

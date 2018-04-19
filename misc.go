@@ -98,6 +98,7 @@ type crSyncParams struct {
 
 	namespace string
 	cvName    string
+	version   string
 
 	history bool
 }
@@ -113,6 +114,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace of container version resource that the syncer is based on.")
 	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
+	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of cv resources to use in CR Syncer")
 	cmd.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -160,7 +162,10 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName, metav1.GetOptions{})
+		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName,
+			metav1.GetOptions{
+				ResourceVersion: params.version,
+			})
 		if err != nil {
 			scStatus = 2
 			log.Printf("Failed to find CV resource in namespace=%s, name=%s, error=%v", params.namespace, params.cvName, err)
@@ -205,6 +210,9 @@ type crTagParams struct {
 	tags    []string
 	version string
 
+	username string
+	pwd      string
+
 	stats statsParams
 }
 
@@ -219,6 +227,8 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	var params crTagParams
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
 	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of cr image that is being tagged")
+	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
+	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")
 
 	addTagCmd := &cobra.Command{
 		Use:   "add",
@@ -237,7 +247,8 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		case "ecr":
 			return ecr.NewTagger(root.sess, root.stats).Add(root.params.cr, params.version, params.tags...)
 		case "dockerhub":
-			return dh.NewTagger().Add(root.params.cr, params.version, params.tags...)
+			return dh.NewTagger(params.username, params.pwd).
+				Add(root.params.cr, params.version, params.tags...)
 		}
 		return nil
 	}
@@ -260,7 +271,8 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		case "ecr":
 			return ecr.NewTagger(root.sess, root.stats).Remove(root.params.cr, params.tags...)
 		case "dockerhub":
-			return dh.NewTagger().Remove(root.params.cr, params.tags...)
+			return dh.NewTagger(params.username, params.pwd).
+				Remove(root.params.cr, params.tags...)
 		}
 
 		return nil
@@ -285,7 +297,8 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		case "ecr":
 			t, err = ecr.NewTagger(root.sess, root.stats).Get(root.params.cr, params.version)
 		case "dockerhub":
-			t, err = dh.NewTagger().Get(root.params.cr, params.version)
+			t, err = dh.NewTagger(params.username, params.pwd).
+				Get(root.params.cr, params.version)
 		}
 		fmt.Printf("Found tags %s on requested cr repository of image %s \n", t, params.version)
 		return err
