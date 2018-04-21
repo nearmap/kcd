@@ -59,11 +59,12 @@ func (s *syncer) Sync() error {
 	log.Printf("Beginning sync....at every %dm", s.cv.Spec.CheckFrequency)
 	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.CheckFrequency))
 	for range time.Tick(d) {
-		rgs.CaptureSyncStart()
+		if err := rgs.SetSyncStatus(); err != nil {
+			return err
+		}
 		if err := s.doSync(); err != nil {
 			return err
 		}
-		rgs.CaptureSyncComplete()
 	}
 	return nil
 }

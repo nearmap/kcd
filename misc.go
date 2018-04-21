@@ -125,6 +125,10 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		return nil
 	}
 
+	cmd.PostRun = func(cmd *cobra.Command, args []string) {
+		registry.CleanupSyncStart()
+	}
+
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		log.Print("Starting cr Sync")
 
@@ -190,7 +194,11 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
 		go func() {
-			if err := crSyncer.Sync(); err != nil {
+			err := registry.SetSyncStatus()
+			if err == nil {
+				err = crSyncer.Sync()
+			}
+			if err != nil {
 				scStatus = 2
 				log.Printf("Server error during cr sync: %v", err)
 				root.stopChan <- os.Interrupt
@@ -202,6 +210,20 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 		return nil
 	}
+
+	state := &cobra.Command{
+		Use:   "status",
+		Short: "Checks whether sync was run recently",
+		Long:  "Checks whether sync was run recently",
+	}
+
+	var by time.Duration
+	state.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
+	state.RunE = func(cmd *cobra.Command, args []string) error {
+		return registry.SyncCheck(by)
+	}
+
+	cmd.AddCommand(state)
 
 	return cmd
 }

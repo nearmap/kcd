@@ -425,7 +425,10 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 							LivenessProbe: &corev1.Probe{
 								PeriodSeconds: int32(cv.Spec.CheckFrequency * 60),
 								Handler: corev1.Handler{
-									Exec: &corev1.ExecAction{Command: []string{"cat", "/health/sync"}},
+									Exec: &corev1.ExecAction{Command: []string{
+										"cvmanager", "cr", "sync",
+										"status", "--by", fmt.Sprintf("%dm", cv.Spec.CheckFrequency)},
+									},
 								},
 							},
 						},
