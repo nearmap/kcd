@@ -9,11 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -111,7 +111,7 @@ func (s *syncer) doSync() error {
 		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]),
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.cv.Spec.Tag), "", "error",
 			time.Now().UTC(), s.cv.Spec.Tag, s.accountID)
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "More than one image with tag was found")
+		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "More than one image with tag was found")
 		return errors.Errorf("Bad state: More than one image was tagged with %s", s.cv.Spec.Tag)
 	}
 
@@ -120,7 +120,7 @@ func (s *syncer) doSync() error {
 	currentVersion := s.currentVersion(img)
 	if currentVersion == "" {
 		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]))
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Tagged image missing SHA1")
+		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "Tagged image missing SHA1")
 		return nil
 	}
 	// Check deployment

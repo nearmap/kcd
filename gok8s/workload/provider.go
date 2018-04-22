@@ -2,20 +2,16 @@ package k8s
 
 import (
 	"log"
-	"os"
 
+	"github.com/nearmap/cvmanager/deploy"
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
 )
 
 // Resource maintains a high level status of deployments managed by
@@ -34,45 +30,38 @@ type Resource struct {
 }
 
 type K8sProvider struct {
-	cs       kubernetes.Interface
-	Recorder record.EventRecorder
-	Pod      *v1.Pod
-
+	cs        kubernetes.Interface
 	namespace string
+	deployer  deploy.Deployer
 
 	hp            history.Provider
 	recordHistory bool
 
-	stats stats.Stats
+	stats    stats.Stats
+	Recorder events.Recorder
 }
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
 func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recordHistory bool) *K8sProvider {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Printf)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: cs.CoreV1().Events("")})
-
-	var recorder record.EventRecorder
-	pod, err := cs.CoreV1().Pods(ns).Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
+	var recorder events.Recorder
+	var err error
+	recorder, err = events.NewRecorder(cs, ns)
 	if err != nil {
 		log.Print("No INSTANCENAME was set hence cant record events on pod.. falling back to using fake event recorder")
-		recorder = record.NewFakeRecorder(50)
-	} else {
-		recorder = eventBroadcaster.NewRecorder(k8sscheme.Scheme, corev1.EventSource{Component: "container-version-controller"})
+		recorder = &events.FakeRecorder{}
 	}
 
 	return &K8sProvider{
-		cs:       cs,
-		Recorder: recorder,
-		Pod:      pod,
-
+		cs:        cs,
 		namespace: ns,
+		deployer:  deploy.NewSimpleDeployer(cs, recorder, stats, ns),
 
 		hp:            history.NewProvider(cs, stats),
 		recordHistory: recordHistory,
 
-		stats: stats,
+		Recorder: recorder,
+		stats:    stats,
 	}
 
 }

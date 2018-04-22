@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -19,13 +19,13 @@ func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, lis
 	// BatchV2alpha1 is 10.x onwards
 	ds, err := k.cs.BatchV1beta1().CronJobs(k.namespace).List(listOpts)
 	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent cronjobs")
+		k.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get dependent cronjobs")
 		return errors.Wrap(err, "failed to read cronjobs ")
 	}
 	for _, d := range ds.Items {
 		if ci, err := k.checkPodSpec(d.Spec.JobTemplate.Spec.Template, d.Name, version, cv); err != nil {
 			if err == errs.ErrVersionMismatch {
-				return k.patchPodSpec(d.Spec.JobTemplate.Spec.Template, d.Name, ci, cv, func(i int) error {
+				return k.deployer.Deploy(d.Spec.JobTemplate.Spec.Template, d.Name, ci, cv, func(i int) error {
 					_, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(fmt.Sprintf(`
 						{

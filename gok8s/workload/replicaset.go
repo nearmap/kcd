@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	errs "github.com/nearmap/cvmanager/registry/errs"
 
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 )
@@ -18,14 +18,14 @@ const replicaSet = "ReplicaSet"
 func (k *K8sProvider) syncReplicaSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().ReplicaSets(k.namespace).List(listOpts)
 	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent replicaset")
+		k.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get dependent replicaset")
 		return errors.Wrap(err, "failed to read replicaset ")
 	}
 
 	for _, d := range ds.Items {
 		if ci, err := k.checkPodSpec(d.Spec.Template, d.Name, version, cv); err != nil {
 			if err == errs.ErrVersionMismatch {
-				return k.patchPodSpec(d.Spec.Template, d.Name, ci, cv, func(i int) error {
+				return k.deployer.Deploy(d.Spec.Template, d.Name, ci, cv, func(i int) error {
 					_, err := k.cs.AppsV1().ReplicaSets(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err

@@ -25,11 +25,22 @@ type ContainerVersionSpec struct {
 	Tag            string `json:"tag"`
 	CheckFrequency int    `json:"checkFrequency"`
 
+	Strategy *StrategySpec `json:"strategy"`
+
 	Selector map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 
 	Container string `json:"container"`
 
 	Config *ConfigSpec `json:"config"`
+}
+
+type StrategySpec struct {
+	Type   string      `json:"type"`
+	Verify *VerifySpec `json:"verify"`
+}
+
+type VerifySpec struct {
+	Image string `json:"image"`
 }
 
 // ConfigSpec is spec for Config resources
