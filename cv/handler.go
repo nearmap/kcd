@@ -78,5 +78,8 @@ func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.Ha
 			log.Printf("failed to get workload list %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
+		// // Allow origin so can easily be used by monitoring
+		// w.Header().Set("Access-Control-Allow-Origin", "*")
+		// w.Header().Set("X-Frame-Options", "ALLOWALL")
 	}
 }

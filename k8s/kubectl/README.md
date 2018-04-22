@@ -30,7 +30,7 @@ and using *kubectl*:
 *Run*
 
 ```
-docker run -ti -v `pwd`:/config nearmap/nktmpl Backend.yaml --parameter REGION ap-southeast-2  --parameter VERSION <SHA> |  kubectl apply -f -
+docker run -ti -v `pwd`:/config nearmap/nktmpl Backend.yaml --parameter VERSION <SHA> |  kubectl apply -f -
 ```
 
 *Delete*

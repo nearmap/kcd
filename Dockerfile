@@ -8,6 +8,9 @@ RUN rm -r /go/src/github.com/nearmap/cvmanager
 
 VOLUME /go/src
 
+RUN mkdir -p /health/ && \
+	chmod 0777 /health/
+
 EXPOSE 2019
 
 ENTRYPOINT ["cvmanager"]

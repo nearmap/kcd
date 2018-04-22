@@ -28,6 +28,11 @@ objects:
         openAPIV3Schema:
           properties:
             spec:
+              required:
+                - tag
+                - imageRepo
+                - selector
+                - container
               properties:
                 tag:
                   type: string
@@ -63,10 +68,6 @@ objects:
                     type: string
                   key:
                     type: string
-
-
-
-
   - kind: Deployment
     apiVersion: apps/v1
     metadata:
@@ -108,19 +109,10 @@ objects:
                 - "--configmap-key=kube-system/cvmanager"
                 - "--history=$(USE_HISTORY)"
               env:
-              - name: INSTANCENAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.name
               - name: STATS_HOST
                 valueFrom:
                   fieldRef:
                     fieldPath: status.hostIP
-              - name: AWS_REGION
-                valueFrom:
-                  configMapKeyRef:
-                    name: cvmanager
-                    key: region
               livenessProbe:
                 httpGet:
                   path: /alive
@@ -145,20 +137,29 @@ objects:
           name: http
       selector:
         app: cvmanager
+  - kind: ContainerVersion
+    apiVersion: custom.k8s.io/v1
+    metadata:
+      name: cvmanager-cv
+      namespace: kube-system
+    spec:
+      imageRepo: nearmap/cvmanager
+      tag: $(VERSION)
+      checkFrequency: 5
+      selector:
+        cvapp: cvmanagercv
+      container: cvmanagerapp-container
+      config:
+        name: cvmanager
+        key: version
   - kind: ConfigMap
     apiVersion: v1
     data:
-      region: "$(REGION)"
       version: $(VERSION)
     metadata:
       name: cvmanager
       namespace: kube-system
 parameters:
-  - name: "REGION"
-    description: "AWS region name"
-    required: true
-    parameterType: "string"
-    value: "ap-southeast-2"
   - name: "VERSION"
     description: "version of the application for deployment"
     required: true
@@ -167,5 +168,5 @@ parameters:
   - name: "USE_HISTORY"
     description: "version of the application for deployment"
     required: true
-    value: false
+    value: true
     parameterType: "bool"

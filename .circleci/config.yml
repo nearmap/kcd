@@ -8,13 +8,6 @@ deploy-env: &deploy-env
   name: Tag current image as deploy candidate
   command: |
     source env_file
-    echo "Remove deploy tag from current deployments"
-    docker run \
-      -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-      -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-      nearmap/cvmanager cr tags remove \
-      --repo ${ECR_ENDPOINT}/nearmap/cvmanager \
-      --tags $ENV
     echo "Add deployment tag for env to this version"
     docker run \
       -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \

@@ -23,11 +23,14 @@ func (k *K8sProvider) syncDeployments(cv *cv1.ContainerVersion, version string, 
 	for _, d := range ds.Items {
 		if ci, err := k.checkPodSpec(d.Spec.Template, d.Name, version, cv); err != nil {
 			if err == errs.ErrVersionMismatch {
-				return k.deployer.Deploy(d.Spec.Template, d.Name, ci, cv, func(i int) error {
+				err := k.deployer.Deploy(d.Spec.Template, d.Name, ci, cv, func(i int) error {
 					_, err := k.cs.AppsV1().Deployments(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
 						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
 					return err
 				}, func() string { return deployment })
+				// Check if rollback is opted in
+				// Add status check upuntil progress time, or rollback
+				return err
 			} else {
 				k.raiseSyncPodErrEvents(err, deployment, d.Name, cv.Spec.Tag, version)
 			}
