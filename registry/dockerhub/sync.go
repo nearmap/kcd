@@ -8,6 +8,7 @@ import (
 	"github.com/heroku/docker-registry-client/registry"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	rgs "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,9 @@ const dockerhubURL = "https://registry-1.docker.io/"
 // it performs an update in deployment which then based on update strategy of deployment
 // is further rolled out.
 // In cases, where it cant resolves
+// TODO: Dockerhub syncer does not support private repositories at the moment
+// Need to work on storing credentials in secret or similar more secure approach
+// for user/password. For now uses anonymous access
 type syncer struct {
 	k8sProvider *k8s.K8sProvider
 	namespace   string
@@ -55,6 +59,9 @@ func (s *syncer) Sync() error {
 	log.Printf("Beginning sync....at every %dm", s.cv.Spec.CheckFrequency)
 	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.CheckFrequency))
 	for range time.Tick(d) {
+		if err := rgs.SetSyncStatus(); err != nil {
+			return err
+		}
 		if err := s.doSync(); err != nil {
 			return err
 		}
@@ -63,7 +70,8 @@ func (s *syncer) Sync() error {
 }
 
 func (s *syncer) doSync() error {
-	currentVersion, err := getDigest(s.cv.Spec.ImageRepo, s.cv.Spec.Tag)
+	// TODO this need more work, only allows anonymous access at the moment
+	currentVersion, err := getDigest(s.cv.Spec.ImageRepo, "", "", s.cv.Spec.Tag)
 	if err != nil {
 		s.stats.IncCount(fmt.Sprintf("%s.%s.badsha.failure", s.cv.Spec.ImageRepo, s.cv.Spec.Selector[cv1.CVAPP]))
 		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No image found with correct tags")
@@ -82,10 +90,8 @@ func (s *syncer) doSync() error {
 }
 
 // getDigest fetches the digest of dockerhub image of requested repository and tag
-// TODO:  allow using credentials to support private dockerhub repos too
-// for now uses anonymous access
-func getDigest(repo, tag string) (string, error) {
-	hub, err := registry.New(dockerhubURL, "", "")
+func getDigest(repo, username, pwd, tag string) (string, error) {
+	hub, err := registry.New(dockerhubURL, username, pwd)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to connect to dockerhun")
 	}

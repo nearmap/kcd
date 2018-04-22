@@ -19,6 +19,11 @@ spec:
     openAPIV3Schema:
       properties:
         spec:
+          required:
+            - tag
+            - imageRepo
+            - selector
+            - container
           properties:
             tag:
               type: string

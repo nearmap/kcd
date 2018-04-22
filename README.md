@@ -5,8 +5,6 @@
 ![GitHub (pre-)release](https://img.shields.io/github/release/nearmap/cvmanager/all.svg)
 
 
-
-
 # CVManager
 Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
 
@@ -18,6 +16,8 @@ The tool has 3 main parts:
 - CV Manager
 - Docker Registry Syncer (supports ECR and Dockerhub)
 - Docker Registry Tagger (supports ECR, with limited Dockerhub support)
+
+![architecture](cvm-architecture.png "CVM architecture")
 
 Docker images are on [docker.io](https://hub.docker.com/r/nearmap/cvmanager/)
 

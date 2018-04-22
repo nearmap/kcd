@@ -409,22 +409,25 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
 								fmt.Sprintf("--cv=%s", cv.Name),
+								fmt.Sprintf("--version=%s", cv.ResourceVersion),
 								fmt.Sprintf("--history=%t", c.useHistory),
 							},
-							Env: []corev1.EnvVar{{
-								Name: "INSTANCENAME",
-								ValueFrom: &corev1.EnvVarSource{
-									FieldRef: &corev1.ObjectFieldSelector{
-										FieldPath: "metadata.name",
-									},
-								},
-							},
+							Env: []corev1.EnvVar{
 								{
 									Name: "STATS_HOST",
 									ValueFrom: &corev1.EnvVarSource{
 										FieldRef: &corev1.ObjectFieldSelector{
 											FieldPath: "status.hostIP",
 										},
+									},
+								},
+							},
+							LivenessProbe: &corev1.Probe{
+								PeriodSeconds: int32(cv.Spec.CheckFrequency * 60),
+								Handler: corev1.Handler{
+									Exec: &corev1.ExecAction{Command: []string{
+										"cvmanager", "cr", "sync",
+										"status", "--by", fmt.Sprintf("%dm", cv.Spec.CheckFrequency)},
 									},
 								},
 							},

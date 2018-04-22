@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecr"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	rgs "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -82,9 +83,11 @@ func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string,
 // version is identified, deployment roll-out is performed
 func (s *syncer) Sync() error {
 	log.Printf("Beginning sync....at every %dm", s.cv.Spec.CheckFrequency)
-	// d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.CheckFrequency))
-	d, _ := time.ParseDuration("1m")
+	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.CheckFrequency))
 	for range time.Tick(d) {
+		if err := rgs.SetSyncStatus(); err != nil {
+			return err
+		}
 		if err := s.doSync(); err != nil {
 			return err
 		}
