@@ -1,18 +1,6 @@
 package k8s
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/nearmap/cvmanager/events"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
-
-	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
-)
-
+/*
 const replicaSet = "ReplicaSet"
 
 func (k *K8sProvider) syncReplicaSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
@@ -63,3 +51,4 @@ func (k *K8sProvider) cvReplicaSets(cv *cv1.ContainerVersion, listOpts metav1.Li
 
 	return cvsList, nil
 }
+*/

@@ -1,18 +1,6 @@
 package k8s
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/nearmap/cvmanager/events"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
-	"github.com/pkg/errors"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
-)
-
+/*
 const cronJobs = "CronJob"
 
 func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
@@ -72,3 +60,4 @@ func (k *K8sProvider) cvCronJobs(cv *cv1.ContainerVersion, listOpts metav1.ListO
 
 	return cvsList, nil
 }
+*/

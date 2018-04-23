@@ -2,16 +2,94 @@ package k8s
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/nearmap/cvmanager/events"
+	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
+	"k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 )
 
+const (
+	TypeDeployment = "Deployment"
+)
+
+type Deployment struct {
+	//cs        kubernetes.Interface
+	//namespace string
+
+	deployment *v1.Deployment
+
+	client appsv1.DeploymentInterface
+}
+
+func NewDeployment(cs kubernetes.Interface, namespace string, deployment *v1.Deployment) *Deployment {
+	client := cs.AppsV1().Deployments(namespace)
+
+	return &Deployment{
+		deployment: deployment,
+		client:     client,
+	}
+}
+
+func (d *Deployment) Name() string {
+	return d.deployment.Name
+}
+
+func (d *Deployment) Type() string {
+	return TypeDeployment
+}
+
+func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
+	return d.deployment.Spec.Template
+}
+
+func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(podTemplateSpec, container.Name, cv.Spec.ImageRepo, version)))
+	return err
+}
+
+func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, error) {
+	set := labels.Set(selector)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+
+	var result []deploy.DeploySpec
+
+	wls, err := d.client.List(listOpts)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	for _, wl := range wls.Items {
+		result = append(result, &Deployment{
+			deployment: &wl,
+			client:     d.client,
+		})
+	}
+
+	return result, nil
+}
+
+func (d *Deployment) Duplicate() (deploy.DeploySpec, error) {
+	copy := d.deployment.DeepCopy()
+	new, err := d.client.Create(copy)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create copy of Deployment with name %s", d.Name())
+	}
+
+	return &Deployment{
+		deployment: new,
+		client:     d.client,
+	}, nil
+}
+
+/////
+/*
 const deployment = "Deployment"
 
 func (k *K8sProvider) syncDeployments(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
@@ -64,3 +142,4 @@ func (k *K8sProvider) cvDeployment(cv *cv1.ContainerVersion, listOpts metav1.Lis
 
 	return cvsList, nil
 }
+*/

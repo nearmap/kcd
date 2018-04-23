@@ -35,8 +35,15 @@ type ContainerVersionSpec struct {
 }
 
 type StrategySpec struct {
-	Type   string      `json:"type"`
-	Verify *VerifySpec `json:"verify"`
+	Type      string         `json:"type"`
+	BlueGreen *BlueGreenSpec `json:"blueGreen"`
+	Verify    *VerifySpec    `json:"verify"`
+}
+
+type BlueGreenSpec struct {
+	ServiceName     string `json:"serviceName"`
+	TestServiceName string `json:"testServiceName"`
+	LabelName       string `json:"labelName"`
 }
 
 type VerifySpec struct {
