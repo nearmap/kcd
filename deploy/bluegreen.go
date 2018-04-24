@@ -51,12 +51,15 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		return errors.Errorf("no label name defined for blue-green strategy in cv resource %s", cv.Name)
 	}
 
-	log.Printf("Beginning bluegreen deployment for workload %s with version %s", spec.Name(), version)
+	log.Printf("Beginning bluegreen deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
 
 	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
+
+	// temp
+	log.Printf("Got service %+v", service)
 
 	isCurrent, err := bgd.isCurrentDeploySpec(spec, service)
 	if err != nil {
@@ -96,10 +99,21 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 }
 
 func (bgd *BlueGreenDeployer) isCurrentDeploySpec(spec DeploySpec, service *v1.Service) (bool, error) {
+	// temp
+	log.Printf("Checking is current deployment spec...")
+
 	podTemplates, err := bgd.selectPodTemplates(service.Spec.Selector)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
+
+	/////
+	// temp
+	if len(podTemplates) != 1 {
+		bgd.testPodSelection(service.Spec.Selector)
+	}
+
+	/////
 
 	if len(podTemplates) != 1 {
 		return false, errors.Errorf("unexpected number of pod templates selected for service %s, found %d",
@@ -110,6 +124,9 @@ func (bgd *BlueGreenDeployer) isCurrentDeploySpec(spec DeploySpec, service *v1.S
 }
 
 func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]v1.PodTemplate, error) {
+	// temp
+	log.Printf("selecting pod templates with selector %+v", selector)
+
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
@@ -120,6 +137,23 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 
 	return podTemplates.Items, nil
 }
+
+////////////////////////////////////////////////
+// temp
+
+func (bgd *BlueGreenDeployer) testPodSelection(selector map[string]string) {
+	set := labels.Set(selector)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+
+	pods, err := bgd.cs.CoreV1().Pods(bgd.namespace).List(listOpts)
+	if err != nil {
+		log.Printf("error listing pods: %v", err)
+	} else {
+		log.Printf("Selected %d pods: %+v", len(pods.Items), pods.Items)
+	}
+}
+
+///////////////////////////////////////////////
 
 func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, spec DeploySpec) error {
 	if cv.Spec.Strategy.BlueGreen.TestServiceName == "" {
@@ -159,6 +193,10 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, sp
 }
 
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
+	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil {
+		return nil
+	}
+
 	// TODO:
 	return nil
 }
