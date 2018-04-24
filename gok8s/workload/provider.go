@@ -40,7 +40,7 @@ type Resource struct {
 type K8sProvider struct {
 	cs        kubernetes.Interface
 	namespace string
-	deployer  deploy.Deployer
+	//deployer  deploy.Deployer
 
 	hp            history.Provider
 	recordHistory bool
@@ -63,7 +63,7 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recor
 	return &K8sProvider{
 		cs:        cs,
 		namespace: ns,
-		deployer:  deploy.NewSimpleDeployer(cs, recorder, stats, ns),
+		//deployer:  deploy.NewSimpleDeployer(cs, recorder, stats, ns),
 
 		hp:            history.NewProvider(cs, stats),
 		recordHistory: recordHistory,
@@ -71,7 +71,6 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recor
 		Recorder: recorder,
 		stats:    stats,
 	}
-
 }
 
 // SyncWorkload checks if container version of all workload that matches CV selector
@@ -86,7 +85,7 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	for _, spec := range specs {
 		if err := checkPodSpec(cv, version, spec.PodTemplateSpec()); err != nil {
 			if err == errs.ErrVersionMismatch {
-				if err := k.deployer.Deploy(cv, version, spec); err != nil {
+				if err := k.deploy(cv, version, spec); err != nil {
 					return errors.WithStack(err)
 				}
 			} else {
@@ -130,6 +129,28 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 		}
 		return err
 	*/
+}
+
+func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, spec deploy.DeploySpec) error {
+	var strategyType string
+
+	if cv.Spec.Strategy != nil {
+		strategyType = cv.Spec.Strategy.Type
+	}
+
+	var deployer deploy.Deployer
+
+	switch strategyType {
+	case "blue-green":
+		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+	default:
+		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+	}
+
+	if err := deployer.Deploy(cv, version, spec); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]WorkloadSpec, error) {

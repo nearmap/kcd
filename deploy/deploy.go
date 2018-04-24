@@ -62,6 +62,8 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, s
 }
 
 func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
+	log.Printf("Performing simple deployment on %s with version %s", spec.Name(), version)
+
 	ptSpec := spec.PodTemplateSpec()
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
