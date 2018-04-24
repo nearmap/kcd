@@ -37,6 +37,7 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, eventRecorder events.Recorder
 		namespace:      namespace,
 		cs:             cs,
 		recorder:       eventRecorder,
+		stats:          stats,
 	}
 }
 

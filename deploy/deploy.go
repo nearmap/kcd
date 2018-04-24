@@ -58,6 +58,7 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, s
 		namespace: namespace,
 		cs:        cs,
 		recorder:  eventRecorder,
+		stats:     stats,
 	}
 }
 
