@@ -32,7 +32,7 @@ type DeploySpec interface {
 	Select(selector map[string]string) ([]DeploySpec, error)
 
 	// Duplicate creates a new instance of this deploy spec and returns it.
-	Duplicate() (DeploySpec, error)
+	//Duplicate() (DeploySpec, error)
 }
 
 type Deployer interface {
