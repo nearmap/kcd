@@ -53,6 +53,12 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 
 	log.Printf("Beginning bluegreen deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
 
+	// temp
+	log.Printf("Processing spec %+v", spec)
+	log.Printf("-----")
+	log.Printf("with PodTemplateSpec: %+v", spec.PodTemplateSpec())
+	log.Printf("-----")
+
 	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
@@ -60,6 +66,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 
 	// temp
 	log.Printf("Got service %+v", service)
+	log.Printf("-----")
 
 	isCurrent, err := bgd.isCurrentDeploySpec(spec, service)
 	if err != nil {
@@ -135,6 +142,14 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 		return nil, errors.Wrapf(err, "failed to select pod templates with selector %s", selector)
 	}
 
+	// temp
+	log.Printf("selected %d pod templates:", len(podTemplates.Items))
+	for _, pt := range podTemplates.Items {
+		log.Printf("PodTemplate: %+v", pt)
+		log.Printf("-----")
+	}
+	log.Printf("\n=====\n")
+
 	return podTemplates.Items, nil
 }
 
@@ -149,8 +164,38 @@ func (bgd *BlueGreenDeployer) testPodSelection(selector map[string]string) {
 	if err != nil {
 		log.Printf("error listing pods: %v", err)
 	} else {
-		log.Printf("Selected %d pods: %+v", len(pods.Items), pods.Items)
+		log.Printf("Selected %d pods:", len(pods.Items))
+		for _, p := range pods.Items {
+			log.Printf("Pod: %+v", p)
+			log.Printf("-----")
+		}
 	}
+	log.Printf("\n=====\n")
+
+	deployments, err := bgd.cs.AppsV1().Deployments(bgd.namespace).List(listOpts)
+	if err != nil {
+		log.Printf("error listing deployments: %v", err)
+	} else {
+		log.Printf("Selected %d deployments:", len(deployments.Items))
+		for _, d := range deployments.Items {
+			log.Printf("Deployment: %+v", d)
+			log.Printf("-----")
+		}
+	}
+	log.Printf("\n=====\n")
+
+	podTemplates, err := bgd.cs.CoreV1().PodTemplates(bgd.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		log.Printf("error listing podtemplates: %v", err)
+	} else {
+		log.Printf("Selected %d PodTemplates:", len(deployments.Items))
+		for _, pt := range podTemplates.Items {
+			log.Printf("PodTemplate: %+v", pt)
+			log.Printf("-----")
+		}
+	}
+	log.Printf("\n=====\n")
+
 }
 
 ///////////////////////////////////////////////
