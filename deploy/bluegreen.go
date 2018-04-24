@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -95,18 +96,29 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 }
 
 func (bgd *BlueGreenDeployer) isCurrentDeploySpec(spec DeploySpec, service *v1.Service) (bool, error) {
-	selected, err := spec.Select(service.Spec.Selector)
+	podTemplates, err := bgd.selectPodTemplates(service.Spec.Selector)
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to select specs for %s with selector from service",
-			spec.Name(), service.Name)
+		return false, errors.WithStack(err)
 	}
 
-	if len(selected) != 1 {
-		return false, errors.Errorf("unexpected number of specs selected for service %s, found %d",
-			service.Name, len(selected))
+	if len(podTemplates) != 1 {
+		return false, errors.Errorf("unexpected number of pod templates selected for service %s, found %d",
+			service.Name, len(podTemplates))
 	}
 
-	return selected[0].Name() == spec.Name(), nil
+	return podTemplates[0].Template.UID == spec.PodTemplateSpec().UID, nil
+}
+
+func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]v1.PodTemplate, error) {
+	set := labels.Set(selector)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+
+	podTemplates, err := bgd.cs.CoreV1().PodTemplates(bgd.namespace).List(listOpts)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to select pod templates with selector %s", selector)
+	}
+
+	return podTemplates.Items, nil
 }
 
 func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, spec DeploySpec) error {
