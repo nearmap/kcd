@@ -54,7 +54,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 	log.Printf("Beginning bluegreen deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
 
 	// temp
-	log.Printf("Processing spec %+v", spec)
+	log.Printf("Processing spec %s", spec)
 	log.Printf("-----")
 	log.Printf("with PodTemplateSpec: %+v", spec.PodTemplateSpec())
 	log.Printf("-----")
@@ -118,7 +118,7 @@ func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec
 	// temp
 	log.Printf("Got %d workloads", len(workloads))
 	for _, wl := range workloads {
-		log.Printf("Workload: %v", wl)
+		log.Printf("Workload: %s", wl)
 		log.Printf("-----")
 	}
 	log.Printf("\n=====\n")

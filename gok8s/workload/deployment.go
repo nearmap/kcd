@@ -37,6 +37,10 @@ func NewDeployment(cs kubernetes.Interface, namespace string, deployment *v1.Dep
 	}
 }
 
+func (d *Deployment) String() string {
+	return fmt.Sprintf("%+v", d.deployment)
+}
+
 func (d *Deployment) Name() string {
 	return d.deployment.Name
 }
@@ -66,26 +70,14 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, er
 		return nil, errors.WithStack(err)
 	}
 	for _, wl := range wls.Items {
+		deployment := wl
 		result = append(result, &Deployment{
-			deployment: &wl,
+			deployment: &deployment,
 			client:     d.client,
 		})
 	}
 
 	return result, nil
-}
-
-func (d *Deployment) Duplicate() (deploy.DeploySpec, error) {
-	copy := d.deployment.DeepCopy()
-	new, err := d.client.Create(copy)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create copy of Deployment with name %s", d.Name())
-	}
-
-	return &Deployment{
-		deployment: new,
-		client:     d.client,
-	}, nil
 }
 
 /////
