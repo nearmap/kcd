@@ -115,14 +115,29 @@ func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec
 		return false, errors.WithStack(err)
 	}
 
+	// temp
+	log.Printf("Got %d workloads", len(workloads))
+	for _, wl := range workloads {
+		log.Printf("Workload: %v", wl)
+		log.Printf("-----")
+	}
+	log.Printf("\n=====\n")
+
 	if len(workloads) != 2 {
 		return false, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec")
 	}
 
 	selector := labels.Set(service.Spec.Selector).AsSelector()
 
+	// temp
+	log.Printf("testing with selector %+v", selector)
+
 	for _, wl := range workloads {
 		ptLabels := labels.Set(wl.PodTemplateSpec().Labels)
+
+		// temp
+		log.Printf("checking whether %+v matches %+v", ptLabels, selector)
+
 		if selector.Matches(ptLabels) {
 			// this workload is the current live version
 			return wl.Name() == spec.Name(), nil
