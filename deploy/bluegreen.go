@@ -55,44 +55,36 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 	}
 
 	log.Printf("Beginning blue-green deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
-
 	defer timeTrack(time.Now(), "blue-green deployment")
-
-	// temp
-	log.Printf("Processing spec %s", spec)
-	log.Printf("with PodTemplateSpec: %+v", spec.PodTemplateSpec())
 
 	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
 
-	// temp
-	log.Printf("Got service %+v", service)
-
-	isCurrent, err := bgd.isCurrentDeploySpec(cv, spec, service)
+	current, secondary, err := bgd.getBlueGreenDeploySpecs(cv, spec, service)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	// TODO: if we're not the current spec, but the current spec is the correct version
-	// then we shouldn't do anything.
-
-	if isCurrent {
-		log.Printf("Spec %s is current live workload for service %s. Not changing.", spec.Name(), service.Name)
+	// if we're not the current live version then nothing to do.
+	if spec.Name() != current.Name() {
+		log.Printf("Spec %s is not the current live workload for service %s. Not changing.", spec.Name(), service.Name)
 		return nil
 	}
-	log.Printf("Spec %s is not the current live workload for service %s. Updating spec version.", spec.Name(), service.Name)
 
-	if err := bgd.simpleDeployer.Deploy(cv, version, spec); err != nil {
+	// if we're the current live workload and our version mismatches then we want to initiate deployment
+	// on the non-live workload.
+
+	if err := bgd.simpleDeployer.Deploy(cv, version, secondary); err != nil {
 		return errors.Wrapf(err, "failed to patch pod spec for blue-green strategy %s", cv.Name)
 	}
 
-	if err := bgd.updateTestServiceSelector(cv, spec); err != nil {
+	if err := bgd.updateTestServiceSelector(cv, secondary); err != nil {
 		return errors.Wrapf(err, "failed to update test service for cv spec %s", cv.Name)
 	}
 
-	if err := bgd.waitForAllPods(cv, version, spec); err != nil {
+	if err := bgd.waitForAllPods(cv, version, secondary); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -100,7 +92,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		return errors.Wrapf(err, "failed verification step for cv spec %s", cv.Name)
 	}
 
-	if err := bgd.updateServiceSelector(cv, spec, cv.Spec.Strategy.BlueGreen.ServiceName); err != nil {
+	if err := bgd.updateServiceSelector(cv, secondary, cv.Spec.Strategy.BlueGreen.ServiceName); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -116,7 +108,46 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 	return service, nil
 }
 
-func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec DeploySpec, service *corev1.Service) (bool, error) {
+func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, spec DeploySpec,
+	service *corev1.Service) (current, secondary DeploySpec, err error) {
+
+	// temp
+	log.Printf("Getting BlueGreen deploy specs...")
+
+	// get all the workloads managed by this cv spec
+	workloads, err := spec.Select(cv.Spec.Selector)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get all workloads for cv spec %v", cv.Name)
+	}
+	if len(workloads) != 2 {
+		return nil, nil, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec")
+	}
+
+	selector := labels.Set(service.Spec.Selector).AsSelector()
+	for _, wl := range workloads {
+		ptLabels := labels.Set(wl.PodTemplateSpec().Labels)
+		if selector.Matches(ptLabels) {
+			if current != nil {
+				return nil, nil, errors.Errorf("unexpected state: found 2 current blue-green workloads for cv spec %s", cv.Name)
+			}
+			current = wl
+		} else {
+			if secondary != nil {
+				return nil, nil, errors.Errorf("unexpected state: found 2 secondary blue-green workloads for cv spec %s", cv.Name)
+			}
+		}
+	}
+
+	// temp
+	log.Printf("Returning current spec:   %s", current)
+	log.Printf("Returning secondary spec: %s", secondary)
+
+	return current, secondary, nil
+}
+
+/////
+
+func (bgd *BlueGreenDeployer) isCurrentDeploySpec_ORIGINAL(cv *cv1.ContainerVersion, spec DeploySpec, service *corev1.Service) (bool, error) {
 	// temp
 	log.Printf("Checking is current deployment spec...")
 
