@@ -60,9 +60,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 
 	// temp
 	log.Printf("Processing spec %s", spec)
-	log.Printf("-----")
 	log.Printf("with PodTemplateSpec: %+v", spec.PodTemplateSpec())
-	log.Printf("-----")
 
 	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
@@ -71,7 +69,6 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 
 	// temp
 	log.Printf("Got service %+v", service)
-	log.Printf("-----")
 
 	isCurrent, err := bgd.isCurrentDeploySpec(cv, spec, service)
 	if err != nil {
@@ -85,6 +82,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		log.Printf("Spec %s is current live workload for service %s. Not changing.", spec.Name(), service.Name)
 		return nil
 	}
+	log.Printf("Spec %s is not the current live workload for service %s. Updating spec version.", spec.Name(), service.Name)
 
 	if err := bgd.simpleDeployer.Deploy(cv, version, spec); err != nil {
 		return errors.Wrapf(err, "failed to patch pod spec for blue-green strategy %s", cv.Name)
@@ -255,6 +253,10 @@ outer:
 			}
 			if !ok {
 				log.Printf("Still waiting for rollout: pod %s is wrong version", pod.Name)
+				continue outer
+			}
+			if pod.Status.Phase != corev1.PodRunning {
+				log.Printf("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 				continue outer
 			}
 		}
