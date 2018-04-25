@@ -89,7 +89,13 @@ func (s *syncer) Sync() error {
 			return err
 		}
 		if err := s.doSync(); err != nil {
-			return err
+			// TODO: revert !!!!!!!!!!!!!!!!!!!!!!!!
+			// for now, don't crash on error
+			//return err
+
+			// temp
+			log.Printf("ERROR in doSync: %v", err)
+			log.Printf("This would have resulted in the pod crashing!!!!!!!!!!!")
 		}
 	}
 	return nil
