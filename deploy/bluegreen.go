@@ -228,7 +228,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version s
 
 	// TODO: redo timeout logic
 outer:
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 10; i++ {
 		time.Sleep(15 * time.Second)
 
 		// temp
@@ -260,10 +260,10 @@ outer:
 		}
 
 		log.Printf("All pods have been updated to version %s", version)
-		break
+		return nil
 	}
 
-	return nil
+	return errors.Errorf("spec %s blue-green deployment timeout waiting for all pods to be deployed", spec.Name)
 }
 
 func PodsForSpec(cs kubernetes.Interface, namespace string, spec DeploySpec) ([]corev1.Pod, error) {
