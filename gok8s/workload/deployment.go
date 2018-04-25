@@ -31,6 +31,12 @@ func NewDeployment(cs kubernetes.Interface, namespace string, deployment *appsv1
 	client := cs.AppsV1().Deployments(namespace)
 	replicasetClient := cs.AppsV1().ReplicaSets(namespace)
 
+	return newDeployment(deployment, client, replicasetClient)
+}
+
+func newDeployment(deployment *appsv1.Deployment, client goappsv1.DeploymentInterface,
+	replicasetClient goappsv1.ReplicaSetInterface) *Deployment {
+
 	return &Deployment{
 		deployment:       deployment,
 		client:           client,
@@ -75,10 +81,7 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, er
 	}
 	for _, wl := range wls.Items {
 		deployment := wl
-		result = append(result, &Deployment{
-			deployment: &deployment,
-			client:     d.client,
-		})
+		result = append(result, newDeployment(&deployment, d.client, d.replicasetClient))
 	}
 
 	return result, nil
