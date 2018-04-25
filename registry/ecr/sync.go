@@ -96,6 +96,38 @@ func (s *syncer) Sync() error {
 }
 
 func (s *syncer) doSync() error {
+	// temp
+	log.Printf("Starting SyncWorkload...")
+
+	currentVersion, err := s.getVersionFromRegistry()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if currentVersion == "" {
+		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]))
+		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "Tagged image missing SHA1")
+		return nil
+	}
+
+	// Check deployment
+	if err := s.k8sProvider.SyncWorkload(s.cv, currentVersion); err != nil {
+		return errors.Wrapf(err, "Failed to sync deployments %s", s.cv.Spec.Selector[cv1.CVAPP])
+	}
+
+	// temp
+	log.Printf("Finished SyncWorkload.")
+
+	// Syncup config if unspecified
+	if err := s.k8sProvider.SyncVersionConfig(s.cv, currentVersion); err != nil {
+		log.Printf("Failed sync config: %v", err)
+		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.cv.Spec.Config.Name))
+		return errors.Wrapf(err, "Failed to sync config version %s", s.cv.Spec.Selector[cv1.CVAPP])
+	}
+
+	return nil
+}
+
+func (s *syncer) getVersionFromRegistry() (string, error) {
 	req := &ecr.DescribeImagesInput{
 		ImageIds: []*ecr.ImageIdentifier{
 			{
@@ -108,37 +140,19 @@ func (s *syncer) doSync() error {
 	result, err := s.ecr.DescribeImages(req)
 	if err != nil {
 		log.Printf("Failed to get ECR: %v", err)
-		return errors.Wrap(err, "failed to get ecr")
+		return "", errors.Wrap(err, "failed to get ecr")
 	}
 	if len(result.ImageDetails) != 1 {
+		// TODO: this is going to keep crashing the pod and restarting. Is this what we want?
 		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]),
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.cv.Spec.Tag), "", "error",
 			time.Now().UTC(), s.cv.Spec.Tag, s.accountID)
 		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "More than one image with tag was found")
-		return errors.Errorf("Bad state: More than one image was tagged with %s", s.cv.Spec.Tag)
+		return "", errors.Errorf("Bad state: More than one image was tagged with %s", s.cv.Spec.Tag)
 	}
 
 	img := result.ImageDetails[0]
-
-	currentVersion := s.currentVersion(img)
-	if currentVersion == "" {
-		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]))
-		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "Tagged image missing SHA1")
-		return nil
-	}
-	// Check deployment
-	if err := s.k8sProvider.SyncWorkload(s.cv, currentVersion); err != nil {
-		return errors.Wrapf(err, "Failed to sync deployments %s", s.cv.Spec.Selector[cv1.CVAPP])
-	}
-
-	// Syncup config if unspecified
-	if err := s.k8sProvider.SyncVersionConfig(s.cv, currentVersion); err != nil {
-		log.Printf("Failed sync config: %v", err)
-		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.cv.Spec.Config.Name))
-		return errors.Wrapf(err, "Failed to sync config version %s", s.cv.Spec.Selector[cv1.CVAPP])
-	}
-
-	return nil
+	return s.currentVersion(img), nil
 }
 
 func (s *syncer) currentVersion(img *ecr.ImageDetail) string {

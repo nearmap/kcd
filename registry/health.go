@@ -29,6 +29,12 @@ func SyncCheck(d time.Duration) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO: Need to increase this value to allow for longer blue-green deployments
+
+	// TODO: revert !!!!!!!!!!!!!!!!!!!!!!
+	d = time.Minute * 60
+
 	if !time.Now().Add(d * -1).Before(f.ModTime()) {
 		return errors.Errorf("Last sync run was %s", f.ModTime().String())
 	}
