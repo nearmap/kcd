@@ -31,8 +31,7 @@ type DeploySpec interface {
 	// the same WorkloadSpec if it matches the selector.
 	Select(selector map[string]string) ([]DeploySpec, error)
 
-	// Duplicate creates a new instance of this deploy spec and returns it.
-	//Duplicate() (DeploySpec, error)
+	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
 }
 
 type Deployer interface {

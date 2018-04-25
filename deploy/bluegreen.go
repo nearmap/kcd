@@ -2,13 +2,15 @@ package deploy
 
 import (
 	"log"
+	"strings"
+	"time"
 
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -52,7 +54,9 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		return errors.Errorf("no label name defined for blue-green strategy in cv resource %s", cv.Name)
 	}
 
-	log.Printf("Beginning bluegreen deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
+	log.Printf("Beginning blue-green deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
+
+	defer timeTrack(time.Now(), "blue-green deployment")
 
 	// temp
 	log.Printf("Processing spec %s", spec)
@@ -73,6 +77,10 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	// TODO: if we're not the current spec, but the current spec is the correct version
+	// then we shouldn't do anything.
+
 	if isCurrent {
 		log.Printf("Spec %s is current live workload for service %s. Not changing.", spec.Name(), service.Name)
 		return nil
@@ -86,6 +94,10 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		return errors.Wrapf(err, "failed to update test service for cv spec %s", cv.Name)
 	}
 
+	if err := bgd.waitForAllPods(cv, version, spec); err != nil {
+		return errors.WithStack(err)
+	}
+
 	if err := bgd.verify(cv); err != nil {
 		return errors.Wrapf(err, "failed verification step for cv spec %s", cv.Name)
 	}
@@ -97,7 +109,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName string) (*v1.Service, error) {
+func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName string) (*corev1.Service, error) {
 	service, err := bgd.cs.CoreV1().Services(bgd.namespace).Get(serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get service with name %s", serviceName)
@@ -106,7 +118,7 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 	return service, nil
 }
 
-func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec DeploySpec, service *v1.Service) (bool, error) {
+func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec DeploySpec, service *corev1.Service) (bool, error) {
 	// temp
 	log.Printf("Checking is current deployment spec...")
 
@@ -148,7 +160,7 @@ func (bgd *BlueGreenDeployer) isCurrentDeploySpec(cv *cv1.ContainerVersion, spec
 	return false, errors.Errorf("blue-green strategy could not find a current live workload")
 }
 
-func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]v1.PodTemplate, error) {
+func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]corev1.PodTemplate, error) {
 	// temp
 	log.Printf("selecting pod templates with selector %+v", selector)
 
@@ -208,8 +220,88 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, sp
 	return nil
 }
 
+// waitForAllPods checks that all pods tied to the given DeploySpec are at the specified
+// version, and waits polling if not the case.
+// Returns an error if a timeout value is reached.
+func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
+	defer timeTrack(time.Now(), "waitForAllPods")
+
+	// TODO: redo timeout logic
+outer:
+	for i := 0; i < 20; i++ {
+		time.Sleep(15 * time.Second)
+
+		// temp
+		log.Printf("Attempt %d", i)
+
+		pods, err := PodsForSpec(bgd.cs, bgd.namespace, spec)
+		if err != nil {
+			log.Printf("ERROR: failed to get pods for spec %s: %v", spec.Name(), err)
+			// TODO: handle?
+			continue outer
+		}
+		if len(pods) == 0 {
+			// TODO: handle?
+			log.Printf("ERROR: no pods found for spec %s", spec.Name())
+			continue outer
+		}
+
+		for _, pod := range pods {
+			ok, err := CheckContainerVersions(cv, version, pod.Spec)
+			if err != nil {
+				// TODO: handle?
+				log.Printf("ERROR: failed to check container version for spec %s: %v", spec.Name(), err)
+				continue outer
+			}
+			if !ok {
+				log.Printf("Still waiting for rollout: pod %s is wrong version", pod.Name)
+				continue outer
+			}
+		}
+
+		log.Printf("All pods have been updated to version %s", version)
+		break
+	}
+
+	return nil
+}
+
+func PodsForSpec(cs kubernetes.Interface, namespace string, spec DeploySpec) ([]corev1.Pod, error) {
+	set := labels.Set(spec.PodTemplateSpec().Labels)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+
+	pods, err := cs.CoreV1().Pods(namespace).List(listOpts)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to select pods for spec %s", spec.Name())
+	}
+
+	// temp
+	log.Printf("Initial Pods selected return %d pods", len(pods.Items))
+	for _, p := range pods.Items {
+		log.Printf("Pod: %+v", p)
+		log.Printf("-----")
+	}
+	log.Printf("\n=====\n")
+
+	result, err := spec.SelectOwnPods(pods.Items)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to filter pods for DepoySpec %s", spec.Name())
+	}
+
+	// temp
+	log.Printf("PodsForSpec return %d pods", len(result))
+	for _, p := range result {
+		log.Printf("Pod: %+v", p)
+		log.Printf("-----")
+	}
+	log.Printf("\n=====\n")
+
+	return result, nil
+}
+
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil {
+		log.Printf("No verification defined for %s", cv.Name)
 		return nil
 	}
 
@@ -217,10 +309,40 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 	return nil
 }
 
+// TODO: put this somewhere more general
+// CheckContainerVersions tests whether all containers in the pod spec with container
+// names that match the cv spec have the given version.
+// Returns false if at least one container's version does not match.
+func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
+	match := false
+	for _, c := range podSpec.Containers {
+		if c.Name == cv.Spec.Container {
+			match = true
+			parts := strings.SplitN(c.Image, ":", 2)
+			if len(parts) > 2 {
+				return false, errors.New("invalid image on container")
+			}
+			if parts[0] != cv.Spec.ImageRepo {
+				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
+					cv.Spec.Container, parts[0], cv.Spec.ImageRepo)
+			}
+			if version != parts[1] {
+				return false, nil
+			}
+		}
+	}
+
+	if !match {
+		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container)
+	}
+
+	return true, nil
+}
+
 ////////////////////////////////////////////////
 // temp
 
-func (bgd *BlueGreenDeployer) isCurrentDeploySpec_OLD(spec DeploySpec, service *v1.Service) (bool, error) {
+func (bgd *BlueGreenDeployer) isCurrentDeploySpec_OLD(spec DeploySpec, service *corev1.Service) (bool, error) {
 	// temp
 	log.Printf("Checking is current deployment spec...")
 
@@ -245,7 +367,7 @@ func (bgd *BlueGreenDeployer) isCurrentDeploySpec_OLD(spec DeploySpec, service *
 	return podTemplates[0].Template.UID == spec.PodTemplateSpec().UID, nil
 }
 
-func (bgd *BlueGreenDeployer) selectPodTemplates_OLD(selector map[string]string) ([]v1.PodTemplate, error) {
+func (bgd *BlueGreenDeployer) selectPodTemplates_OLD(selector map[string]string) ([]corev1.PodTemplate, error) {
 	// temp
 	log.Printf("selecting pod templates with selector %+v", selector)
 
@@ -310,4 +432,7 @@ func (bgd *BlueGreenDeployer) testPodSelection(selector map[string]string) {
 
 }
 
-///////////////////////////////////////////////
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s", name, elapsed)
+}

@@ -2,17 +2,18 @@ package k8s
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
-	"k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	goappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 )
 
 const (
@@ -20,20 +21,20 @@ const (
 )
 
 type Deployment struct {
-	//cs        kubernetes.Interface
-	//namespace string
+	deployment *appsv1.Deployment
 
-	deployment *v1.Deployment
-
-	client appsv1.DeploymentInterface
+	client           goappsv1.DeploymentInterface
+	replicasetClient goappsv1.ReplicaSetInterface
 }
 
-func NewDeployment(cs kubernetes.Interface, namespace string, deployment *v1.Deployment) *Deployment {
+func NewDeployment(cs kubernetes.Interface, namespace string, deployment *appsv1.Deployment) *Deployment {
 	client := cs.AppsV1().Deployments(namespace)
+	replicasetClient := cs.AppsV1().ReplicaSets(namespace)
 
 	return &Deployment{
-		deployment: deployment,
-		client:     client,
+		deployment:       deployment,
+		client:           client,
+		replicasetClient: replicasetClient,
 	}
 }
 
@@ -80,6 +81,64 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, er
 	return result, nil
 }
 
+func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
+	var result []corev1.Pod
+	for _, pod := range pods {
+		for _, podOwner := range pod.OwnerReferences {
+			switch podOwner.Kind {
+			case TypeReplicaSet:
+				rs, err := d.replicaSetForName(podOwner.Name)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to get pod's owner replicaset")
+				}
+				for _, rsOwner := range rs.OwnerReferences {
+					switch rsOwner.Kind {
+					case TypeDeployment:
+						if rsOwner.Name == d.deployment.Name {
+							result = append(result, pod)
+						} else {
+							// temp
+							log.Printf("Replicaset owner name %s did not match deployment name %s", rsOwner.Name, d.deployment.Name)
+						}
+					default:
+						log.Printf("Ignoring unknown replicaset owner kind: %v", rsOwner.Kind)
+					}
+				}
+			default:
+				log.Printf("Ignoring unknown pod owner kind: %v", podOwner.Kind)
+			}
+		}
+	}
+
+	log.Printf("SelectOwnPods returning %d pods", len(result))
+	return result, nil
+}
+
+func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) {
+	rs, err := d.replicasetClient.Get(name, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get replicaset with name %s", name)
+	}
+
+	// temp
+	log.Printf("ReplicaSetsForName %s returned %+v", name, rs)
+	log.Printf("\n=====\n")
+
+	return rs, nil
+}
+
+/*
+func (d *Deployment) Pods(podClient gocorev1.PodInterface) ([]corev1.Pod, error) {
+	set := labels.Set(d.deployment.Spec.Labels)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+
+	pods, err := podClient.List(listOpts)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to list pods with selector %v", listOpts)
+	}
+
+}
+*/
 /////
 /*
 const deployment = "Deployment"

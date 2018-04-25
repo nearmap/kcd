@@ -1,8 +1,10 @@
 package k8s
 
-/*
-const replicaSet = "ReplicaSet"
+const (
+	TypeReplicaSet = "ReplicaSet"
+)
 
+/*
 func (k *K8sProvider) syncReplicaSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
 	ds, err := k.cs.AppsV1().ReplicaSets(k.namespace).List(listOpts)
 	if err != nil {
