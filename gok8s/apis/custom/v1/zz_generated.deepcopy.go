@@ -128,6 +128,10 @@ func (in *ContainerVersionSpec) DeepCopyInto(out *ContainerVersionSpec) {
 			*out = new(StrategySpec)
 			(*in).DeepCopyInto(*out)
 		}
+	if in.PreRolloutHooks != nil {
+		in, out := &in.PreRolloutHooks, &out.PreRolloutHooks
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 	if in.Selector != nil {
 		in, out := &in.Selector, &out.Selector

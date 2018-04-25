@@ -97,6 +97,8 @@ docker run -ti  nearmap/cvmanager <command>
 
 
 ## Deploying CVManager to Kubernetes cluster
+*CVManage is only supported on Kubernetes > 1.9*
+
 CVManager can be deployed using:
 
 1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)

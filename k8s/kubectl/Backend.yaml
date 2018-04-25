@@ -138,6 +138,10 @@ objects:
                 - "--history=$(USE_HISTORY)"
                 - "--cv-img-repo=$(REPOSITORY)"
               env:
+             - name: NAME
+               valueFrom:
+                 fieldRef:
+                   fieldPath: metadata.name
               - name: STATS_HOST
                 valueFrom:
                   fieldRef:

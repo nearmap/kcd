@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"time"
 
+	conf "github.com/nearmap/cvmanager/config"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	scheme "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
 	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
 	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
-	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -56,9 +56,7 @@ type CVController struct {
 
 	recorder record.EventRecorder
 
-	stats stats.Stats
-
-	useHistory bool
+	opts *conf.Options
 }
 
 type configKey struct {
@@ -70,9 +68,19 @@ type configKey struct {
 // acting on add/update/delete of CV resources. On add of CV resources, it creates a deployment for docker register
 // (DR) Sync service that polls in to docker registry to find any new deployments that needs to be rolled out
 // and thus performing the roll-out if required (using the roll-out strategy specified in deployment.
-func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface, customCS clientset.Interface,
+func NewCVController(configMapKey, cvImgRepo string,
+	k8sCS kubernetes.Interface, customCS clientset.Interface,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
-	statsInstance stats.Stats, useHistory bool) (*CVController, error) {
+	options ...func(*conf.Options)) (*CVController, error) {
+
+	opts := &conf.Options{
+		Stats:       stats.NewFake(),
+		UseHistory:  false,
+		UseRollback: false,
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(configMapKey)
 	if err != nil {
@@ -88,10 +96,6 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 	eventBroadcaster.StartLogging(log.Printf)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: k8sCS.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(k8sscheme.Scheme, corev1.EventSource{Component: "container-version-controller"})
-
-	if statsInstance == nil {
-		statsInstance = stats.NewFake()
-	}
 
 	cvc := &CVController{
 		config: &configKey{
@@ -112,9 +116,6 @@ func NewCVController(configMapKey, cvImgRepo string, k8sCS kubernetes.Interface,
 
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ContainerVersions"),
 		recorder: recorder,
-		stats:    statsInstance,
-
-		useHistory: useHistory,
 	}
 
 	log.Printf("Setting up event handlers in container version controller")
@@ -208,7 +209,7 @@ func (c *CVController) processNextWorkItem() bool {
 		}
 		c.queue.Forget(obj)
 		log.Printf("Successfully synced '%s'", key)
-		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.success", key))
+		c.opts.Stats.IncCount(fmt.Sprintf("cvc.%s.sync.success", key))
 		return nil
 	}(obj)
 
@@ -242,12 +243,12 @@ func (c *CVController) syncHandler(key string) error {
 
 	version, err := c.fetchVersion()
 	if err != nil {
-		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
+		c.opts.Stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
 		c.recorder.Event(cv, corev1.EventTypeWarning, "FailedCreateCRSync", "Cant find config for CRSync version")
 		return errors.Wrap(err, "Failed to find container version")
 	}
 	if err = c.syncDeployNames(namespace, key, version, cv); err != nil {
-		c.stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
+		c.opts.Stats.IncCount(fmt.Sprintf("cvc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
 		return errors.Wrap(err, "Failed to sync deployment")
 	}
 
@@ -369,9 +370,9 @@ func (c *CVController) syncDeployNames(namespace, key, version string, cv *cv1.C
 func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
 	dName := syncDeployName(cv.Name)
-	livenessFrequency := cv.Spec.LivenessFrequency
+	livenessFrequency := cv.Spec.LivenessSeconds
 	if livenessFrequency <= 0 {
-		livenessFrequency = cv.Spec.CheckFrequency
+		livenessFrequency = cv.Spec.PollIntervalSeconds
 	}
 
 	labels := map[string]string{
@@ -411,12 +412,20 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								"cr",
 								"sync",
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
-								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
+								//								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
 								fmt.Sprintf("--cv=%s", cv.Name),
 								fmt.Sprintf("--version=%s", cv.ResourceVersion),
-								fmt.Sprintf("--history=%t", c.useHistory),
+								fmt.Sprintf("--history=%t", c.opts.UseHistory),
+								fmt.Sprintf("--use-rollback=%t", c.opts.UseRollback),
 							},
-							Env: []corev1.EnvVar{
+							Env: []corev1.EnvVar{{
+								Name: "NAME",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.name",
+									},
+								},
+							},
 								{
 									Name: "STATS_HOST",
 									ValueFrom: &corev1.EnvVarSource{
@@ -427,7 +436,7 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								},
 							},
 							LivenessProbe: &corev1.Probe{
-								PeriodSeconds: int32(cv.Spec.CheckFrequency * 60),
+								PeriodSeconds: int32(cv.Spec.PollIntervalSeconds * 60),
 								Handler: corev1.Handler{
 									Exec: &corev1.ExecAction{
 										Command: []string{

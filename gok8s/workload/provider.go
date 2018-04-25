@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -45,25 +46,34 @@ type K8sProvider struct {
 	cs        kubernetes.Interface
 	namespace string
 
-	hp            history.Provider
-	recordHistory bool
+	hp   history.Provider
+	opts *conf.Options
 
-	stats    stats.Stats
+	stats stats.Stats
+
 	Recorder events.Recorder
 }
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, stats stats.Stats, recordHistory bool) *K8sProvider {
+func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, options ...func(*conf.Options)) *K8sProvider {
+
+	opts := &conf.Options{
+		Stats:       stats.NewFake(),
+		UseHistory:  false,
+		UseRollback: false,
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+
 	return &K8sProvider{
 		cs:        cs,
+		Recorder:  events.PodEventRecorder(),
+		Pod:       pod,
 		namespace: ns,
-
-		hp:            history.NewProvider(cs, stats),
-		recordHistory: recordHistory,
-
-		Recorder: recorder,
-		stats:    stats,
+		hp:        history.NewProvider(cs, opts.Stats),
+		Recorder:  recorder,
 	}
 }
 

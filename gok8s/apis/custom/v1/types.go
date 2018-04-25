@@ -21,18 +21,25 @@ type ContainerVersion struct {
 
 // ContainerVersionSpec is ContainerVersionSpec
 type ContainerVersionSpec struct {
-	ImageRepo         string `json:"imageRepo"`
-	Tag               string `json:"tag"`
-	CheckFrequency    int    `json:"checkFrequency"`
-	LivenessFrequency int    `json:"livenessFrequency"`
+	ImageRepo     string `json:"imageRepo"`
+	Tag           string `json:"tag"`
+	VersionSyntax string `json:"versionSyntax"`
+
+	PollIntervalSeconds int `json:"pollIntervalSeconds"`
+	LivenessSeconds     int `json:"livenessSeconds"`
+
+	Selector      map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
+	ContainerSpec string            `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
-	Selector map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
-
-	Container string `json:"container"`
-
 	Config *ConfigSpec `json:"config"`
+}
+
+// ContainerSpec defines a name of container and option container level verification step
+type ContainerSpec struct {
+	Name   string        `json:"name"`
+	Verify []*VerifySpec `json:"verify"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
@@ -48,14 +55,14 @@ type BlueGreenSpec struct {
 	VerificationServiceName string   `json:"verificationServiceName"`
 	LabelNames              []string `json:"labelNames"`
 	ScaleDown               bool     `json:"scaleDown"`
-	TimeoutSeconds          int      `json:"timeoutSecs"`
+	TimeoutSeconds          int      `json:"timeoutSeconds"`
 }
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
 	Kind           string `json:"kind"`
 	Image          string `json:"image"`
-	TimeoutSeconds int    `json:"timeoutSecs"`
+	TimeoutSeconds int    `json:"timeoutSeconds"`
 }
 
 // ConfigSpec is spec for Config resources

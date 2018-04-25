@@ -147,7 +147,7 @@ func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSp
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
 func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
 	log.Printf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
-	k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
+	k.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
 	k.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
