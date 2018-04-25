@@ -17,9 +17,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type BlueGreenDeploySpec interface {
-}
-
 type BlueGreenDeployer struct {
 	simpleDeployer *SimpleDeployer
 
@@ -85,12 +82,20 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 		return errors.Wrapf(err, "failed to update test service for cv spec %s", cv.Name)
 	}
 
+	if err := bgd.ensureHasPods(secondary); err != nil {
+		return errors.WithStack(err)
+	}
+
 	if err := bgd.waitForAllPods(cv, version, secondary); err != nil {
 		return errors.WithStack(err)
 	}
 
 	if err := bgd.verify(cv); err != nil {
 		return errors.Wrapf(err, "failed verification step for cv spec %s", cv.Name)
+	}
+
+	if err := bgd.scaleUpSecondary(cv, current, secondary); err != nil {
+		return errors.WithStack(err)
 	}
 
 	if err := bgd.updateServiceSelector(cv, secondary, cv.Spec.Strategy.BlueGreen.ServiceName); err != nil {
@@ -145,50 +150,6 @@ func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, 
 	log.Printf("Returning secondary spec: %s", secondary)
 
 	return current, secondary, nil
-}
-
-/////
-
-func (bgd *BlueGreenDeployer) isCurrentDeploySpec_ORIGINAL(cv *cv1.ContainerVersion, spec DeploySpec, service *corev1.Service) (bool, error) {
-	// temp
-	log.Printf("Checking is current deployment spec...")
-
-	// get all the workloads managed by this cv spec
-	workloads, err := spec.Select(cv.Spec.Selector)
-	if err != nil {
-		return false, errors.WithStack(err)
-	}
-
-	// temp
-	log.Printf("Got %d workloads", len(workloads))
-	for _, wl := range workloads {
-		log.Printf("Workload: %s", wl)
-		log.Printf("-----")
-	}
-	log.Printf("\n=====\n")
-
-	if len(workloads) != 2 {
-		return false, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec")
-	}
-
-	selector := labels.Set(service.Spec.Selector).AsSelector()
-
-	// temp
-	log.Printf("testing with selector %+v", selector)
-
-	for _, wl := range workloads {
-		ptLabels := labels.Set(wl.PodTemplateSpec().Labels)
-
-		// temp
-		log.Printf("checking whether %+v matches %+v", ptLabels, selector)
-
-		if selector.Matches(ptLabels) {
-			// this workload is the current live version
-			return wl.Name() == spec.Name(), nil
-		}
-	}
-
-	return false, errors.Errorf("blue-green strategy could not find a current live workload")
 }
 
 func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]corev1.PodTemplate, error) {
@@ -251,8 +212,28 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, sp
 	return nil
 }
 
+func (bgd *BlueGreenDeployer) ensureHasPods(spec DeploySpec) error {
+	replicas, ok := spec.(DeployReplicas)
+	if !ok {
+		log.Printf("DeploySpec %s does not support DeployReplicas", spec.Name())
+		return nil
+	}
+
+	// ensure at least 1 pod
+	numReplicas := replicas.NumReplicas()
+	if numReplicas > 0 {
+		log.Printf("DeploySpec %s has %d replicas", spec.Name(), numReplicas)
+		return nil
+	}
+
+	if err := replicas.PatchNumReplicas(1); err != nil {
+		return errors.Wrapf(err, "failed to patch number of replicas for spec %s", spec.Name())
+	}
+	return nil
+}
+
 // waitForAllPods checks that all pods tied to the given DeploySpec are at the specified
-// version, and waits polling if not the case.
+// version, and starts polling if not the case.
 // Returns an error if a timeout value is reached.
 func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
 	defer timeTrack(time.Now(), "waitForAllPods")
@@ -278,6 +259,14 @@ outer:
 		}
 
 		for _, pod := range pods {
+			if pod.Status.Phase != corev1.PodRunning {
+				log.Printf("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
+				continue outer
+			}
+			if version == "" {
+				continue
+			}
+
 			ok, err := CheckContainerVersions(cv, version, pod.Spec)
 			if err != nil {
 				// TODO: handle?
@@ -286,10 +275,6 @@ outer:
 			}
 			if !ok {
 				log.Printf("Still waiting for rollout: pod %s is wrong version", pod.Name)
-				continue outer
-			}
-			if pod.Status.Phase != corev1.PodRunning {
-				log.Printf("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 				continue outer
 			}
 		}
@@ -348,6 +333,33 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 	}
 
 	return verifier.Verify()
+}
+
+func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary DeploySpec) error {
+	currentReplicas, ok1 := current.(DeployReplicas)
+	secondaryReplicas, ok2 := secondary.(DeployReplicas)
+	if !ok1 || !ok2 {
+		log.Printf("Specs %s and %s do not support replicas: skipping scale up step", current.Name(), secondary.Name())
+		return nil
+	}
+
+	currentNum := currentReplicas.NumReplicas()
+	secondaryNum := currentReplicas.NumReplicas()
+
+	if secondaryNum >= currentNum {
+		log.Printf("Secondary spec %s has sufficient replicas (%d)", secondary.Name(), secondaryNum)
+		return nil
+	}
+
+	if err := secondaryReplicas.PatchNumReplicas(currentNum); err != nil {
+		return errors.Wrapf(err, "failed to patch number of replicas for secondary spec %s", secondary.Name())
+	}
+
+	// TODO: is this the best way to ensure the secondary is fully scaled?
+	if err := bgd.waitForAllPods(cv, "", secondary); err != nil {
+		return errors.Wrapf(err, "failed to wait for all pods after scaling up secondary %s", secondary.Name())
+	}
+	return nil
 }
 
 // TODO: put this somewhere more general

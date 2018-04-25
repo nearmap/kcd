@@ -13,7 +13,7 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-const podTemplateSpec = `
+const podTemplateSpecJSON = `
 						{
 							"spec": {
 								"template": {

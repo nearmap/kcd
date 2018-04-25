@@ -56,8 +56,11 @@ func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 
 func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpec, container.Name, cv.Spec.ImageRepo, version)))
-	return err
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for deployment %s", d.deployment.Name)
+	}
+	return nil
 }
 
 func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, error) {
@@ -125,6 +128,26 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 	log.Printf("\n=====\n")
 
 	return rs, nil
+}
+
+func (d *Deployment) NumReplicas() int32 {
+	return d.deployment.Status.Replicas
+}
+
+const deploymentReplicaSetPatchJSON = `
+	{
+		"spec": {
+			"replicas": %d
+		}
+	}`
+
+func (d *Deployment) PatchNumReplicas(num int32) error {
+	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(deploymentReplicaSetPatchJSON, num)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec replicas for deployment %s", d.deployment.Name)
+	}
+	return nil
 }
 
 /*
