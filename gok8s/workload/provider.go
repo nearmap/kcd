@@ -169,7 +169,8 @@ func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Work
 	if err != nil {
 		return nil, k.handleError(err, "deployments")
 	}
-	for _, wl := range wls.Items {
+	for _, item := range wls.Items {
+		wl := item
 		result = append(result, NewDeployment(k.cs, k.namespace, &wl))
 	}
 
