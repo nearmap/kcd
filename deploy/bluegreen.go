@@ -9,6 +9,7 @@ import (
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -135,6 +136,7 @@ func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, 
 			if secondary != nil {
 				return nil, nil, errors.Errorf("unexpected state: found 2 secondary blue-green workloads for cv spec %s", cv.Name)
 			}
+			secondary = wl
 		}
 	}
 
@@ -338,8 +340,14 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 		return nil
 	}
 
-	// TODO:
-	return nil
+	var verifier verify.Verifier
+	switch cv.Spec.Strategy.Verify.Type {
+	case "basic":
+	default:
+		verifier = verify.NewBasicVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify.Image)
+	}
+
+	return verifier.Verify()
 }
 
 // TODO: put this somewhere more general

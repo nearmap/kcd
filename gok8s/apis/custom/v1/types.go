@@ -47,6 +47,7 @@ type BlueGreenSpec struct {
 }
 
 type VerifySpec struct {
+	Type  string `json:"type"`
 	Image string `json:"image"`
 }
 

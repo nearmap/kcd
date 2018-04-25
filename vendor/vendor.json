@@ -491,6 +491,12 @@
 			"revisionTime": "2017-11-06T14:28:49Z"
 		},
 		{
+			"checksumSHA1": "iPvSsIFIeq9PliZzzsUZtNo+/Cs=",
+			"path": "github.com/twinj/uuid",
+			"revision": "7bbe408d339787c56ec15568c947c0959db1b275",
+			"revisionTime": "2016-09-09T07:54:38Z"
+		},
+		{
 			"checksumSHA1": "OvrNwcBO+xO4FZ7eMbazho1C3t0=",
 			"path": "goji.io",
 			"revision": "0d89ff54b2c18c9c4ba530e32496aef902d3c6cd",
