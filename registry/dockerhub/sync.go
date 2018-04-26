@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/heroku/docker-registry-client/registry"
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	rgs "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -74,7 +74,7 @@ func (s *syncer) doSync() error {
 	currentVersion, err := getDigest(s.cv.Spec.ImageRepo, "", "", s.cv.Spec.Tag)
 	if err != nil {
 		s.stats.IncCount(fmt.Sprintf("%s.%s.badsha.failure", s.cv.Spec.ImageRepo, s.cv.Spec.Selector[cv1.CVAPP]))
-		s.k8sProvider.Recorder.Event(s.k8sProvider.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No image found with correct tags")
+		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "No image found with correct tags")
 		return nil
 	}
 	if err := s.k8sProvider.SyncWorkload(s.cv, currentVersion); err != nil {

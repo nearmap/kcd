@@ -21,15 +21,35 @@ type ContainerVersion struct {
 
 // ContainerVersionSpec is ContainerVersionSpec
 type ContainerVersionSpec struct {
-	ImageRepo      string `json:"imageRepo"`
-	Tag            string `json:"tag"`
-	CheckFrequency int    `json:"checkFrequency"`
+	ImageRepo         string `json:"imageRepo"`
+	Tag               string `json:"tag"`
+	CheckFrequency    int    `json:"checkFrequency"`
+	LivenessFrequency int    `json:"livenessFrequency"`
+
+	Strategy *StrategySpec `json:"strategy"`
 
 	Selector map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 
 	Container string `json:"container"`
 
 	Config *ConfigSpec `json:"config"`
+}
+
+type StrategySpec struct {
+	Type      string         `json:"type"`
+	BlueGreen *BlueGreenSpec `json:"blueGreen"`
+	Verify    *VerifySpec    `json:"verify"`
+}
+
+type BlueGreenSpec struct {
+	ServiceName     string `json:"serviceName"`
+	TestServiceName string `json:"testServiceName"`
+	LabelName       string `json:"labelName"`
+}
+
+type VerifySpec struct {
+	Type  string `json:"type"`
+	Image string `json:"image"`
 }
 
 // ConfigSpec is spec for Config resources

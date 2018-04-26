@@ -5,58 +5,79 @@ import (
 	"strings"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	goappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 )
 
-const stateful = "Stateful"
+const (
+	TypeStatefulSet = "StatefulSet"
+)
 
-func (k *K8sProvider) syncStatefulSet(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
-	ds, err := k.cs.AppsV1().StatefulSets(k.namespace).List(listOpts)
-	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent stateful")
-		return errors.Wrap(err, "failed to read stateful ")
+type StatefulSet struct {
+	statefulSet *appsv1.StatefulSet
+
+	client goappsv1.StatefulSetInterface
+}
+
+func NewStatefulSet(cs kubernetes.Interface, namespace string, statefulSet *appsv1.StatefulSet) *StatefulSet {
+	client := cs.AppsV1().StatefulSets(namespace)
+	return newStatefulSet(statefulSet, client)
+}
+
+func newStatefulSet(statefulSet *appsv1.StatefulSet, client goappsv1.StatefulSetInterface) *StatefulSet {
+	return &StatefulSet{
+		statefulSet: statefulSet,
+		client:      client,
 	}
-	for _, d := range ds.Items {
-		if ci, err := k.checkPodSpec(d.Spec.Template, d.Name, version, cv); err != nil {
-			if err == errs.ErrVersionMismatch {
-				return k.patchPodSpec(d.Spec.Template, d.Name, ci, cv, func(i int) error {
-					_, err := k.cs.AppsV1().StatefulSets(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
-						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
-					return err
-				}, func() string { return stateful })
-			} else {
-				k.raiseSyncPodErrEvents(err, stateful, d.Name, cv.Spec.Tag, version)
-			}
-		}
+}
+
+func (ss *StatefulSet) String() string {
+	return fmt.Sprintf("%+v", ss.statefulSet)
+}
+
+func (ss *StatefulSet) Name() string {
+	return ss.statefulSet.Name
+}
+
+func (ss *StatefulSet) Type() string {
+	return TypeStatefulSet
+}
+
+func (ss *StatefulSet) PodSpec() corev1.PodSpec {
+	return ss.statefulSet.Spec.Template.Spec
+}
+
+func (ss *StatefulSet) PodTemplateSpec() corev1.PodTemplateSpec {
+	return ss.statefulSet.Spec.Template
+}
+
+func (ss *StatefulSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := ss.client.Patch(ss.statefulSet.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for StatefulSet %s", ss.statefulSet.Name)
 	}
 	return nil
 }
 
-func (k *K8sProvider) cvStatefulSets(cv *cv1.ContainerVersion, listOpts metav1.ListOptions) ([]*Resource, error) {
-	ds, err := k.cs.AppsV1().StatefulSets(cv.Namespace).List(listOpts)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to fetch stateful")
-	}
-	var cvsList []*Resource
-	for _, dd := range ds.Items {
-		for _, c := range dd.Spec.Template.Spec.Containers {
-			if cv.Spec.Container == c.Name {
-				cvsList = append(cvsList, &Resource{
-					Namespace: cv.Namespace,
-					Name:      dd.Name,
-					Type:      stateful,
-					Container: c.Name,
-					Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
-					CV:        cv.Name,
-					Tag:       cv.Spec.Tag,
-				})
+func (ss *StatefulSet) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range ss.statefulSet.Spec.Template.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace: cv.Namespace,
+				Name:      ss.statefulSet.Name,
+				Type:      TypeStatefulSet,
+				Container: c.Name,
+				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				CV:        cv.Name,
+				Tag:       cv.Spec.Tag,
 			}
 		}
 	}
 
-	return cvsList, nil
+	return nil
 }
