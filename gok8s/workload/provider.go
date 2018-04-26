@@ -20,6 +20,8 @@ import (
 // WorkloadSpec defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
 type WorkloadSpec interface {
 	deploy.DeploySpec
+
+	AsResource(cv *cv1.ContainerVersion) *Resource
 }
 
 // Resource maintains a high level status of deployments managed by
@@ -83,7 +85,7 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	}
 
 	for _, spec := range specs {
-		if err := checkPodSpec(cv, version, spec.PodTemplateSpec()); err != nil {
+		if err := checkPodSpec(cv, version, spec.PodSpec()); err != nil {
 			if err == errs.ErrVersionMismatch {
 				// temp
 				log.Printf("Spec %s version mismatch - performing deploy", spec.Name())
@@ -103,38 +105,6 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	}
 
 	return nil
-
-	/*
-		set := labels.Set(cv.Spec.Selector)
-		listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
-		// Alpha workload
-		err := k.syncDeployments(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync deployments")
-		}
-		err = k.syncDaemonSets(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync syncDaemonSets")
-		}
-		err = k.syncReplicaSet(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync syncReplicaSets")
-		}
-		err = k.syncStatefulSet(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync syncStatefulSets")
-		}
-		// batch workloads
-		err = k.syncJobs(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync jobs")
-		}
-		err = k.syncCronJobs(cv, version, listOpts)
-		if err != nil {
-			errors.Wrap(err, "failed to sync cronjobs")
-		}
-		return err
-	*/
 }
 
 func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, spec deploy.DeploySpec) error {
@@ -159,22 +129,90 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, spec depl
 	return nil
 }
 
+// CVWorkload generates details about current workload resources managed by CVManager
+func (k *K8sProvider) CVWorkload(cv *cv1.ContainerVersion) ([]*Resource, error) {
+	var resources []*Resource
+
+	specs, err := k.getMatchingWorkloadSpecs(cv)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	for _, spec := range specs {
+		resources = append(resources, spec.AsResource(cv))
+	}
+
+	return resources, nil
+}
+
 func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]WorkloadSpec, error) {
 	var result []WorkloadSpec
 
 	set := labels.Set(cv.Spec.Selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
-	wls, err := k.cs.AppsV1().Deployments(k.namespace).List(listOpts)
+	deployments, err := k.cs.AppsV1().Deployments(k.namespace).List(listOpts)
 	if err != nil {
 		return nil, k.handleError(err, "deployments")
 	}
-	for _, item := range wls.Items {
+	for _, item := range deployments.Items {
 		wl := item
 		result = append(result, NewDeployment(k.cs, k.namespace, &wl))
 	}
 
-	// TODO: other types
+	cronJobs, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "cronJobs")
+	}
+	for _, item := range cronJobs.Items {
+		wl := item
+		result = append(result, NewCronJob(k.cs, k.namespace, &wl))
+	}
+
+	daemonSets, err := k.cs.AppsV1().DaemonSets(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "daemonSets")
+	}
+	for _, item := range daemonSets.Items {
+		wl := item
+		result = append(result, NewDaemonSet(k.cs, k.namespace, &wl))
+	}
+
+	jobs, err := k.cs.BatchV1().Jobs(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "jobs")
+	}
+	for _, item := range jobs.Items {
+		wl := item
+		result = append(result, NewJob(k.cs, k.namespace, &wl))
+	}
+
+	pods, err := k.cs.CoreV1().Pods(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "pods")
+	}
+	for _, item := range pods.Items {
+		wl := item
+		result = append(result, NewPod(k.cs, k.namespace, &wl))
+	}
+
+	replicaSets, err := k.cs.AppsV1().ReplicaSets(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "replicaSets")
+	}
+	for _, item := range replicaSets.Items {
+		wl := item
+		result = append(result, NewReplicaSet(k.cs, k.namespace, &wl))
+	}
+
+	statefulSets, err := k.cs.AppsV1().StatefulSets(k.namespace).List(listOpts)
+	if err != nil {
+		return nil, k.handleError(err, "statefulSets")
+	}
+	for _, item := range statefulSets.Items {
+		wl := item
+		result = append(result, NewStatefulSet(k.cs, k.namespace, &wl))
+	}
 
 	return result, nil
 }
@@ -182,65 +220,6 @@ func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Work
 func (k *K8sProvider) handleError(err error, typ string) error {
 	k.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get dependent deployment")
 	return errors.Wrapf(err, "failed to get %s", typ)
-}
-
-// CVWorkload generates details about current workload resources managed by CVManager
-func (k *K8sProvider) CVWorkload(cv *cv1.ContainerVersion) ([]*Resource, error) {
-
-	// TODO:
-	return nil, nil
-
-	/*
-		var cvsList []*Resource
-		set := labels.Set(cv.Spec.Selector)
-		listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
-
-		// workloads
-		rs, err := k.cvDeployment(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all Deployments managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		rs, err = k.cvDaemonSets(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all DaemonSets managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		rs, err = k.cvStatefulSets(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all StatefulSets managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		rs, err = k.cvReplicaSets(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all ReplicaSets managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		// Batch workload
-		rs, err = k.cvCronJobs(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all CronJobs managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		rs, err = k.cvJobs(cv, listOpts)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return nil, errors.Errorf("Failed to fetch all Jobs managed by CV resources")
-		}
-		cvsList = append(cvsList, rs...)
-
-		return cvsList, nil
-	*/
 }
 
 func validate(v string) error {

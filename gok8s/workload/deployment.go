@@ -3,6 +3,7 @@ package k8s
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -54,6 +55,10 @@ func (d *Deployment) Name() string {
 
 func (d *Deployment) Type() string {
 	return TypeDeployment
+}
+
+func (d *Deployment) PodSpec() corev1.PodSpec {
+	return d.deployment.Spec.Template.Spec
 }
 
 func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
@@ -150,6 +155,25 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec replicas for deployment %s", d.deployment.Name)
 	}
+	return nil
+}
+
+func (d *Deployment) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range d.deployment.Spec.Template.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace:     cv.Namespace,
+				Name:          d.deployment.Name,
+				Type:          TypeDeployment,
+				Container:     c.Name,
+				Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
+				AvailablePods: d.deployment.Status.AvailableReplicas,
+				CV:            cv.Name,
+				Tag:           cv.Spec.Tag,
+			}
+		}
+	}
+
 	return nil
 }
 

@@ -21,24 +21,37 @@ type DeploySpec interface {
 	// Type returns the type of the spec.
 	Type() string
 
-	PodTemplateSpec() corev1.PodTemplateSpec
+	PodSpec() corev1.PodSpec
 
 	// PatchPodSpec receives a pod spec and container which is to be patched
 	// according to an appropriate strategy for the type.
 	PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error
+}
+
+// TemplateDeploySpec defines methods for deployable resources that manage a collection
+// of pods, defined by a resource. More deployment options are available for such
+// resources.
+type TemplateDeploySpec interface {
+	DeploySpec
+
+	PodTemplateSpec() corev1.PodTemplateSpec
 
 	// Select all Workloads of this type with the given selector. May return
 	// the same WorkloadSpec if it matches the selector.
-	Select(selector map[string]string) ([]DeploySpec, error)
+	Select(selector map[string]string) ([]TemplateDeploySpec, error)
 
 	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
-}
 
-type DeployReplicas interface {
 	NumReplicas() int32
 
 	PatchNumReplicas(num int32) error
 }
+
+//type DeployReplicas interface {
+//	NumReplicas() int32
+//
+//	PatchNumReplicas(num int32) error
+//}
 
 type Deployer interface {
 	Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error
@@ -70,14 +83,14 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, s
 func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
 	log.Printf("Performing simple deployment on %s with version %s", spec.Name(), version)
 
-	ptSpec := spec.PodTemplateSpec()
+	podSpec := spec.PodSpec()
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		for _, c := range ptSpec.Spec.Containers {
+		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container {
 				if updateErr := spec.PatchPodSpec(cv, c, version); updateErr != nil {
 					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
-						version, ptSpec.Name, updateErr)
+						version, spec.Name(), updateErr)
 
 					return updateErr
 				}

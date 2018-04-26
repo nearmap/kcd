@@ -10,10 +10,14 @@ import (
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	gocorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-const podTemplateSpecJSON = `
+const (
+	podTemplateSpecJSON = `
 						{
 							"spec": {
 								"template": {
@@ -30,14 +34,80 @@ const podTemplateSpecJSON = `
 							}
 						}
 						`
+)
+
+const (
+	TypePod = "Pod"
+)
+
+type Pod struct {
+	pod *corev1.Pod
+
+	client gocorev1.PodInterface
+}
+
+func NewPod(cs kubernetes.Interface, namespace string, pod *corev1.Pod) *Pod {
+	client := cs.CoreV1().Pods(namespace)
+	return newPod(pod, client)
+}
+
+func newPod(pod *corev1.Pod, client gocorev1.PodInterface) *Pod {
+	return &Pod{
+		pod:    pod,
+		client: client,
+	}
+}
+
+func (p *Pod) String() string {
+	return fmt.Sprintf("%+v", p.pod)
+}
+
+func (p *Pod) Name() string {
+	return p.pod.Name
+}
+
+func (p *Pod) Type() string {
+	return TypePod
+}
+
+func (p *Pod) PodSpec() corev1.PodSpec {
+	return p.pod.Spec
+}
+
+func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := p.client.Patch(p.pod.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for Pod %s", p.pod.Name)
+	}
+	return nil
+}
+
+func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range p.pod.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace: cv.Namespace,
+				Name:      p.pod.Name,
+				Type:      TypePod,
+				Container: c.Name,
+				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				CV:        cv.Name,
+				Tag:       cv.Spec.Tag,
+			}
+		}
+	}
+
+	return nil
+}
 
 // checkPodSpec checks whether the current version tag of the container
 // in the given pod spec with the given container name has the given
 // version. Return a nil error if the versions match. If not matching,
 // an errs.ErrorVersionMismatch is returned.
-func checkPodSpec(cv *cv1.ContainerVersion, version string, podTemplateSpec v1.PodTemplateSpec) error {
+func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) error {
 	match := false
-	for _, c := range podTemplateSpec.Spec.Containers {
+	for _, c := range podSpec.Containers {
 		if c.Name == cv.Spec.Container {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
