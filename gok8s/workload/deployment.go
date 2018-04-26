@@ -74,11 +74,11 @@ func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 	return nil
 }
 
-func (d *Deployment) Select(selector map[string]string) ([]deploy.DeploySpec, error) {
+func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateDeploySpec, error) {
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
-	var result []deploy.DeploySpec
+	var result []deploy.TemplateDeploySpec
 
 	wls, err := d.client.List(listOpts)
 	if err != nil {

@@ -44,11 +44,7 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, eventRecorder events.Recorder
 func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
 	tSpec, ok := spec.(TemplateDeploySpec)
 	if !ok {
-		log.Printf("blue-green deployment not available for deploy spec %s of type %v. Falling back to simple deployer.", spec.Name(), spec.Type())
-		if err := bgd.simpleDeployer.Deploy(cv, version, spec); err != nil {
-			return errors.WithStack(err)
-		}
-		return nil
+		return errors.Errorf("blue-green deployment not available for deploy spec %s of type %v. Falling back to simple deployer.", spec.Name(), spec.Type())
 	}
 
 	if cv.Spec.Strategy.BlueGreen == nil {
