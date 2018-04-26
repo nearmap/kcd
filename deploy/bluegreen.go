@@ -122,9 +122,6 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, spec TemplateDeploySpec,
 	service *corev1.Service) (current, secondary TemplateDeploySpec, err error) {
 
-	// temp
-	log.Printf("Getting BlueGreen deploy specs...")
-
 	// get all the workloads managed by this cv spec
 	workloads, err := spec.Select(cv.Spec.Selector)
 	if err != nil {
@@ -150,17 +147,10 @@ func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, 
 		}
 	}
 
-	// temp
-	log.Printf("Returning current spec:   %s", current)
-	log.Printf("Returning secondary spec: %s", secondary)
-
 	return current, secondary, nil
 }
 
 func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]corev1.PodTemplate, error) {
-	// temp
-	log.Printf("selecting pod templates with selector %+v", selector)
-
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
@@ -168,14 +158,6 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to select pod templates with selector %s", selector)
 	}
-
-	// temp
-	log.Printf("selected %d pod templates:", len(podTemplates.Items))
-	for _, pt := range podTemplates.Items {
-		log.Printf("PodTemplate: %+v", pt)
-		log.Printf("-----")
-	}
-	log.Printf("\n=====\n")
 
 	return podTemplates.Items, nil
 }
@@ -241,11 +223,8 @@ func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version s
 
 	// TODO: redo timeout logic
 outer:
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		time.Sleep(15 * time.Second)
-
-		// temp
-		log.Printf("Attempt %d", i)
 
 		pods, err := PodsForSpec(bgd.cs, bgd.namespace, spec)
 		if err != nil {
@@ -296,26 +275,10 @@ func PodsForSpec(cs kubernetes.Interface, namespace string, spec TemplateDeployS
 		return nil, errors.Wrapf(err, "failed to select pods for spec %s", spec.Name())
 	}
 
-	// temp
-	log.Printf("Initial Pods selected return %d pods", len(pods.Items))
-	for _, p := range pods.Items {
-		log.Printf("Pod: %+v", p)
-		log.Printf("-----")
-	}
-	log.Printf("\n=====\n")
-
 	result, err := spec.SelectOwnPods(pods.Items)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to filter pods for DepoySpec %s", spec.Name())
 	}
-
-	// temp
-	log.Printf("PodsForSpec return %d pods", len(result))
-	for _, p := range result {
-		log.Printf("Pod: %+v", p)
-		log.Printf("-----")
-	}
-	log.Printf("\n=====\n")
 
 	return result, nil
 }

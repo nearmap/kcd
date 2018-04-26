@@ -89,22 +89,13 @@ func (s *syncer) Sync() error {
 			return err
 		}
 		if err := s.doSync(); err != nil {
-			// TODO: revert !!!!!!!!!!!!!!!!!!!!!!!!
-			// for now, don't crash on error
-			//return err
-
-			// temp
-			log.Printf("ERROR in doSync: %v", err)
-			log.Printf("This would have resulted in the pod crashing!!!!!!!!!!!")
+			return errors.Wrapf(err, "sync failed for cv resource %s", s.cv.Name)
 		}
 	}
 	return nil
 }
 
 func (s *syncer) doSync() error {
-	// temp
-	log.Printf("Starting SyncWorkload...")
-
 	currentVersion, err := s.getVersionFromRegistry()
 	if err != nil {
 		return errors.WithStack(err)
@@ -119,9 +110,6 @@ func (s *syncer) doSync() error {
 	if err := s.k8sProvider.SyncWorkload(s.cv, currentVersion); err != nil {
 		return errors.Wrapf(err, "Failed to sync deployments %s", s.cv.Spec.Selector[cv1.CVAPP])
 	}
-
-	// temp
-	log.Printf("Finished SyncWorkload.")
 
 	// Syncup config if unspecified
 	if err := s.k8sProvider.SyncVersionConfig(s.cv, currentVersion); err != nil {

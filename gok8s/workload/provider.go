@@ -42,7 +42,6 @@ type Resource struct {
 type K8sProvider struct {
 	cs        kubernetes.Interface
 	namespace string
-	//deployer  deploy.Deployer
 
 	hp            history.Provider
 	recordHistory bool
@@ -65,7 +64,6 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recor
 	return &K8sProvider{
 		cs:        cs,
 		namespace: ns,
-		//deployer:  deploy.NewSimpleDeployer(cs, recorder, stats, ns),
 
 		hp:            history.NewProvider(cs, stats),
 		recordHistory: recordHistory,
@@ -87,9 +85,6 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	for _, spec := range specs {
 		if err := checkPodSpec(cv, version, spec.PodSpec()); err != nil {
 			if err == errs.ErrVersionMismatch {
-				// temp
-				log.Printf("Spec %s version mismatch - performing deploy", spec.Name())
-
 				if err := k.deploy(cv, version, spec); err != nil {
 					return errors.WithStack(err)
 				}
@@ -98,9 +93,6 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 				k.Recorder.Event(events.Warning, "CRSyncFailed", err.Error())
 				return errors.Wrapf(err, "failed to check pod spec %s", spec.Name())
 			}
-		} else {
-			// temp
-			log.Printf("Spec %s versions match %s", spec.Name(), version)
 		}
 	}
 

@@ -47,12 +47,6 @@ type TemplateDeploySpec interface {
 	PatchNumReplicas(num int32) error
 }
 
-//type DeployReplicas interface {
-//	NumReplicas() int32
-//
-//	PatchNumReplicas(num int32) error
-//}
-
 type Deployer interface {
 	Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error
 }

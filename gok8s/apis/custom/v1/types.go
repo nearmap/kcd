@@ -21,9 +21,10 @@ type ContainerVersion struct {
 
 // ContainerVersionSpec is ContainerVersionSpec
 type ContainerVersionSpec struct {
-	ImageRepo      string `json:"imageRepo"`
-	Tag            string `json:"tag"`
-	CheckFrequency int    `json:"checkFrequency"`
+	ImageRepo         string `json:"imageRepo"`
+	Tag               string `json:"tag"`
+	CheckFrequency    int    `json:"checkFrequency"`
+	LivenessFrequency int    `json:"livenessFrequency"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
