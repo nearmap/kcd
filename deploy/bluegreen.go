@@ -94,18 +94,18 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
 
-	current, secondary, err := bgd.getBlueGreenDeploySpecs(cv, tSpec, service)
+	primary, secondary, err := bgd.getBlueGreenDeploySpecs(cv, tSpec, service)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	// if we're not the current live version then nothing to do.
-	if tSpec.Name() != current.Name() {
-		log.Printf("Spec %s is not the current live workload for service %s. Not changing.", spec.Name(), service.Name)
+	// if we're not the primary live version then nothing to do.
+	if tSpec.Name() != primary.Name() {
+		log.Printf("Spec %s is not the primary live workload for service %s. Not changing.", spec.Name(), service.Name)
 		return nil
 	}
 
-	// if we're the current live workload and our version mismatches then we want to initiate deployment
+	// if we're the primary live workload and our version mismatches then we want to initiate deployment
 	// on the non-live workload.
 
 	if err := bgd.updateVersion(cv, version, secondary); err != nil {
@@ -128,12 +128,18 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Wrapf(err, "failed verification step for cv spec %s", cv.Name)
 	}
 
-	if err := bgd.scaleUpSecondary(cv, current, secondary); err != nil {
+	if err := bgd.scaleUpSecondary(cv, primary, secondary); err != nil {
 		return errors.WithStack(err)
 	}
 
 	if err := bgd.updateServiceSelector(cv, secondary, cv.Spec.Strategy.BlueGreen.ServiceName); err != nil {
 		return errors.WithStack(err)
+	}
+
+	if cv.Spec.Strategy.BlueGreen.ScaleDown {
+		if err := bgd.scaleDown(primary); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil
@@ -270,10 +276,17 @@ func (bgd *BlueGreenDeployer) ensureHasPods(spec TemplateDeploySpec) error {
 // Returns an error if a timeout value is reached.
 func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version string, spec TemplateDeploySpec) error {
 	defer timeTrack(time.Now(), "waitForAllPods")
+	timeout := time.Minute * 5
+	if cv.Spec.Strategy.BlueGreen.TimeoutSecs > 0 {
+		timeout = time.Second * time.Duration(cv.Spec.Strategy.BlueGreen.TimeoutSecs)
+	}
+	start := time.Now()
 
-	// TODO: redo timeout logic
 outer:
-	for i := 0; i < 30; i++ {
+	for {
+		if time.Now().After(start.Add(timeout)) {
+			break
+		}
 		time.Sleep(15 * time.Second)
 
 		pods, err := PodsForSpec(bgd.cs, bgd.namespace, spec)
@@ -334,16 +347,17 @@ func PodsForSpec(cs kubernetes.Interface, namespace string, spec TemplateDeployS
 }
 
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
-	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil {
+	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.Type == "" {
 		log.Printf("No verification defined for %s", cv.Name)
 		return nil
 	}
 
 	var verifier verify.Verifier
 	switch cv.Spec.Strategy.Verify.Type {
-	case "basic":
+	case verify.TypeImage:
+		verifier = verify.NewImageVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify)
 	default:
-		verifier = verify.NewBasicVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify.Image)
+		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.Type)
 	}
 
 	return verifier.Verify()
@@ -365,6 +379,13 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current
 	// TODO: is this the best way to ensure the secondary is fully scaled?
 	if err := bgd.waitForAllPods(cv, "", secondary); err != nil {
 		return errors.Wrapf(err, "failed to wait for all pods after scaling up secondary %s", secondary.Name())
+	}
+	return nil
+}
+
+func (bgd *BlueGreenDeployer) scaleDown(spec TemplateDeploySpec) error {
+	if err := spec.PatchNumReplicas(0); err != nil {
+		return errors.WithStack(err)
 	}
 	return nil
 }

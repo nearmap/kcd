@@ -45,11 +45,14 @@ type BlueGreenSpec struct {
 	ServiceName     string `json:"serviceName"`
 	TestServiceName string `json:"testServiceName"`
 	LabelName       string `json:"labelName"`
+	ScaleDown       bool   `json:"scaleDown"`
+	TimeoutSecs     int    `json:"timeoutSecs"`
 }
 
 type VerifySpec struct {
-	Type  string `json:"type"`
-	Image string `json:"image"`
+	Type        string `json:"type"`
+	Image       string `json:"image"`
+	TimeoutSecs int    `json:"timeoutSecs"`
 }
 
 // ConfigSpec is spec for Config resources
