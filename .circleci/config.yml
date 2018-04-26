@@ -36,11 +36,11 @@ jobs:
           name: Run unit and integration tests
           command: |
             docker-compose up --abort-on-container-exit
-      #- run:
-      #    name: Go Report Card
-      #    command: |
-      #        curl -X POST -F 'repo=github.com/nearmap/cvmanager'  https://goreportcard.au-api.nearmap.com/checks
-      #        echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager"
+      - run:
+          name: Go Report Card
+          command: |
+              curl -X POST -F 'repo=github.com/nearmap/cvmanager'  https://goreportcard.au-api.nearmap.com/checks
+              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager"
       - deploy:
           name: Push application docker image
           command: |

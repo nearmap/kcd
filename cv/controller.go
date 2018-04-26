@@ -427,7 +427,6 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								},
 							},
 							LivenessProbe: &corev1.Probe{
-								// TODO: allow for longer sync period due to blue-green deployments
 								PeriodSeconds: int32(cv.Spec.CheckFrequency * 60),
 								Handler: corev1.Handler{
 									Exec: &corev1.ExecAction{
