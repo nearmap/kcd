@@ -162,11 +162,14 @@ func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Work
 
 	cronJobs, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).List(listOpts)
 	if err != nil {
-		return nil, k.handleError(err, "cronJobs")
-	}
-	for _, item := range cronJobs.Items {
-		wl := item
-		result = append(result, NewCronJob(k.cs, k.namespace, &wl))
+		// ignore this error - cron jobs may not be available in cluster
+		log.Printf("failed to query cron jobs: %v", err)
+		//return nil, k.handleError(err, "cronJobs")
+	} else {
+		for _, item := range cronJobs.Items {
+			wl := item
+			result = append(result, NewCronJob(k.cs, k.namespace, &wl))
+		}
 	}
 
 	daemonSets, err := k.cs.AppsV1().DaemonSets(k.namespace).List(listOpts)
