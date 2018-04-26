@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -15,11 +16,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 type BlueGreenDeployer struct {
-	simpleDeployer *SimpleDeployer
-
 	namespace string
 
 	hp            history.Provider
@@ -33,15 +33,44 @@ type BlueGreenDeployer struct {
 
 func NewBlueGreenDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string) *BlueGreenDeployer {
 	return &BlueGreenDeployer{
-		simpleDeployer: NewSimpleDeployer(cs, eventRecorder, stats, namespace),
-		namespace:      namespace,
-		cs:             cs,
-		recorder:       eventRecorder,
-		stats:          stats,
+		namespace: namespace,
+		cs:        cs,
+		recorder:  eventRecorder,
+		stats:     stats,
 	}
 }
 
 func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
+	err := bgd.doDeploy(cv, version, spec)
+	if err != nil {
+		bgd.stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()),
+			fmt.Sprintf("Failed to blue-green deploy cv spec %s with version %s", cv.Name, version), "", "error",
+			time.Now().UTC())
+		log.Printf("Failed to blue-green deploy cv spec %s: version=%v, workload=%v, error=%v",
+			cv.Name, version, spec.Name(), err)
+		bgd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to blue-green deploy workload")
+	}
+
+	if bgd.recordHistory {
+		err := bgd.hp.Add(bgd.namespace, spec.Name(), &history.Record{
+			Type:    spec.Type(),
+			Name:    spec.Name(),
+			Version: version,
+			Time:    time.Now(),
+		})
+		if err != nil {
+			bgd.stats.IncCount(fmt.Sprintf("cvc.%s.history.save.failure", spec.Name()))
+			bgd.recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
+		}
+	}
+
+	log.Printf("Update for cv spec %s completed: workload=%v", cv.Name, spec.Name())
+	bgd.stats.IncCount(fmt.Sprintf("%s.sync.success", spec.Name()))
+	bgd.recorder.Event(events.Normal, "Success", "Updated completed successfully")
+	return nil
+}
+
+func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
 	tSpec, ok := spec.(TemplateDeploySpec)
 	if !ok {
 		return errors.Errorf("blue-green deployment not available for deploy spec %s of type %v. Falling back to simple deployer.", spec.Name(), spec.Type())
@@ -79,7 +108,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, s
 	// if we're the current live workload and our version mismatches then we want to initiate deployment
 	// on the non-live workload.
 
-	if err := bgd.simpleDeployer.Deploy(cv, version, secondary); err != nil {
+	if err := bgd.updateVersion(cv, version, secondary); err != nil {
 		return errors.Wrapf(err, "failed to patch pod spec for blue-green strategy %s", cv.Name)
 	}
 
@@ -160,6 +189,27 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 	}
 
 	return podTemplates.Items, nil
+}
+
+func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
+	podSpec := spec.PodSpec()
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		for _, c := range podSpec.Containers {
+			if c.Name == cv.Spec.Container {
+				if updateErr := spec.PatchPodSpec(cv, c, version); updateErr != nil {
+					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
+						version, spec.Name(), updateErr)
+					return updateErr
+				}
+			}
+		}
+		return nil
+	})
+	if retryErr != nil {
+		return errors.Wrapf(retryErr, "failed to patch pod spec for spec %s", spec.Name())
+	}
+	return nil
 }
 
 func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, spec TemplateDeploySpec) error {
