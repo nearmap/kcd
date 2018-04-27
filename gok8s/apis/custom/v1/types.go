@@ -48,14 +48,14 @@ type BlueGreenSpec struct {
 	VerificationServiceName string   `json:"verificationServiceName"`
 	LabelNames              []string `json:"labelNames"`
 	ScaleDown               bool     `json:"scaleDown"`
-	TimeoutSeconds          int      `json:"timeoutSecs"`
+	TimeoutSeconds          int      `json:"timeoutSeconds"`
 }
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
 	Kind           string `json:"kind"`
 	Image          string `json:"image"`
-	TimeoutSeconds int    `json:"timeoutSecs"`
+	TimeoutSeconds int    `json:"timeoutSeconds"`
 }
 
 // ConfigSpec is spec for Config resources
