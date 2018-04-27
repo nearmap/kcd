@@ -56,6 +56,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, t
 		log.Printf("Failed to blue-green deploy cv target %s: version=%v, workload=%v, error=%v",
 			cv.Name, version, target.Name(), err)
 		bgd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to blue-green deploy workload")
+		return errors.WithStack(err)
 	}
 
 	if bgd.recordHistory {
