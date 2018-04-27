@@ -62,18 +62,27 @@ func (p *Pod) String() string {
 	return fmt.Sprintf("%+v", p.pod)
 }
 
+// Name implements the Workload interface.
 func (p *Pod) Name() string {
 	return p.pod.Name
 }
 
+// Namespace implements the Workload interface.
+func (p *Pod) Namespace() string {
+	return p.pod.Namespace
+}
+
+// Type implements the Workload interface.
 func (p *Pod) Type() string {
 	return TypePod
 }
 
+// PodSpec implements the Workload interface.
 func (p *Pod) PodSpec() corev1.PodSpec {
 	return p.pod.Spec
 }
 
+// PatchPodSpec implements the Workload interface.
 func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := p.client.Patch(p.pod.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -83,6 +92,7 @@ func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container,
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range p.pod.Spec.Containers {
 		if cv.Spec.Container == c.Name {

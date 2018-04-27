@@ -39,22 +39,32 @@ func (j *Job) String() string {
 	return fmt.Sprintf("%+v", j.job)
 }
 
+// Name implements the Workload interface.
 func (j *Job) Name() string {
 	return j.job.Name
 }
 
+// Namespace implements the Workload interface.
+func (j *Job) Namespace() string {
+	return j.job.Namespace
+}
+
+// Type implements the Workload interface.
 func (j *Job) Type() string {
 	return TypeJob
 }
 
+// PodSpec implements the Workload interface.
 func (j *Job) PodSpec() corev1.PodSpec {
 	return j.job.Spec.Template.Spec
 }
 
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (j *Job) PodTemplateSpec() corev1.PodTemplateSpec {
 	return j.job.Spec.Template
 }
 
+// PatchPodSpec implements the Workload interface.
 func (j *Job) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := j.client.Patch(j.job.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -64,6 +74,7 @@ func (j *Job) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container,
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (j *Job) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range j.job.Spec.Template.Spec.Containers {
 		if cv.Spec.Container == c.Name {

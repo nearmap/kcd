@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	gocorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 const (
@@ -20,8 +21,8 @@ const (
 )
 
 type ImageVerifier struct {
-	cs            kubernetes.Interface
-	namespace     string
+	client gocorev1.PodInterface
+
 	eventRecorder events.Recorder
 	stats         stats.Stats
 
@@ -34,21 +35,23 @@ type ImageVerifier struct {
 func NewImageVerifier(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string,
 	spec *cv1.VerifySpec) *ImageVerifier {
 
+	client := cs.CoreV1().Pods(namespace)
+
 	return &ImageVerifier{
-		cs:            cs,
-		namespace:     namespace,
+		client:        client,
 		eventRecorder: eventRecorder,
 		stats:         stats,
 		spec:          spec,
 	}
 }
 
-// Implements the Verifier interface.
+// Verify implements the Verifier interface.
 func (iv *ImageVerifier) Verify() error {
 	pod, err := iv.createPod()
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer iv.client.Delete(pod.Name, &metav1.DeleteOptions{})
 
 	return iv.waitForPod(pod.Name)
 }
@@ -80,7 +83,7 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 		},
 	}
 
-	p, err := iv.cs.CoreV1().Pods(iv.namespace).Create(pod)
+	p, err := iv.client.Create(pod)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create pod with name %s", name)
 	}
@@ -91,12 +94,10 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 func (iv *ImageVerifier) waitForPod(name string) error {
 	defer timeTrack(time.Now(), "verification waitForPod")
 	timeout := time.Minute * 5
-	if iv.spec.TimeoutSecs > 0 {
-		timeout = time.Second * time.Duration(iv.spec.TimeoutSecs)
+	if iv.spec.TimeoutSeconds > 0 {
+		timeout = time.Second * time.Duration(iv.spec.TimeoutSeconds)
 	}
 	start := time.Now()
-
-	client := iv.cs.CoreV1().Pods(iv.namespace)
 
 	for {
 		if time.Now().After(start.Add(timeout)) {
@@ -104,7 +105,7 @@ func (iv *ImageVerifier) waitForPod(name string) error {
 		}
 		time.Sleep(15 * time.Second)
 
-		pod, err := client.Get(name, metav1.GetOptions{})
+		pod, err := iv.client.Get(name, metav1.GetOptions{})
 		if err != nil {
 			log.Printf("failed to get pod with name=%s: %v", name, err)
 			continue

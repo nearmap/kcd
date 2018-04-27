@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+// BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy.
 type BlueGreenDeployer struct {
 	namespace string
 
@@ -31,6 +32,7 @@ type BlueGreenDeployer struct {
 	stats stats.Stats
 }
 
+// NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.
 func NewBlueGreenDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string) *BlueGreenDeployer {
 	return &BlueGreenDeployer{
 		namespace: namespace,
@@ -40,40 +42,42 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, eventRecorder events.Recorder
 	}
 }
 
-func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
-	err := bgd.doDeploy(cv, version, spec)
+// Deploy implements the Deployer interface.
+func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
+	err := bgd.doDeploy(cv, version, target)
 	if err != nil {
-		bgd.stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()),
+		bgd.stats.Event(fmt.Sprintf("%s.sync.failure", target.Name()),
 			fmt.Sprintf("Failed to blue-green deploy cv spec %s with version %s", cv.Name, version), "", "error",
 			time.Now().UTC())
-		log.Printf("Failed to blue-green deploy cv spec %s: version=%v, workload=%v, error=%v",
-			cv.Name, version, spec.Name(), err)
+		log.Printf("Failed to blue-green deploy cv target %s: version=%v, workload=%v, error=%v",
+			cv.Name, version, target.Name(), err)
 		bgd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to blue-green deploy workload")
 	}
 
 	if bgd.recordHistory {
-		err := bgd.hp.Add(bgd.namespace, spec.Name(), &history.Record{
-			Type:    spec.Type(),
-			Name:    spec.Name(),
+		err := bgd.hp.Add(bgd.namespace, target.Name(), &history.Record{
+			Type:    target.Type(),
+			Name:    target.Name(),
 			Version: version,
 			Time:    time.Now(),
 		})
 		if err != nil {
-			bgd.stats.IncCount(fmt.Sprintf("cvc.%s.history.save.failure", spec.Name()))
+			bgd.stats.IncCount(fmt.Sprintf("crsyn.%s.history.save.failure", target.Name()))
 			bgd.recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 		}
 	}
 
-	log.Printf("Update for cv spec %s completed: workload=%v", cv.Name, spec.Name())
-	bgd.stats.IncCount(fmt.Sprintf("%s.sync.success", spec.Name()))
+	log.Printf("Update for cv spec %s completed: workload=%v", cv.Name, target.Name())
+	bgd.stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", target.Name()))
 	bgd.recorder.Event(events.Normal, "Success", "Updated completed successfully")
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
-	tSpec, ok := spec.(TemplateDeploySpec)
+func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
+	tTarget, ok := target.(TemplateRolloutTarget)
 	if !ok {
-		return errors.Errorf("blue-green deployment not available for deploy spec %s of type %v. Falling back to simple deployer.", spec.Name(), spec.Type())
+		return errors.Errorf("blue-green deployment not available for rollout target %s of type %v.",
+			target.Name(), target.Type())
 	}
 
 	if cv.Spec.Strategy.BlueGreen == nil {
@@ -86,7 +90,8 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Errorf("no label name defined for blue-green strategy in cv resource %s", cv.Name)
 	}
 
-	log.Printf("Beginning blue-green deployment for workload %s with version %s in namespace %s", spec.Name(), version, bgd.namespace)
+	log.Printf("Beginning blue-green deployment for target %s with version %s in namespace %s",
+		target.Name(), version, bgd.namespace)
 	defer timeTrack(time.Now(), "blue-green deployment")
 
 	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
@@ -94,14 +99,14 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
 
-	primary, secondary, err := bgd.getBlueGreenDeploySpecs(cv, tSpec, service)
+	primary, secondary, err := bgd.getBlueGreenDeploySpecs(cv, tTarget, service)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	// if we're not the primary live version then nothing to do.
-	if tSpec.Name() != primary.Name() {
-		log.Printf("Spec %s is not the primary live workload for service %s. Not changing.", spec.Name(), service.Name)
+	if tTarget.Name() != primary.Name() {
+		log.Printf("Spec %s is not the primary live workload for service %s. Not changing.", target.Name(), service.Name)
 		return nil
 	}
 
@@ -154,11 +159,11 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 	return service, nil
 }
 
-func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, spec TemplateDeploySpec,
-	service *corev1.Service) (current, secondary TemplateDeploySpec, err error) {
+func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, target TemplateRolloutTarget,
+	service *corev1.Service) (current, secondary TemplateRolloutTarget, err error) {
 
 	// get all the workloads managed by this cv spec
-	workloads, err := spec.Select(cv.Spec.Selector)
+	workloads, err := target.Select(cv.Spec.Selector)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to get all workloads for cv spec %v", cv.Name)
 	}
@@ -197,15 +202,15 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 	return podTemplates.Items, nil
 }
 
-func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
-	podSpec := spec.PodSpec()
+func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version string, target TemplateRolloutTarget) error {
+	podSpec := target.PodSpec()
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container {
-				if updateErr := spec.PatchPodSpec(cv, c, version); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
-						version, spec.Name(), updateErr)
+				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
+					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
+						version, target.Name(), updateErr)
 					return updateErr
 				}
 			}
@@ -213,24 +218,26 @@ func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version st
 		return nil
 	})
 	if retryErr != nil {
-		return errors.Wrapf(retryErr, "failed to patch pod spec for spec %s", spec.Name())
+		return errors.Wrapf(retryErr, "failed to patch pod spec for target %s", target.Name())
 	}
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, spec TemplateDeploySpec) error {
+func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, target TemplateRolloutTarget) error {
 	if cv.Spec.Strategy.BlueGreen.TestServiceName == "" {
 		log.Printf("No test service defined for cv spec %s", cv.Name)
 		return nil
 	}
 
-	if err := bgd.updateServiceSelector(cv, spec, cv.Spec.Strategy.BlueGreen.TestServiceName); err != nil {
+	if err := bgd.updateServiceSelector(cv, target, cv.Spec.Strategy.BlueGreen.TestServiceName); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, spec TemplateDeploySpec, serviceName string) error {
+func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion,
+	target TemplateRolloutTarget, serviceName string) error {
+
 	labelName := cv.Spec.Strategy.BlueGreen.LabelName
 
 	testService, err := bgd.getService(cv, serviceName)
@@ -238,10 +245,10 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, sp
 		return errors.Wrapf(err, "failed to find test service for cv spec %s", cv.Name)
 	}
 
-	targetLabel, has := spec.PodTemplateSpec().Labels[labelName]
+	targetLabel, has := target.PodTemplateSpec().Labels[labelName]
 	if !has {
-		return errors.Errorf("pod template spec for %s is missing label name %s in cv spec %s",
-			spec.Name(), labelName, cv.Name)
+		return errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
+			target.Name(), labelName, cv.Name)
 	}
 
 	testService.Spec.Selector[labelName] = targetLabel
@@ -257,16 +264,16 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion, sp
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) ensureHasPods(spec TemplateDeploySpec) error {
+func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget) error {
 	// ensure at least 1 pod
-	numReplicas := spec.NumReplicas()
+	numReplicas := target.NumReplicas()
 	if numReplicas > 0 {
-		log.Printf("DeploySpec %s has %d replicas", spec.Name(), numReplicas)
+		log.Printf("DeploySpec %s has %d replicas", target.Name(), numReplicas)
 		return nil
 	}
 
-	if err := spec.PatchNumReplicas(1); err != nil {
-		return errors.Wrapf(err, "failed to patch number of replicas for spec %s", spec.Name())
+	if err := target.PatchNumReplicas(1); err != nil {
+		return errors.Wrapf(err, "failed to patch number of replicas for target %s", target.Name())
 	}
 	return nil
 }
@@ -274,11 +281,13 @@ func (bgd *BlueGreenDeployer) ensureHasPods(spec TemplateDeploySpec) error {
 // waitForAllPods checks that all pods tied to the given TemplateDeploySpec are at the specified
 // version, and starts polling if not the case.
 // Returns an error if a timeout value is reached.
-func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version string, spec TemplateDeploySpec) error {
+func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version string,
+	target TemplateRolloutTarget) error {
+
 	defer timeTrack(time.Now(), "waitForAllPods")
 	timeout := time.Minute * 5
-	if cv.Spec.Strategy.BlueGreen.TimeoutSecs > 0 {
-		timeout = time.Second * time.Duration(cv.Spec.Strategy.BlueGreen.TimeoutSecs)
+	if cv.Spec.Strategy.BlueGreen.TimeoutSeconds > 0 {
+		timeout = time.Second * time.Duration(cv.Spec.Strategy.BlueGreen.TimeoutSeconds)
 	}
 	start := time.Now()
 
@@ -289,15 +298,15 @@ outer:
 		}
 		time.Sleep(15 * time.Second)
 
-		pods, err := PodsForSpec(bgd.cs, bgd.namespace, spec)
+		pods, err := PodsForTarget(bgd.cs, bgd.namespace, target)
 		if err != nil {
-			log.Printf("ERROR: failed to get pods for spec %s: %v", spec.Name(), err)
+			log.Printf("ERROR: failed to get pods for target %s: %v", target.Name(), err)
 			// TODO: handle?
 			continue outer
 		}
 		if len(pods) == 0 {
 			// TODO: handle?
-			log.Printf("ERROR: no pods found for spec %s", spec.Name())
+			log.Printf("ERROR: no pods found for target %s", target.Name())
 			continue outer
 		}
 
@@ -313,7 +322,7 @@ outer:
 			ok, err := CheckContainerVersions(cv, version, pod.Spec)
 			if err != nil {
 				// TODO: handle?
-				log.Printf("ERROR: failed to check container version for spec %s: %v", spec.Name(), err)
+				log.Printf("ERROR: failed to check container version for target %s: %v", target.Name(), err)
 				continue outer
 			}
 			if !ok {
@@ -326,21 +335,22 @@ outer:
 		return nil
 	}
 
-	return errors.Errorf("spec %s blue-green deployment timeout waiting for all pods to be deployed", spec.Name)
+	return errors.Errorf("target %s blue-green deployment timeout waiting for all pods to be deployed", target.Name)
 }
 
-func PodsForSpec(cs kubernetes.Interface, namespace string, spec TemplateDeploySpec) ([]corev1.Pod, error) {
-	set := labels.Set(spec.PodTemplateSpec().Labels)
+// PodsForTarget returns the pods managed by the given rollout target.
+func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRolloutTarget) ([]corev1.Pod, error) {
+	set := labels.Set(target.PodTemplateSpec().Labels)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
 	pods, err := cs.CoreV1().Pods(namespace).List(listOpts)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to select pods for spec %s", spec.Name())
+		return nil, errors.Wrapf(err, "failed to select pods for target %s", target.Name())
 	}
 
-	result, err := spec.SelectOwnPods(pods.Items)
+	result, err := target.SelectOwnPods(pods.Items)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to filter pods for DepoySpec %s", spec.Name())
+		return nil, errors.Wrapf(err, "failed to filter pods for target %s", target.Name())
 	}
 
 	return result, nil
@@ -363,7 +373,7 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 	return verifier.Verify()
 }
 
-func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary TemplateDeploySpec) error {
+func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary TemplateRolloutTarget) error {
 	currentNum := current.NumReplicas()
 	secondaryNum := secondary.NumReplicas()
 
@@ -383,17 +393,17 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) scaleDown(spec TemplateDeploySpec) error {
+func (bgd *BlueGreenDeployer) scaleDown(spec TemplateRolloutTarget) error {
 	if err := spec.PatchNumReplicas(0); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-// TODO: put this somewhere more general
 // CheckContainerVersions tests whether all containers in the pod spec with container
 // names that match the cv spec have the given version.
 // Returns false if at least one container's version does not match.
+// TODO: put this somewhere more general
 func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
 	match := false
 	for _, c := range podSpec.Containers {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/nearmap/cvmanager/cv"
+	"github.com/nearmap/cvmanager/events"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/registry"
@@ -159,6 +160,17 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
+		var recorder events.Recorder
+		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
+		// TODO: Need to use faker to handle running locally
+		pod, err := k8sClient.CoreV1().Pods(params.namespace).Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
+		if err != nil {
+			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
+			recorder = &events.FakeRecorder{}
+		} else {
+			recorder = events.NewRecorder(k8sClient, params.namespace, pod)
+		}
+
 		customCS, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
@@ -179,9 +191,9 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		var crSyncer registry.Syncer
 		switch root.params.provider {
 		case "ecr":
-			crSyncer, err = ecr.NewSyncer(root.sess, k8sClient, params.namespace, cv, stats, params.history)
+			crSyncer, err = ecr.NewSyncer(root.sess, k8sClient, params.namespace, cv, recorder, stats, params.history)
 		case "dockerhub":
-			crSyncer, err = dh.NewSyncer(k8sClient, params.namespace, cv, stats, params.history)
+			crSyncer, err = dh.NewSyncer(k8sClient, params.namespace, cv, recorder, stats, params.history)
 		}
 		if err != nil {
 			log.Printf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
@@ -375,7 +387,7 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, "", stats.NewFake(), false)
+		k8sProvider := k8s.NewK8sProvider(k8sClient, "", &events.FakeRecorder{}, stats.NewFake(), false)
 
 		return cv.ExecuteWorkloadsList(os.Stdout, "json", k8sProvider, customClient)
 	}

@@ -39,22 +39,32 @@ func (ss *StatefulSet) String() string {
 	return fmt.Sprintf("%+v", ss.statefulSet)
 }
 
+// Name implements the Workload interface.
 func (ss *StatefulSet) Name() string {
 	return ss.statefulSet.Name
 }
 
+// Namespace implements the Workload interface.
+func (ss *StatefulSet) Namespace() string {
+	return ss.statefulSet.Namespace
+}
+
+// Type implements the Workload interface.
 func (ss *StatefulSet) Type() string {
 	return TypeStatefulSet
 }
 
+// PodSpec implements the Workload interface.
 func (ss *StatefulSet) PodSpec() corev1.PodSpec {
 	return ss.statefulSet.Spec.Template.Spec
 }
 
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (ss *StatefulSet) PodTemplateSpec() corev1.PodTemplateSpec {
 	return ss.statefulSet.Spec.Template
 }
 
+// PatchPodSpec implements the Workload interface.
 func (ss *StatefulSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := ss.client.Patch(ss.statefulSet.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -64,6 +74,7 @@ func (ss *StatefulSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.C
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (ss *StatefulSet) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range ss.statefulSet.Spec.Template.Spec.Containers {
 		if cv.Spec.Container == c.Name {

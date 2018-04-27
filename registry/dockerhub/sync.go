@@ -36,10 +36,10 @@ type syncer struct {
 
 // NewSyncer provides new reference of syncer
 // to manage Dockerhub repository and sync deployments periodically
-func NewSyncer(cs *kubernetes.Clientset, ns string, cv *cv1.ContainerVersion,
+func NewSyncer(cs *kubernetes.Clientset, ns string, cv *cv1.ContainerVersion, recorder events.Recorder,
 	stats stats.Stats, recordHistory bool) (*syncer, error) {
 
-	k8sProvider := k8s.NewK8sProvider(cs, ns, stats, recordHistory)
+	k8sProvider := k8s.NewK8sProvider(cs, ns, recorder, stats, recordHistory)
 
 	syncer := &syncer{
 		k8sProvider: k8sProvider,

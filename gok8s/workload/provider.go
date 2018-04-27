@@ -17,10 +17,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// WorkloadSpec defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
-type WorkloadSpec interface {
-	deploy.DeploySpec
+// Workload defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
+type Workload interface {
+	deploy.RolloutTarget
 
+	// AsResource returns a Resource struct defining the current state of the workload.
 	AsResource(cv *cv1.ContainerVersion) *Resource
 }
 
@@ -39,6 +40,7 @@ type Resource struct {
 	Tag string
 }
 
+// K8sProvider manages workloads.
 type K8sProvider struct {
 	cs        kubernetes.Interface
 	namespace string
@@ -52,15 +54,7 @@ type K8sProvider struct {
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewK8sProvider(cs kubernetes.Interface, ns string, stats stats.Stats, recordHistory bool) *K8sProvider {
-	var recorder events.Recorder
-	var err error
-	recorder, err = events.NewRecorder(cs, ns)
-	if err != nil {
-		log.Print("No INSTANCENAME was set hence cant record events on pod.. falling back to using fake event recorder")
-		recorder = &events.FakeRecorder{}
-	}
-
+func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, stats stats.Stats, recordHistory bool) *K8sProvider {
 	return &K8sProvider{
 		cs:        cs,
 		namespace: ns,
@@ -99,7 +93,7 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	return nil
 }
 
-func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, spec deploy.DeploySpec) error {
+func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) error {
 	var strategyType string
 
 	if cv.Spec.Strategy != nil {
@@ -115,7 +109,7 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, spec depl
 		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
 	}
 
-	if err := deployer.Deploy(cv, version, spec); err != nil {
+	if err := deployer.Deploy(cv, version, target); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -137,8 +131,8 @@ func (k *K8sProvider) CVWorkload(cv *cv1.ContainerVersion) ([]*Resource, error) 
 	return resources, nil
 }
 
-func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]WorkloadSpec, error) {
-	var result []WorkloadSpec
+func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Workload, error) {
+	var result []Workload
 
 	set := labels.Set(cv.Spec.Selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}

@@ -49,22 +49,32 @@ func (d *Deployment) String() string {
 	return fmt.Sprintf("%+v", d.deployment)
 }
 
+// Name implements the Workload interface.
 func (d *Deployment) Name() string {
 	return d.deployment.Name
 }
 
+// Namespace implements the Workload interface.
+func (d *Deployment) Namespace() string {
+	return d.deployment.Namespace
+}
+
+// Type implements the Workload interface.
 func (d *Deployment) Type() string {
 	return TypeDeployment
 }
 
+// PodSpec implements the Workload interface.
 func (d *Deployment) PodSpec() corev1.PodSpec {
 	return d.deployment.Spec.Template.Spec
 }
 
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 	return d.deployment.Spec.Template
 }
 
+// PatchPodSpec implements the Workload interface.
 func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -74,11 +84,12 @@ func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 	return nil
 }
 
-func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateDeploySpec, error) {
+// Select implements the TemplateRolloutTarget interface.
+func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateRolloutTarget, error) {
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
-	var result []deploy.TemplateDeploySpec
+	var result []deploy.TemplateRolloutTarget
 
 	wls, err := d.client.List(listOpts)
 	if err != nil {
@@ -92,6 +103,7 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateDeploy
 	return result, nil
 }
 
+// SelectOwnPods implements the TemplateRolloutTarget interface.
 func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 	var result []corev1.Pod
 	for _, pod := range pods {
@@ -131,6 +143,7 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 	return rs, nil
 }
 
+// NumReplicas implements the TemplateRolloutTarget interface.
 func (d *Deployment) NumReplicas() int32 {
 	return d.deployment.Status.Replicas
 }
@@ -142,6 +155,7 @@ const deploymentReplicaSetPatchJSON = `
 		}
 	}`
 
+// PatchNumReplicas implements the TemplateRolloutTarget interface.
 func (d *Deployment) PatchNumReplicas(num int32) error {
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(deploymentReplicaSetPatchJSON, num)))
@@ -151,6 +165,7 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (d *Deployment) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range d.deployment.Spec.Template.Spec.Containers {
 		if cv.Spec.Container == c.Name {

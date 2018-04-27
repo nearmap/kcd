@@ -14,13 +14,18 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// DeploySpec defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
-type DeploySpec interface {
+// RolloutTarget defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
+type RolloutTarget interface {
+	// Name is the name of the workload (without the namespace).
 	Name() string
+
+	// Namespace returns the namespace the workload belongs to.
+	Namespace() string
 
 	// Type returns the type of the spec.
 	Type() string
 
+	// PodSpec returns the PodSpec for the workload.
 	PodSpec() corev1.PodSpec
 
 	// PatchPodSpec receives a pod spec and container which is to be patched
@@ -28,29 +33,36 @@ type DeploySpec interface {
 	PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error
 }
 
-// TemplateDeploySpec defines methods for deployable resources that manage a collection
-// of pods, defined by a resource. More deployment options are available for such
+// TemplateRolloutTarget defines methods for deployable resources that manage a collection
+// of pods via a pod template. More deployment options are available for such
 // resources.
-type TemplateDeploySpec interface {
-	DeploySpec
+type TemplateRolloutTarget interface {
+	RolloutTarget
 
+	// PodTemplateSpec returns the PodTemplateSpec for this workload.
 	PodTemplateSpec() corev1.PodTemplateSpec
 
 	// Select all Workloads of this type with the given selector. May return
-	// the same WorkloadSpec if it matches the selector.
-	Select(selector map[string]string) ([]TemplateDeploySpec, error)
+	// the current spec if it matches the selector.
+	Select(selector map[string]string) ([]TemplateRolloutTarget, error)
 
+	// SelectOwnPods returns a list of pods that are managed by this workload.
 	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
 
+	// NumReplicas returns the current number of running replicas for this workload.
 	NumReplicas() int32
 
+	// PatchNumReplicas modifies the number of replicas for this workload.
 	PatchNumReplicas(num int32) error
 }
 
+// Deployer is an interface for rollout strategies.
 type Deployer interface {
-	Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error
+	// Deploy initiates a rollout for a target spec based on the underlying strategy implementation.
+	Deploy(cv *cv1.ContainerVersion, version string, spec RolloutTarget) error
 }
 
+// SimpleDeployer implements a rollout strategy by patching the target's pod spec with a new version.
 type SimpleDeployer struct {
 	namespace string
 
@@ -63,8 +75,9 @@ type SimpleDeployer struct {
 	stats stats.Stats
 }
 
-// NewSimpleDeployer returns a new SimpleDeployer instance, which triggers deployments
-// using the default Kubernetes deployment strategy for the workload.
+// NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
+// by patching the target's pod spec with a new version and using the default
+// Kubernetes deployment strategy for the workload.
 func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string) *SimpleDeployer {
 	return &SimpleDeployer{
 		namespace: namespace,
@@ -74,17 +87,18 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, s
 	}
 }
 
-func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec DeploySpec) error {
-	log.Printf("Performing simple deployment on %s with version %s", spec.Name(), version)
+// Deploy implements the Deployer interface.
+func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
+	log.Printf("Performing simple deployment on %s with version %s", target.Name(), version)
 
-	podSpec := spec.PodSpec()
+	podSpec := target.PodSpec()
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container {
-				if updateErr := spec.PatchPodSpec(cv, c, version); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
-						version, spec.Name(), updateErr)
+				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
+					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
+						version, target.Name(), updateErr)
 
 					return updateErr
 				}
@@ -93,29 +107,29 @@ func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, spec 
 		return nil
 	})
 	if retryErr != nil {
-		sd.stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()),
+		sd.stats.Event(fmt.Sprintf("%s.sync.failure", target.Name()),
 			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
 			time.Now().UTC())
-		log.Printf("Failed to update container version after maximum retries: version=%v, workload=%v, error=%v",
-			version, spec.Name(), retryErr)
-		sd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to perform the workload")
+		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
+			version, target.Name(), retryErr)
+		sd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 	}
 
 	if sd.recordHistory {
-		err := sd.hp.Add(sd.namespace, spec.Name(), &history.Record{
-			Type:    spec.Type(),
-			Name:    spec.Name(),
+		err := sd.hp.Add(sd.namespace, target.Name(), &history.Record{
+			Type:    target.Type(),
+			Name:    target.Name(),
 			Version: version,
 			Time:    time.Now(),
 		})
 		if err != nil {
-			sd.stats.IncCount(fmt.Sprintf("cvc.%s.history.save.failure", spec.Name()))
+			sd.stats.IncCount(fmt.Sprintf("crsyn.%s.history.save.failure", target.Name()))
 			sd.recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 		}
 	}
 
-	log.Printf("Update completed: workload=%v", spec.Name())
-	sd.stats.IncCount(fmt.Sprintf("%s.sync.success", spec.Name()))
+	log.Printf("Update completed: target=%v", target.Name())
+	sd.stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", target.Name()))
 	sd.recorder.Event(events.Normal, "Success", "Updated completed successfully")
 	return nil
 }

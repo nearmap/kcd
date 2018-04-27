@@ -39,22 +39,32 @@ func (rs *ReplicaSet) String() string {
 	return fmt.Sprintf("%+v", rs.replicaSet)
 }
 
+// Name implements the Workload interface.
 func (rs *ReplicaSet) Name() string {
 	return rs.replicaSet.Name
 }
 
+// Namespace implements the Workload interface.
+func (rs *ReplicaSet) Namespace() string {
+	return rs.replicaSet.Namespace
+}
+
+// Type implements the Workload interface.
 func (rs *ReplicaSet) Type() string {
 	return TypeReplicaSet
 }
 
+// PodSpec implements the Workload interface.
 func (rs *ReplicaSet) PodSpec() corev1.PodSpec {
 	return rs.replicaSet.Spec.Template.Spec
 }
 
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (rs *ReplicaSet) PodTemplateSpec() corev1.PodTemplateSpec {
 	return rs.replicaSet.Spec.Template
 }
 
+// PatchPodSpec implements the Workload interface.
 func (rs *ReplicaSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := rs.client.Patch(rs.replicaSet.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -64,6 +74,7 @@ func (rs *ReplicaSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Co
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (rs *ReplicaSet) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range rs.replicaSet.Spec.Template.Spec.Containers {
 		if cv.Spec.Container == c.Name {

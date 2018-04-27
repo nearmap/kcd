@@ -35,24 +35,27 @@ type ContainerVersionSpec struct {
 	Config *ConfigSpec `json:"config"`
 }
 
+// StrategySpec defines a rollout strategy and optional verification steps.
 type StrategySpec struct {
 	Type      string         `json:"type"`
 	BlueGreen *BlueGreenSpec `json:"blueGreen"`
 	Verify    *VerifySpec    `json:"verify"`
 }
 
+// BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.
 type BlueGreenSpec struct {
 	ServiceName     string `json:"serviceName"`
 	TestServiceName string `json:"testServiceName"`
 	LabelName       string `json:"labelName"`
 	ScaleDown       bool   `json:"scaleDown"`
-	TimeoutSecs     int    `json:"timeoutSecs"`
+	TimeoutSeconds  int    `json:"timeoutSecs"`
 }
 
+// VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	Type        string `json:"type"`
-	Image       string `json:"image"`
-	TimeoutSecs int    `json:"timeoutSecs"`
+	Type           string `json:"type"`
+	Image          string `json:"image"`
+	TimeoutSeconds int    `json:"timeoutSecs"`
 }
 
 // ConfigSpec is spec for Config resources

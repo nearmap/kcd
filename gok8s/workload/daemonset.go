@@ -39,22 +39,32 @@ func (ds *DaemonSet) String() string {
 	return fmt.Sprintf("%+v", ds.daemonSet)
 }
 
+// Name implements the Workload interface.
 func (ds *DaemonSet) Name() string {
 	return ds.daemonSet.Name
 }
 
+// Namespace implements the Workload interface.
+func (ds *DaemonSet) Namespace() string {
+	return ds.daemonSet.Namespace
+}
+
+// Type implements the Workload interface.
 func (ds *DaemonSet) Type() string {
 	return TypeDaemonSet
 }
 
+// PodSpec implements the Workload interface.
 func (ds *DaemonSet) PodSpec() corev1.PodSpec {
 	return ds.daemonSet.Spec.Template.Spec
 }
 
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (ds *DaemonSet) PodTemplateSpec() corev1.PodTemplateSpec {
 	return ds.daemonSet.Spec.Template
 }
 
+// PatchPodSpec implements the Workload interface.
 func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := ds.client.Patch(ds.daemonSet.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
@@ -64,6 +74,7 @@ func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 	return nil
 }
 
+// AsResource implements the Workload interface.
 func (ds *DaemonSet) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range ds.daemonSet.Spec.Template.Spec.Containers {
 		if cv.Spec.Container == c.Name {
