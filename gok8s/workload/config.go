@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -22,7 +23,7 @@ func (k *K8sProvider) SyncVersionConfig(cv *cv1.ContainerVersion, version string
 			_, err = k.cs.CoreV1().ConfigMaps(k.namespace).Create(
 				newVersionConfig(k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key, version))
 			if err != nil {
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
+				k.Recorder.Event(events.Warning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
 				return errors.Wrapf(err, "failed to create version configmap from %s/%s:%s",
 					k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key)
 			}
@@ -46,7 +47,7 @@ func (k *K8sProvider) SyncVersionConfig(cv *cv1.ContainerVersion, version string
 	// }`, s.Config.ConfigMap.Key, version)))
 	_, err = k.cs.CoreV1().ConfigMaps(k.namespace).Update(cm)
 	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
+		k.Recorder.Event(events.Warning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
 		return errors.Wrapf(err, "failed to update version configmap from %s/%s:%s",
 			k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key)
 	}

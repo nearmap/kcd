@@ -29,6 +29,7 @@ func SyncCheck(d time.Duration) error {
 	if err != nil {
 		return err
 	}
+
 	if !time.Now().Add(d * -1).Before(f.ModTime()) {
 		return errors.Errorf("Last sync run was %s", f.ModTime().String())
 	}

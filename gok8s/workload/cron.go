@@ -5,70 +5,103 @@ import (
 	"strings"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
+	batchv2alpha1 "k8s.io/api/batch/v2alpha1"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	goappsv2alpha1 "k8s.io/client-go/kubernetes/typed/batch/v2alpha1"
 )
 
-const cronJobs = "CronJob"
+const (
+	TypeCronJob = "CronJob"
+)
 
-func (k *K8sProvider) syncCronJobs(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
-	// BatchV2alpha1 is 10.x onwards
-	ds, err := k.cs.BatchV1beta1().CronJobs(k.namespace).List(listOpts)
-	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent cronjobs")
-		return errors.Wrap(err, "failed to read cronjobs ")
+// CronJob defines a workload for managing CronJobs.
+type CronJob struct {
+	cronJob *batchv2alpha1.CronJob
+
+	client goappsv2alpha1.CronJobInterface
+}
+
+// NewCronJob returns an instance for managing CronJob workloads.
+func NewCronJob(cs kubernetes.Interface, namespace string, cronJob *batchv2alpha1.CronJob) *CronJob {
+	client := cs.BatchV2alpha1().CronJobs(namespace)
+	return newCronJob(cronJob, client)
+}
+
+func newCronJob(cronJob *batchv2alpha1.CronJob, client goappsv2alpha1.CronJobInterface) *CronJob {
+	return &CronJob{
+		cronJob: cronJob,
+		client:  client,
 	}
-	for _, d := range ds.Items {
-		if ci, err := k.checkPodSpec(d.Spec.JobTemplate.Spec.Template, d.Name, version, cv); err != nil {
-			if err == errs.ErrVersionMismatch {
-				return k.patchPodSpec(d.Spec.JobTemplate.Spec.Template, d.Name, ci, cv, func(i int) error {
-					_, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
-						[]byte(fmt.Sprintf(fmt.Sprintf(`
-						{
-							"spec": {
-								"jobTemplate": %s
-								}
-							}
-						}
-						`, podTemplateSpec), d.Spec.JobTemplate.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
-					return err
-				}, func() string { return cronJobs })
-			} else {
-				k.raiseSyncPodErrEvents(err, cronJobs, d.Name, cv.Spec.Tag, version)
+}
+
+func (cj *CronJob) String() string {
+	return fmt.Sprintf("%+v", cj.cronJob)
+}
+
+// Name implements the Workload interface.
+func (cj *CronJob) Name() string {
+	return cj.cronJob.Name
+}
+
+// Namespace implements the Workload interface.
+func (cj *CronJob) Namespace() string {
+	return cj.cronJob.Namespace
+}
+
+// Type implements the Workload interface.
+func (cj *CronJob) Type() string {
+	return TypeCronJob
+}
+
+// PodSpec implements the Workload interface.
+func (cj *CronJob) PodSpec() corev1.PodSpec {
+	return cj.cronJob.Spec.JobTemplate.Spec.Template.Spec
+}
+
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
+func (cj *CronJob) PodTemplateSpec() corev1.PodTemplateSpec {
+	return cj.cronJob.Spec.JobTemplate.Spec.Template
+}
+
+var (
+	cronJobPatchPodJSON = fmt.Sprintf(`
+	{
+		"spec": {
+			"jobTemplate": %s
 			}
 		}
+	}
+	`, podTemplateSpecJSON)
+)
+
+// PatchPodSpec implements the Workload interface.
+func (cj *CronJob) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := cj.client.Patch(cj.cronJob.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(cronJobPatchPodJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for CronJOb %s", cj.cronJob.Name)
 	}
 	return nil
 }
 
-func (k *K8sProvider) cvCronJobs(cv *cv1.ContainerVersion, listOpts metav1.ListOptions) ([]*Resource, error) {
-	ds, err := k.cs.BatchV1beta1().CronJobs(cv.Namespace).List(listOpts)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrap(err, "Failed to fetch cronjob")
-	}
-	var cvsList []*Resource
-	for _, dd := range ds.Items {
-		for _, c := range dd.Spec.JobTemplate.Spec.Template.Spec.Containers {
-			if cv.Spec.Container == c.Name {
-				cvsList = append(cvsList, &Resource{
-					Namespace: cv.Namespace,
-					Name:      dd.Name,
-					Type:      cronJobs,
-					Container: c.Name,
-					Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
-					CV:        cv.Name,
-					Tag:       cv.Spec.Tag,
-				})
+// AsResource implements the Workload interface.
+func (cj *CronJob) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range cj.cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace: cv.Namespace,
+				Name:      cj.cronJob.Name,
+				Type:      TypeCronJob,
+				Container: c.Name,
+				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				CV:        cv.Name,
+				Tag:       cv.Spec.Tag,
 			}
 		}
 	}
 
-	return cvsList, nil
+	return nil
 }

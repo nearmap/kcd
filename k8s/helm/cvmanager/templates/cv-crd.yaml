@@ -54,8 +54,35 @@ spec:
             checkFrequency:
               ## frequency in minutes
               type: integer
+            livenessFrequency:
+              ## frequency in minutes
+              type: integer
             config:
               name:
                 type: string
               key:
                 type: string
+            strategy:
+              kind:
+                type: string
+              blueGreen:
+                serviceName:
+                  type: string
+                verificationServiceName:
+                  type: string
+                labelNames:
+                  type: array
+                  items:
+                    type: string
+                scaleDown:
+                  type: boolean
+                timeoutSeconds:
+                  type: integer
+              verify:
+                kind:
+                  type: string
+                image:
+                  type: string
+                  pattern: '^[^:]*$'
+                timeoutSeconds:
+                  type: integer

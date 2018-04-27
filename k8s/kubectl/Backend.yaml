@@ -63,11 +63,39 @@ objects:
                 checkFrequency:
                   ## frequency in minutes
                   type: integer
+                livenessFrequency:
+                  ## frequency in minutes
+                  type: integer
                 config:
                   name:
                     type: string
                   key:
                     type: string
+                strategy:
+                  kind:
+                    type: string
+                  blueGreen:
+                    serviceName:
+                      type: string
+                    verificationServiceName:
+                      type: string
+                    labelNames:
+                      type: array
+                      items:
+                        type: string
+                    scaleDown:
+                      type: boolean
+                    timeoutSeconds:
+                      type: integer
+                  verify:
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
+                    timeoutSeconds:
+                      type: integer
+
   - kind: Deployment
     apiVersion: apps/v1
     metadata:
@@ -98,7 +126,7 @@ objects:
               effect: NoSchedule
           containers:
             - name: cvmanagerapp-container
-              image: nearmap/cvmanager:$(VERSION)
+              image: $(REPOSITORY):$(VERSION)
               imagePullPolicy: Always
               ports:
                 - name: http
@@ -108,6 +136,7 @@ objects:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
                 - "--history=$(USE_HISTORY)"
+                - "--cv-img-repo=$(REPOSITORY)"
               env:
               - name: STATS_HOST
                 valueFrom:
@@ -143,7 +172,7 @@ objects:
       name: cvmanager-cv
       namespace: kube-system
     spec:
-      imageRepo: nearmap/cvmanager
+      imageRepo: $(REPOSITORY)
       tag: $(VERSION)
       checkFrequency: 5
       selector:
@@ -165,6 +194,11 @@ parameters:
     required: true
     parameterType: "string"
     value: "latest"
+  - name: "REPOSITORY"
+    description: "repository to pull image from"
+    required: true
+    parameterType: "string"
+    value: "nearmap/cvmanager"
   - name: "USE_HISTORY"
     description: "version of the application for deployment"
     required: true

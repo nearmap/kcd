@@ -6,16 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/history"
-	errs "github.com/nearmap/cvmanager/registry/errs"
+	"github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/util/retry"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	gocorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-const podTemplateSpec = `
+const (
+	podTemplateSpecJSON = `
 						{
 							"spec": {
 								"template": {
@@ -32,99 +34,113 @@ const podTemplateSpec = `
 							}
 						}
 						`
+)
 
-type patchPodSpecFn func(i int) error
-type typeFn func() string
+const (
+	TypePod = "Pod"
+)
 
-func (k *K8sProvider) checkPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion) (string, error) {
-	log.Printf("Checking version %s from ECR for workload %s", tag, name)
+type Pod struct {
+	pod *corev1.Pod
 
+	client gocorev1.PodInterface
+}
+
+func NewPod(cs kubernetes.Interface, namespace string, pod *corev1.Pod) *Pod {
+	client := cs.CoreV1().Pods(namespace)
+	return newPod(pod, client)
+}
+
+func newPod(pod *corev1.Pod, client gocorev1.PodInterface) *Pod {
+	return &Pod{
+		pod:    pod,
+		client: client,
+	}
+}
+
+func (p *Pod) String() string {
+	return fmt.Sprintf("%+v", p.pod)
+}
+
+// Name implements the Workload interface.
+func (p *Pod) Name() string {
+	return p.pod.Name
+}
+
+// Namespace implements the Workload interface.
+func (p *Pod) Namespace() string {
+	return p.pod.Namespace
+}
+
+// Type implements the Workload interface.
+func (p *Pod) Type() string {
+	return TypePod
+}
+
+// PodSpec implements the Workload interface.
+func (p *Pod) PodSpec() corev1.PodSpec {
+	return p.pod.Spec
+}
+
+// PatchPodSpec implements the Workload interface.
+func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := p.client.Patch(p.pod.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for Pod %s", p.pod.Name)
+	}
+	return nil
+}
+
+// AsResource implements the Workload interface.
+func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range p.pod.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace: cv.Namespace,
+				Name:      p.pod.Name,
+				Type:      TypePod,
+				Container: c.Name,
+				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				CV:        cv.Name,
+				Tag:       cv.Spec.Tag,
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkPodSpec checks whether the current version tag of the container
+// in the given pod spec with the given container name has the given
+// version. Return a nil error if the versions match. If not matching,
+// an errs.ErrorVersionMismatch is returned.
+func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) error {
 	match := false
-	for _, c := range d.Spec.Containers {
+	for _, c := range podSpec.Containers {
 		if c.Name == cv.Spec.Container {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
 			if len(parts) > 2 {
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Invalid image on container")
-				return "", errors.New("Invalid image found on container")
+				return errors.New("invalid image on container")
 			}
 			if parts[0] != cv.Spec.ImageRepo {
-				k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
-					fmt.Sprintf("ECR repo mismatch present %s and requested  %s don't match", parts[0], cv.Spec.ImageRepo), "", "error",
-					time.Now().UTC())
-				k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "ECR Repository mismatch was found")
-				return "", errs.ErrValidation
+				return errors.Errorf("ECR repo mismatch present %s and requested  %s don't match",
+					parts[0], cv.Spec.ImageRepo)
 			}
-			if tag != parts[1] {
-				if k.validate(tag) != nil {
-					k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
-						fmt.Sprintf("Failed to validate image with tag %s", tag), "", "error",
-						time.Now().UTC())
-					k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Candidate version failed validation")
-					return "", errs.ErrValidation
+			if version != parts[1] {
+				if validate(version) != nil {
+					return errors.Errorf("failed to validate image with tag %s", version)
 				}
-				return tag, errs.ErrVersionMismatch
+				return errs.ErrVersionMismatch
 			}
 		}
 	}
 
 	if !match {
-		k.stats.Event(fmt.Sprintf("%s.sync.failure", name), "No matching container found", "",
-			"error", time.Now().UTC())
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "No matching container found")
-
-		return "", errors.Errorf("No container of name %s was found in workload %s", cv.Spec.Container, name)
+		return errors.Errorf("no container of name %s was found in workload", cv.Spec.Container)
 	}
 
-	log.Printf("workload resource %s is upto date", name)
-	return "", nil
-}
-
-// rollback tag logic is not needed revisionHistoryLimit automatically maintains 6 revisions limits
-func (k *K8sProvider) patchPodSpec(d v1.PodTemplateSpec, name, tag string, cv *cv1.ContainerVersion, ppfn patchPodSpecFn,
-	typFn typeFn) error {
-
-	log.Printf("Beginning rollout for workload %s with version %s", name, tag)
-
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		for i, c := range d.Spec.Containers {
-			if c.Name == cv.Spec.Container {
-				if updateErr := ppfn(i); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, workload=%v, error=%v",
-						tag, d.Name, updateErr)
-
-					return updateErr
-				}
-
-			}
-		}
-		return nil
-	})
-	if retryErr != nil {
-		k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
-			fmt.Sprintf("Failed to validate image with %s", tag), "", "error",
-			time.Now().UTC())
-		log.Printf("Failed to update container version after maximum retries: version=%v, workload=%v, error=%v",
-			tag, name, retryErr)
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to perform the workload")
-	}
-
-	if k.recordHistory {
-		err := k.hp.Add(k.namespace, name, &history.Record{
-			Type:    typFn(),
-			Name:    name,
-			Version: tag,
-			Time:    time.Now(),
-		})
-		if err != nil {
-			k.stats.IncCount(fmt.Sprintf("cvc.%s.history.save.failure", name))
-			k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "SaveHistoryFailed", "Failed to record update history")
-		}
-	}
-
-	log.Printf("Update completed: workload=%v", name)
-	k.stats.IncCount(fmt.Sprintf("%s.sync.success", name))
-	k.Recorder.Event(k.Pod, corev1.EventTypeNormal, "Success", "Updated completed successfully")
 	return nil
 }
 
@@ -134,6 +150,5 @@ func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version s
 	k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
-	k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
-
+	k.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
 }

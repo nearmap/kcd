@@ -5,60 +5,90 @@ import (
 	"strings"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	errs "github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	goappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 )
 
-const daemonSet = "DaemonSet"
+const (
+	TypeDaemonSet = "DaemonSet"
+)
 
-func (k *K8sProvider) syncDaemonSets(cv *cv1.ContainerVersion, version string, listOpts metav1.ListOptions) error {
-	ds, err := k.cs.AppsV1().DaemonSets(k.namespace).List(listOpts)
-	if err != nil {
-		k.Recorder.Event(k.Pod, corev1.EventTypeWarning, "CRSyncFailed", "Failed to get dependent daemonSet")
-		return errors.Wrap(err, "failed to read daemonSet ")
+type DaemonSet struct {
+	daemonSet *appsv1.DaemonSet
+
+	client goappsv1.DaemonSetInterface
+}
+
+func NewDaemonSet(cs kubernetes.Interface, namespace string, daemonSet *appsv1.DaemonSet) *DaemonSet {
+	client := cs.AppsV1().DaemonSets(namespace)
+	return newDaemonSet(daemonSet, client)
+}
+
+func newDaemonSet(daemonSet *appsv1.DaemonSet, client goappsv1.DaemonSetInterface) *DaemonSet {
+	return &DaemonSet{
+		daemonSet: daemonSet,
+		client:    client,
 	}
-	for _, d := range ds.Items {
-		if ci, err := k.checkPodSpec(d.Spec.Template, d.Name, version, cv); err != nil {
-			if err == errs.ErrVersionMismatch {
-				return k.patchPodSpec(d.Spec.Template, d.Name, ci, cv, func(i int) error {
-					_, err := k.cs.AppsV1().DaemonSets(k.namespace).Patch(d.ObjectMeta.Name, types.StrategicMergePatchType,
-						[]byte(fmt.Sprintf(podTemplateSpec, d.Spec.Template.Spec.Containers[i].Name, cv.Spec.ImageRepo, version)))
-					return err
+}
 
-				}, func() string { return daemonSet })
-			} else {
-				k.raiseSyncPodErrEvents(err, daemonSet, d.Name, cv.Spec.Tag, version)
-			}
-		}
+func (ds *DaemonSet) String() string {
+	return fmt.Sprintf("%+v", ds.daemonSet)
+}
+
+// Name implements the Workload interface.
+func (ds *DaemonSet) Name() string {
+	return ds.daemonSet.Name
+}
+
+// Namespace implements the Workload interface.
+func (ds *DaemonSet) Namespace() string {
+	return ds.daemonSet.Namespace
+}
+
+// Type implements the Workload interface.
+func (ds *DaemonSet) Type() string {
+	return TypeDaemonSet
+}
+
+// PodSpec implements the Workload interface.
+func (ds *DaemonSet) PodSpec() corev1.PodSpec {
+	return ds.daemonSet.Spec.Template.Spec
+}
+
+// PodTemplateSpec implements the TemplateRolloutTarget interface.
+func (ds *DaemonSet) PodTemplateSpec() corev1.PodTemplateSpec {
+	return ds.daemonSet.Spec.Template
+}
+
+// PatchPodSpec implements the Workload interface.
+func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	_, err := ds.client.Patch(ds.daemonSet.ObjectMeta.Name, types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+	if err != nil {
+		return errors.Wrapf(err, "failed to patch pod template spec container for DaemonSet %s", ds.daemonSet.Name)
 	}
 	return nil
 }
 
-func (k *K8sProvider) cvDaemonSets(cv *cv1.ContainerVersion, listOpts metav1.ListOptions) ([]*Resource, error) {
-	ds, err := k.cs.AppsV1().DaemonSets(cv.Namespace).List(listOpts)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to fetch daemonset")
-	}
-	var cvsList []*Resource
-	for _, dd := range ds.Items {
-		for _, c := range dd.Spec.Template.Spec.Containers {
-			if cv.Spec.Container == c.Name {
-				cvsList = append(cvsList, &Resource{
-					Namespace:     cv.Namespace,
-					Name:          dd.Name,
-					Type:          daemonSet,
-					Container:     c.Name,
-					Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
-					AvailablePods: dd.Status.NumberAvailable,
-					CV:            cv.Name,
-					Tag:           cv.Spec.Tag,
-				})
+// AsResource implements the Workload interface.
+func (ds *DaemonSet) AsResource(cv *cv1.ContainerVersion) *Resource {
+	for _, c := range ds.daemonSet.Spec.Template.Spec.Containers {
+		if cv.Spec.Container == c.Name {
+			return &Resource{
+				Namespace: cv.Namespace,
+				Name:      ds.daemonSet.Name,
+				Type:      TypeDaemonSet,
+				Container: c.Name,
+				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				CV:        cv.Name,
+				Tag:       cv.Spec.Tag,
 			}
 		}
 	}
 
-	return cvsList, nil
+	return nil
 }
