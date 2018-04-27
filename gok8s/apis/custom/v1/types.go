@@ -44,11 +44,11 @@ type StrategySpec struct {
 
 // BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.
 type BlueGreenSpec struct {
-	ServiceName     string `json:"serviceName"`
-	TestServiceName string `json:"testServiceName"`
-	LabelName       string `json:"labelName"`
-	ScaleDown       bool   `json:"scaleDown"`
-	TimeoutSeconds  int    `json:"timeoutSecs"`
+	ServiceName     string   `json:"serviceName"`
+	TestServiceName string   `json:"testServiceName"`
+	LabelNames      []string `json:"labelNames"`
+	ScaleDown       bool     `json:"scaleDown"`
+	TimeoutSeconds  int      `json:"timeoutSecs"`
 }
 
 // VerifySpec defines various verification types performed during a rollout.

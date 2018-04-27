@@ -86,8 +86,8 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 	if cv.Spec.Strategy.BlueGreen.ServiceName == "" {
 		return errors.Errorf("no service defined for blue-green strategy in cv resource %s", cv.Name)
 	}
-	if cv.Spec.Strategy.BlueGreen.LabelName == "" {
-		return errors.Errorf("no label name defined for blue-green strategy in cv resource %s", cv.Name)
+	if len(cv.Spec.Strategy.BlueGreen.LabelNames) == 0 {
+		return errors.Errorf("no label names defined for blue-green strategy in cv resource %s", cv.Name)
 	}
 
 	log.Printf("Beginning blue-green deployment for target %s with version %s in namespace %s",
@@ -238,22 +238,24 @@ func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion
 func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion,
 	target TemplateRolloutTarget, serviceName string) error {
 
-	labelName := cv.Spec.Strategy.BlueGreen.LabelName
+	labelNames := cv.Spec.Strategy.BlueGreen.LabelNames
 
 	testService, err := bgd.getService(cv, serviceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find test service for cv spec %s", cv.Name)
 	}
 
-	targetLabel, has := target.PodTemplateSpec().Labels[labelName]
-	if !has {
-		return errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
-			target.Name(), labelName, cv.Name)
+	for _, labelName := range labelNames {
+		targetLabel, has := target.PodTemplateSpec().Labels[labelName]
+		if !has {
+			return errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
+				target.Name(), labelName, cv.Name)
+		}
+
+		testService.Spec.Selector[labelName] = targetLabel
 	}
 
-	testService.Spec.Selector[labelName] = targetLabel
-
-	log.Printf("Updating service %s with selector %s:%s", serviceName, labelName, targetLabel)
+	log.Printf("Updating service %s with selectors %v", serviceName, testService.Spec.Selector)
 
 	// TODO: is update appropriate?
 	if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(testService); err != nil {
