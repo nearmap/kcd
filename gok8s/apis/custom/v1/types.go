@@ -37,9 +37,9 @@ type ContainerVersionSpec struct {
 
 // StrategySpec defines a rollout strategy and optional verification steps.
 type StrategySpec struct {
-	StrategyType string         `json:"strategyType"`
-	BlueGreen    *BlueGreenSpec `json:"blueGreen"`
-	Verify       *VerifySpec    `json:"verify"`
+	Kind      string         `json:"kind"`
+	BlueGreen *BlueGreenSpec `json:"blueGreen"`
+	Verify    *VerifySpec    `json:"verify"`
 }
 
 // BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.
@@ -53,7 +53,7 @@ type BlueGreenSpec struct {
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	VerifyType     string `json:"verifyType"`
+	Kind           string `json:"kind"`
 	Image          string `json:"image"`
 	TimeoutSeconds int    `json:"timeoutSecs"`
 }

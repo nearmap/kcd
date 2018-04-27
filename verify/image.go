@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	TypeImage = "Image"
+	KindImage = "Image"
 )
 
 type ImageVerifier struct {

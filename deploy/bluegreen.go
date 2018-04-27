@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	TypeServieBlueGreen = "ServiceBlueGreen"
+	KindServieBlueGreen = "ServiceBlueGreen"
 )
 
 // BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy.
@@ -363,17 +363,17 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRol
 }
 
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
-	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.VerifyType == "" {
+	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.Kind == "" {
 		log.Printf("No verification defined for %s", cv.Name)
 		return nil
 	}
 
 	var verifier verify.Verifier
-	switch cv.Spec.Strategy.Verify.VerifyType {
-	case verify.TypeImage:
+	switch cv.Spec.Strategy.Verify.Kind {
+	case verify.KindImage:
 		verifier = verify.NewImageVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify)
 	default:
-		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.VerifyType)
+		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.Kind)
 	}
 
 	return verifier.Verify()

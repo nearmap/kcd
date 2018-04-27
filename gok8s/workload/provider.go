@@ -94,16 +94,16 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 }
 
 func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) error {
-	var strategyType string
+	var kind string
 
 	if cv.Spec.Strategy != nil {
-		strategyType = cv.Spec.Strategy.StrategyType
+		kind = cv.Spec.Strategy.Kind
 	}
 
 	var deployer deploy.Deployer
 
-	switch strategyType {
-	case deploy.TypeServieBlueGreen:
+	switch kind {
+	case deploy.KindServieBlueGreen:
 		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
 	default:
 		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
