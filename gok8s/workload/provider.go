@@ -145,6 +145,9 @@ func (k *K8sProvider) updateFailedRollouts(cv *cv1.ContainerVersion, version str
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", cv.Name)
 	}
+	if spec.Status.FailedRollouts == nil {
+		spec.Status.FailedRollouts = map[string]int{}
+	}
 	spec.Status.FailedRollouts[version] = spec.Status.FailedRollouts[version] + 1
 
 	result, err := client.Update(spec)

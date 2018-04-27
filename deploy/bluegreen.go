@@ -275,7 +275,7 @@ func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget) error 
 	// ensure at least 1 pod
 	numReplicas := target.NumReplicas()
 	if numReplicas > 0 {
-		log.Printf("DeploySpec %s has %d replicas", target.Name(), numReplicas)
+		log.Printf("Target %s has %d replicas", target.Name(), numReplicas)
 		return nil
 	}
 
