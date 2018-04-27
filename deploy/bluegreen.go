@@ -19,6 +19,10 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+const (
+	TypeServieBlueGreen = "ServiceBlueGreen"
+)
+
 // BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy.
 type BlueGreenDeployer struct {
 	namespace string
@@ -117,7 +121,7 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Wrapf(err, "failed to patch pod spec for blue-green strategy %s", cv.Name)
 	}
 
-	if err := bgd.updateTestServiceSelector(cv, secondary); err != nil {
+	if err := bgd.updateVerificationServiceSelector(cv, secondary); err != nil {
 		return errors.Wrapf(err, "failed to update test service for cv spec %s", cv.Name)
 	}
 
@@ -223,13 +227,13 @@ func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version st
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) updateTestServiceSelector(cv *cv1.ContainerVersion, target TemplateRolloutTarget) error {
-	if cv.Spec.Strategy.BlueGreen.TestServiceName == "" {
+func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(cv *cv1.ContainerVersion, target TemplateRolloutTarget) error {
+	if cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
 		log.Printf("No test service defined for cv spec %s", cv.Name)
 		return nil
 	}
 
-	if err := bgd.updateServiceSelector(cv, target, cv.Spec.Strategy.BlueGreen.TestServiceName); err != nil {
+	if err := bgd.updateServiceSelector(cv, target, cv.Spec.Strategy.BlueGreen.VerificationServiceName); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -359,17 +363,17 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRol
 }
 
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
-	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.Type == "" {
+	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.VerifyType == "" {
 		log.Printf("No verification defined for %s", cv.Name)
 		return nil
 	}
 
 	var verifier verify.Verifier
-	switch cv.Spec.Strategy.Verify.Type {
+	switch cv.Spec.Strategy.Verify.VerifyType {
 	case verify.TypeImage:
 		verifier = verify.NewImageVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify)
 	default:
-		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.Type)
+		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.VerifyType)
 	}
 
 	return verifier.Verify()

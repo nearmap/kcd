@@ -97,13 +97,13 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 	var strategyType string
 
 	if cv.Spec.Strategy != nil {
-		strategyType = cv.Spec.Strategy.Type
+		strategyType = cv.Spec.Strategy.StrategyType
 	}
 
 	var deployer deploy.Deployer
 
 	switch strategyType {
-	case "blue-green":
+	case deploy.TypeServieBlueGreen:
 		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
 	default:
 		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
