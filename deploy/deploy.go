@@ -10,7 +10,6 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -103,13 +102,12 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, n
 // Deploy implements the Deployer interface.
 func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
 	log.Printf("Performing simple deployment on %s with version %s", target.Name(), version)
-	cFound := false
+
 	podSpec := target.PodSpec()
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container.Name {
-				cFound = true
 				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
 					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
 						version, target.Name(), updateErr)
@@ -138,14 +136,6 @@ func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, targe
 		return nil
 	})
 	if retryErr == nil {
-		if !cFound {
-			sd.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", target.Name()),
-				fmt.Sprintf("Failed to find specified container with %s", cv.Spec.Container.Name), "", "error",
-				time.Now().UTC())
-			log.Printf("Failed to find specified container with %s", cv.Spec.Container.Name)
-			sd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to requested container")
-			return errors.Errorf("Failed to find specified container with %s", cv.Spec.Container.Name)
-		}
 		if sd.opts.UseHistory {
 			err := sd.hp.Add(sd.namespace, target.Name(), &history.Record{
 				Type:    target.Type(),
