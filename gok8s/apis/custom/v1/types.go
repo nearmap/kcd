@@ -67,6 +67,9 @@ type ConfigSpec struct {
 // ContainerVersionStatus is status  for Deployment resources
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
+
+	// FailedRollouts is map of failed versions and the number of failures.
+	FailedRollouts map[string]int
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

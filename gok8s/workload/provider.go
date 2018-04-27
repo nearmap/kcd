@@ -94,13 +94,17 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 }
 
 func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) error {
-	var kind string
-
-	if cv.Spec.Strategy != nil {
-		kind = cv.Spec.Strategy.Kind
+	if numFailed := cv.Status.FailedRollouts[version]; numFailed > 0 {
+		log.Printf("Not attempting rollout: cv spec %s for version %s has failed %d times.", cv.Name, version, numFailed)
+		return nil
 	}
 
 	var deployer deploy.Deployer
+
+	var kind string
+	if cv.Spec.Strategy != nil {
+		kind = cv.Spec.Strategy.Kind
+	}
 
 	switch kind {
 	case deploy.KindServieBlueGreen:
@@ -110,6 +114,12 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 	}
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
+		if deploy.IsPermanent(err) {
+			cv.Status.FailedRollouts[version] = cv.Status.FailedRollouts[version] + 1
+			log.Printf("Updated failed rollouts for cv spec=%s, version=%s, numFailures=%d",
+				cv.Name, version, cv.Status.FailedRollouts[version])
+			// TODO: update?
+		}
 		return errors.WithStack(err)
 	}
 	return nil
