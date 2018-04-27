@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -16,8 +17,11 @@ import (
 	"github.com/nearmap/cvmanager/stats/datadog"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextCS "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -138,6 +142,11 @@ func newRunCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
+		err = updateCVCRDSpec(cfg)
+		if err != nil {
+			return errors.Wrap(err, "Failed to read CV CRD specification")
+		}
+
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
@@ -168,4 +177,24 @@ func newRunCommand() *cobra.Command {
 	}
 
 	return rc
+}
+
+func updateCVCRDSpec(cfg *rest.Config) error {
+	apiExtCS, err := apiextCS.NewForConfig(cfg)
+	if err != nil {
+		return errors.Wrap(err, "Error building api extension clientset")
+	}
+	v, err := ioutil.ReadFile("k8s/cv-crd.yaml")
+	if err != nil {
+		return errors.Wrap(err, "Failed to read CV CRD specification")
+	}
+	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(v, nil, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to read CV CRD specification")
+	}
+	_, err = apiExtCS.ApiextensionsV1beta1().CustomResourceDefinitions().Update(obj.(*apiextv1beta1.CustomResourceDefinition))
+	if err != nil {
+		return errors.Wrap(err, "Failed to read CV CRD specification")
+	}
+	return err
 }

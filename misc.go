@@ -147,16 +147,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
-		var recorder events.Recorder
-		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-		pod, err := k8sClient.CoreV1().Pods(params.namespace).Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
-		if err != nil {
-			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
-			recorder = &events.FakeRecorder{}
-		} else {
-			recorder = events.NewRecorder(k8sClient, params.namespace, pod)
-		}
-
 		customCS, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
@@ -181,9 +171,9 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		var crProvider registry.Registry
 		switch root.params.provider {
 		case "ecr":
-			crProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionPattern, recorder, stats)
+			crProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
 		case "dockerhub":
-			crProvider, err = dh.NewDH(cv.Spec.ImageRepo, cv.Spec.VersionPattern, recorder, dh.WithStats(stats))
+			crProvider, err = dh.NewDH(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
 		}
 		if err != nil {
 			log.Printf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",

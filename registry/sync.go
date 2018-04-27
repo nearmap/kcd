@@ -9,7 +9,6 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 )
@@ -36,16 +35,12 @@ type syncer struct {
 func NewSyncer(cs *kubernetes.Clientset, cv *cv1.ContainerVersion, ns string,
 	registry Registry, options ...func(*conf.Options)) *syncer {
 
-	opts := &conf.Options{
-		Stats:       stats.NewFake(),
-		UseHistory:  false,
-		UseRollback: false,
-	}
+	opts := conf.NewOptions()
 	for _, opt := range options {
 		opt(opts)
 	}
 
-	recorder := events.PodEventRecorder()
+	recorder := events.PodEventRecorder(cs, ns)
 
 	k8sProvider := k8s.NewK8sProvider(cs, ns, recorder, conf.WithStats(opts.Stats),
 		conf.WithHistory(opts.UseHistory),

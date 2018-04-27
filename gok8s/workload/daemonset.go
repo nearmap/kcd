@@ -2,7 +2,7 @@ package k8s
 
 import (
 	"fmt"
-	"strings"
+	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
@@ -59,6 +59,16 @@ func (ds *DaemonSet) PodSpec() corev1.PodSpec {
 	return ds.daemonSet.Spec.Template.Spec
 }
 
+// RollbackAfter implements the Workload interface.
+func (ds *DaemonSet) RollbackAfter() *time.Duration {
+	return nil
+}
+
+//ProgressHealth implements the Workload interface.
+func (ds *DaemonSet) ProgressHealth() bool {
+	return true
+}
+
 // PodTemplateSpec implements the TemplateRolloutTarget interface.
 func (ds *DaemonSet) PodTemplateSpec() corev1.PodTemplateSpec {
 	return ds.daemonSet.Spec.Template
@@ -77,13 +87,13 @@ func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 // AsResource implements the Workload interface.
 func (ds *DaemonSet) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range ds.daemonSet.Spec.Template.Spec.Containers {
-		if cv.Spec.Container == c.Name {
+		if cv.Spec.Container.Name == c.Name {
 			return &Resource{
 				Namespace: cv.Namespace,
 				Name:      ds.daemonSet.Name,
 				Type:      TypeDaemonSet,
 				Container: c.Name,
-				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				Version:   version(c.Image),
 				CV:        cv.Name,
 				Tag:       cv.Spec.Tag,
 			}

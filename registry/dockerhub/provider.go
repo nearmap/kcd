@@ -78,7 +78,7 @@ func NewDH(repository, versionExp string, options ...func(*Options)) (*dhV2Provi
 func (s *dhV2Provider) Version(tag string) (string, error) {
 	newVersion, err := s.getDigest(tag)
 	if err != nil {
-		s.opts.Stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", s.repository, "badsha"))
+		s.opts.Stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", s.repository), "badsha")
 		return "", errors.Errorf("No version found for tag %s", tag)
 	}
 	return newVersion, nil

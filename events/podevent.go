@@ -5,23 +5,27 @@ import (
 	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-
-func newPodEventRecorder(podName string) Recorder {
+// newPodEventRecorder creates an event record that attaches event of a pod
+// identified by name specified
+func newPodEventRecorder(cs kubernetes.Interface, ns string, podName string) Recorder {
 	var recorder Recorder
-	// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-	pod, err := cs.CoreV1().Pods("").Get(podName), metav1.GetOptions{})
+	pod, err := cs.CoreV1().Pods(ns).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		log.Printf("failed to get pod with name %s for event recorder: %v", podName, err)
-		recorder = &events.FakeRecorder{}
+		recorder = &FakeRecorder{}
 	} else {
-		recorder = events.NewRecorder(cs, "", pod)
+		recorder = NewRecorder(cs, ns, pod)
 	}
 	return recorder
 }
 
-func PodEventRecorder() Recorder {
+// PodEventRecorder creates an event record that attaches event of a pod
+// The name of pod is derived from downward API and assumed to be set
+// as env variable "NAME"
+func PodEventRecorder(cs kubernetes.Interface, ns string) Recorder {
 	podName := os.Getenv("NAME")
-	return newPodEventRecorder(podName)
+	return newPodEventRecorder(cs, ns, podName)
 }

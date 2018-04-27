@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/events"
@@ -76,19 +75,10 @@ func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.Ha
 			typ = "json"
 		}
 
-		var recorder events.Recorder
-		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-		pod, err := cs.CoreV1().Pods("").Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
-		if err != nil {
-			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
-			recorder = &events.FakeRecorder{}
-		} else {
-			recorder = events.NewRecorder(cs, "", pod)
-		}
+		recorder := events.PodEventRecorder(cs, "")
 
 		k8sProvider := k8s.NewK8sProvider(cs, "", recorder, conf.WithStats(stats.NewFake()))
 		err := GetAllContainerVersion(w, typ, k8sProvider, customCS)
-
 		if err != nil {
 			log.Printf("failed to get workload list %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

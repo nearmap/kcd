@@ -28,8 +28,8 @@ type ContainerVersionSpec struct {
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
 
-	Selector      map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
-	ContainerSpec string            `json:"container"`
+	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
+	Container ContainerSpec     `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 

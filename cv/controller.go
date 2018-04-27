@@ -12,7 +12,6 @@ import (
 	scheme "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
 	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
 	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -73,11 +72,7 @@ func NewCVController(configMapKey, cvImgRepo string,
 	k8sIF k8sinformers.SharedInformerFactory, customIF informers.SharedInformerFactory,
 	options ...func(*conf.Options)) (*CVController, error) {
 
-	opts := &conf.Options{
-		Stats:       stats.NewFake(),
-		UseHistory:  false,
-		UseRollback: false,
-	}
+	opts := conf.NewOptions()
 	for _, opt := range options {
 		opt(opts)
 	}
@@ -412,7 +407,6 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								"cr",
 								"sync",
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
-								//								fmt.Sprintf("--provider=%s", registry.ProviderByRepo(cv.Spec.ImageRepo)),
 								fmt.Sprintf("--cv=%s", cv.Name),
 								fmt.Sprintf("--version=%s", cv.ResourceVersion),
 								fmt.Sprintf("--history=%t", c.opts.UseHistory),

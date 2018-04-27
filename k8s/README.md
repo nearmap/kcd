@@ -3,7 +3,8 @@
 
 CVManager can be deployed using:
 
-1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
+1. Kubect: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
+2. ktmpl: [ktmpl](https://github.com/jimmycuadra/ktmpl) is another simple yaml templating engine. The Kubenetes yaml specs for  CVManager configuration is [here](ktmpl/README.md)
 2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager/cvmanager-0.1.0.tgz)
 
 
@@ -15,14 +16,14 @@ An example of CV resource is:
 apiVersion: custom.k8s.io/v1
 kind: ContainerVersion
 metadata:
-  name: photos-cv
+  name: myapp-cv
 spec:
-  imageRepo: nearmap/photos
+  imageRepo: nearmap/myapp
   tag: dev
   checkFrequency: 5
-  container: photosapp-container
+  container: myapp
   selector:
-    cvapp: photocv
+    cvapp: myappcv
 ```
 
 And an example creation of CV resource is:
@@ -31,12 +32,12 @@ cat <<EOF | kubectl create -f -
 apiVersion: custom.k8s.io/v1
 kind: ContainerVersion
 metadata:
-  name: photos-cv
+  name: myapp-cv
 spec:
-  imageRepo: nearmap/photos
+  imageRepo: nearmap/myapp
   tag: dev
   checkFrequency: 5
-  container: photosapp-container
+  container: myappapp-container
   selector:
     cvapp: photocv
 EOF
@@ -44,11 +45,11 @@ EOF
 
 When ContainerVersion CRD is defined using (or with helm):
 ```sh
-kubectl apply -f  kubectl/cv-crd.yaml
+kubectl apply -f cv-crd.yaml
 ```
 and are avaialble on API server at following interface:
 http://localhost:8001/apis/custom.k8s.io/v1/containerversions/
-http://localhost:8001/apis/custom.k8s.io/v1/namespaces/photos/containerversions
+http://localhost:8001/apis/custom.k8s.io/v1/namespaces/myapp/containerversions
 
 and using *kubectl*:
 ```sh

@@ -31,3 +31,11 @@ func WithHistory(r bool) func(*Options) {
 		opts.UseHistory = r
 	}
 }
+
+func NewOptions() *Options {
+	return &Options{
+		Stats:       stats.NewFake(),
+		UseHistory:  false,
+		UseRollback: false,
+	}
+}

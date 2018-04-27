@@ -3,6 +3,7 @@ package k8s
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	conf "github.com/nearmap/cvmanager/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry/errs"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -58,22 +60,19 @@ type K8sProvider struct {
 // config maps etc
 func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, options ...func(*conf.Options)) *K8sProvider {
 
-	opts := &conf.Options{
-		Stats:       stats.NewFake(),
-		UseHistory:  false,
-		UseRollback: false,
-	}
+	opts := conf.NewOptions()
 	for _, opt := range options {
 		opt(opts)
 	}
 
 	return &K8sProvider{
 		cs:        cs,
-		Recorder:  events.PodEventRecorder(),
-		Pod:       pod,
 		namespace: ns,
-		hp:        history.NewProvider(cs, opts.Stats),
-		Recorder:  recorder,
+
+		Recorder: events.PodEventRecorder(cs, ns),
+		opts:     opts,
+
+		hp: history.NewProvider(cs, opts.Stats),
 	}
 }
 
@@ -89,6 +88,9 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	for _, spec := range specs {
 		if err := checkPodSpec(cv, version, spec.PodSpec()); err != nil {
 			if err == errs.ErrVersionMismatch {
+				if k.validate(version, cv.Spec.Container.Verify) != nil {
+					return errors.Errorf("failed to validate image with tag %s", version)
+				}
 				if err := k.deploy(cv, version, spec); err != nil {
 					return errors.WithStack(err)
 				}
@@ -116,7 +118,7 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 	case deploy.KindServieBlueGreen:
 		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
 	default:
-		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.namespace, conf.WithStats(k.stats))
 	}
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
@@ -221,7 +223,19 @@ func (k *K8sProvider) handleError(err error, typ string) error {
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
 
-func validate(v string) error {
-	//TODO later regression check etc
+func (k *K8sProvider) validate(v string, cvvs []*cv1.VerifySpec) error {
+	for _, v := range cvvs {
+		verifier, err := verify.NewVerifier(k.cs, k.Recorder, k.opts.Stats, k.namespace, v)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if err = verifier.Verify(); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	return nil
+}
+
+func version(img string) string {
+	return strings.SplitAfterN(img, ":", 2)[1]
 }

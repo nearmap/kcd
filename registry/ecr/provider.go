@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/nearmap/cvmanager/stats"
@@ -99,7 +100,7 @@ func (s *ecrProvider) Version(tag string) (string, error) {
 
 	currentVersion := s.currentVersion(img)
 	if currentVersion == "" {
-		s.stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", s.repoName, "badsha"))
+		s.stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", s.repoName), "badsha")
 		return "", errors.Errorf("No version found for tag %s", tag)
 	}
 
@@ -137,6 +138,12 @@ func (s *ecrProvider) Add(version string, tags ...string) error {
 
 			_, err = s.ecr.PutImage(putReq)
 			if err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					switch aerr.Code() {
+					case ecr.ErrCodeImageAlreadyExistsException:
+						continue
+					}
+				}
 				s.stats.IncCount(fmt.Sprintf("registry.putimage.%s.failure", s.repoName))
 				return errors.Wrap(err, fmt.Sprintf("failed to add tag %s to image manifest %s",
 					tag, aws.StringValue(img.ImageManifest)))
