@@ -125,9 +125,12 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
 		if deploy.IsPermanent(err) {
+			log.Printf("received permanent failure from deploy operation: %v", err)
 			if _, e := k.updateFailedRollouts(cv, version); e != nil {
 				log.Printf("failed to update state for container version %s: %v", cv.Name, e)
 			}
+		} else {
+			log.Printf("error received from deploy operation was not permanent: %v", err)
 		}
 		return errors.WithStack(err)
 	}
