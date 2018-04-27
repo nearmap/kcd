@@ -162,7 +162,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 		var recorder events.Recorder
 		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-		// TODO: Need to use faker to handle running locally
 		pod, err := k8sClient.CoreV1().Pods(params.namespace).Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
 		if err != nil {
 			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
