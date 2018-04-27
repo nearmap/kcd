@@ -8,6 +8,7 @@ import (
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry/errs"
 	"github.com/nearmap/cvmanager/stats"
@@ -43,6 +44,7 @@ type Resource struct {
 // K8sProvider manages workloads.
 type K8sProvider struct {
 	cs        kubernetes.Interface
+	cvcs      clientset.Interface
 	namespace string
 
 	hp            history.Provider
@@ -54,9 +56,12 @@ type K8sProvider struct {
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, stats stats.Stats, recordHistory bool) *K8sProvider {
+func NewK8sProvider(cs kubernetes.Interface, cvcs clientset.Interface, ns string,
+	recorder events.Recorder, stats stats.Stats, recordHistory bool) *K8sProvider {
+
 	return &K8sProvider{
 		cs:        cs,
+		cvcs:      cvcs,
 		namespace: ns,
 
 		hp:            history.NewProvider(cs, stats),
@@ -65,6 +70,11 @@ func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder
 		Recorder: recorder,
 		stats:    stats,
 	}
+}
+
+// Namespace returns the namespace that this K8sProvider is operating within.
+func (k *K8sProvider) Namespace() string {
+	return k.namespace
 }
 
 // SyncWorkload checks if container version of all workload that matches CV selector
@@ -115,14 +125,34 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
 		if deploy.IsPermanent(err) {
-			cv.Status.FailedRollouts[version] = cv.Status.FailedRollouts[version] + 1
-			log.Printf("Updated failed rollouts for cv spec=%s, version=%s, numFailures=%d",
-				cv.Name, version, cv.Status.FailedRollouts[version])
-			// TODO: update?
+			if _, e := k.updateFailedRollouts(cv, version); e != nil {
+				log.Printf("failed to update state for container version %s: %v", cv.Name, e)
+			}
 		}
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (k *K8sProvider) updateFailedRollouts(cv *cv1.ContainerVersion, version string) (*cv1.ContainerVersion, error) {
+	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
+
+	// ensure state is up to date
+	spec, err := client.Get(cv.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", cv.Name)
+	}
+	spec.Status.FailedRollouts[version] = spec.Status.FailedRollouts[version] + 1
+
+	result, err := client.Update(spec)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
+	}
+
+	log.Printf("Updated failed rollouts for cv spec=%s, version=%s, numFailures=%d",
+		cv.Name, version, cv.Status.FailedRollouts[version])
+
+	return result, nil
 }
 
 // CVWorkload generates details about current workload resources managed by CVManager

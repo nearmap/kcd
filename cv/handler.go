@@ -84,7 +84,7 @@ func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.Ha
 			recorder = events.NewRecorder(cs, "", pod)
 		}
 
-		k8sProvider := k8s.NewK8sProvider(cs, "", recorder, stats.NewFake(), false)
+		k8sProvider := k8s.NewK8sProvider(cs, customCS, "", recorder, stats.NewFake(), false)
 		err = ExecuteWorkloadsList(w, typ, k8sProvider, customCS)
 		if err != nil {
 			log.Printf("failed to get workload list %v", err)

@@ -15,7 +15,6 @@ import (
 	rgs "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/kubernetes"
 )
 
 var ecrRule, _ = regexp.Compile("([0-9]*).dkr.ecr.([a-z0-9-]*).amazonaws.com/([a-zA-Z0-9/\\_-]*)")
@@ -39,7 +38,6 @@ func nameAccountRegionFromARN(arn string) (repoName, accountID, region string, e
 // In cases, where it cant resolves
 type syncer struct {
 	k8sProvider *k8s.K8sProvider
-	namespace   string
 	cv          *cv1.ContainerVersion
 
 	sess      *session.Session
@@ -52,19 +50,14 @@ type syncer struct {
 
 // NewSyncer provides new reference of dhSyncer
 // to manage AWS ECR repository and sync deployments periodically
-func NewSyncer(sess *session.Session, cs *kubernetes.Clientset, ns string,
-	cv *cv1.ContainerVersion, recorder events.Recorder, stats stats.Stats, recordHistory bool) (*syncer, error) {
-
+func NewSyncer(sess *session.Session, k8sProvider *k8s.K8sProvider, cv *cv1.ContainerVersion, stats stats.Stats) (*syncer, error) {
 	repoName, accountID, region, err := nameAccountRegionFromARN(cv.Spec.ImageRepo)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	k8sProvider := k8s.NewK8sProvider(cs, ns, recorder, stats, recordHistory)
-
 	syncer := &syncer{
 		k8sProvider: k8sProvider,
-		namespace:   ns,
 		cv:          cv,
 
 		repoName:  repoName,
@@ -101,7 +94,7 @@ func (s *syncer) doSync() error {
 		return errors.WithStack(err)
 	}
 	if currentVersion == "" {
-		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]))
+		s.stats.IncCount(fmt.Sprintf("%s.%s.%s.badsha.failure", s.k8sProvider.Namespace(), s.repoName, s.cv.Spec.Selector[cv1.CVAPP]))
 		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "Tagged image missing SHA1")
 		return nil
 	}
@@ -114,7 +107,7 @@ func (s *syncer) doSync() error {
 	// Syncup config if unspecified
 	if err := s.k8sProvider.SyncVersionConfig(s.cv, currentVersion); err != nil {
 		log.Printf("Failed sync config: %v", err)
-		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.namespace, s.cv.Spec.Config.Name))
+		s.stats.IncCount(fmt.Sprintf("%s.%s.configsyn.failure", s.k8sProvider.Namespace(), s.cv.Spec.Config.Name))
 		return errors.Wrapf(err, "Failed to sync config version %s", s.cv.Spec.Selector[cv1.CVAPP])
 	}
 
@@ -138,7 +131,7 @@ func (s *syncer) getVersionFromRegistry() (string, error) {
 	}
 	if len(result.ImageDetails) != 1 {
 		// TODO: this is going to keep crashing the pod and restarting. Is this what we want?
-		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.namespace, s.repoName, s.cv.Spec.Selector[cv1.CVAPP]),
+		s.stats.Event(fmt.Sprintf("%s.%s.%s.sync.failure", s.k8sProvider.Namespace(), s.repoName, s.cv.Spec.Selector[cv1.CVAPP]),
 			fmt.Sprintf("Failed to sync with ECR for tag %s", s.cv.Spec.Tag), "", "error",
 			time.Now().UTC(), s.cv.Spec.Tag, s.accountID)
 		s.k8sProvider.Recorder.Event(events.Warning, "CRSyncFailed", "More than one image with tag was found")
