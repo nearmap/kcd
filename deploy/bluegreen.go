@@ -378,7 +378,14 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.Kind)
 	}
 
-	return verifier.Verify()
+	err := verifier.Verify()
+	if err != nil {
+		if err == verify.Failed {
+			return NewFailed(err, "verification failed")
+		}
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary TemplateRolloutTarget) error {

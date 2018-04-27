@@ -1,6 +1,8 @@
 package deploy
 
 import (
+	"fmt"
+
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -56,17 +58,27 @@ type Deployer interface {
 // ErrorFailed indicates that a deployment failed for a permanent reason,
 // such as verification failure. Such deployments should not be retried.
 type ErrorFailed struct {
-	cause error
+	message string
+	cause   error
 }
 
 // ERror implements the error interface.
 func (ef *ErrorFailed) Error() string {
-	return "deployment permanently failed: " + ef.cause.Error()
+	return fmt.Sprintf("deployment permanently failed: %s: %s", ef.message, ef.cause.Error())
 }
 
 // Cause implements the errors.Cause interface
 func (ef *ErrorFailed) Cause() error {
 	return ef.cause
+}
+
+// NewFailed returns a permanent error of type ErrorFailed, indicating that the rollout
+// failed for a known reason.
+func NewFailed(err error, message string, args ...interface{}) error {
+	return &ErrorFailed{
+		cause:   err,
+		message: fmt.Sprintf(message, args...),
+	}
 }
 
 // IsPermanent returns true if the error returned by a deployment indicates
