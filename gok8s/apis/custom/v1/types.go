@@ -25,6 +25,7 @@ type ContainerVersionSpec struct {
 	Tag               string `json:"tag"`
 	CheckFrequency    int    `json:"checkFrequency"`
 	LivenessFrequency int    `json:"livenessFrequency"`
+	MaxAttempts       int    `json:"maxAttempts"`
 
 	Strategy *StrategySpec `json:"strategy"`
 

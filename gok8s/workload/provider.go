@@ -104,8 +104,7 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 }
 
 func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) error {
-	if numFailed := cv.Status.FailedRollouts[version]; numFailed > 0 {
-		log.Printf("Not attempting rollout: cv spec %s for version %s has failed %d times.", cv.Name, version, numFailed)
+	if ok := k.checkRolloutStatus(cv, version, target); !ok {
 		return nil
 	}
 
@@ -125,16 +124,31 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
 		if deploy.IsPermanent(err) {
-			log.Printf("received permanent failure from deploy operation: %v", err)
+			log.Printf("Permanent failure from deploy operation: %v", err)
 			if _, e := k.updateFailedRollouts(cv, version); e != nil {
-				log.Printf("failed to update state for container version %s: %v", cv.Name, e)
+				log.Printf("Failed to update state for container version %s: %v", cv.Name, e)
 			}
-		} else {
-			log.Printf("error received from deploy operation was not permanent: %v", err)
 		}
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+// checkRolloutStatus determines whether a rollout should occur for the target.
+// TODO: put the version check and this logic in a single place with a single
+// shouldPerformRollout() style method.
+func (k *K8sProvider) checkRolloutStatus(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) bool {
+	maxAttempts := cv.Spec.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	if numFailed := cv.Status.FailedRollouts[version]; numFailed >= maxAttempts {
+		log.Printf("Not attempting rollout: cv spec %s for version %s has failed %d times.", cv.Name, version, numFailed)
+		return false
+	}
+
+	return true
 }
 
 func (k *K8sProvider) updateFailedRollouts(cv *cv1.ContainerVersion, version string) (*cv1.ContainerVersion, error) {
