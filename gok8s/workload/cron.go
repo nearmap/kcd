@@ -6,11 +6,11 @@ import (
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
-	batchv2alpha1 "k8s.io/api/batch/v2alpha1"
+	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	goappsv2alpha1 "k8s.io/client-go/kubernetes/typed/batch/v2alpha1"
+	goappsv1beta1 "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
 )
 
 const (
@@ -19,18 +19,18 @@ const (
 
 // CronJob defines a workload for managing CronJobs.
 type CronJob struct {
-	cronJob *batchv2alpha1.CronJob
+	cronJob *v1beta1.CronJob
 
-	client goappsv2alpha1.CronJobInterface
+	client goappsv1beta1.CronJobInterface
 }
 
 // NewCronJob returns an instance for managing CronJob workloads.
-func NewCronJob(cs kubernetes.Interface, namespace string, cronJob *batchv2alpha1.CronJob) *CronJob {
-	client := cs.BatchV2alpha1().CronJobs(namespace)
+func NewCronJob(cs kubernetes.Interface, namespace string, cronJob *v1beta1.CronJob) *CronJob {
+	client := cs.BatchV1beta1().CronJobs(namespace)
 	return newCronJob(cronJob, client)
 }
 
-func newCronJob(cronJob *batchv2alpha1.CronJob, client goappsv2alpha1.CronJobInterface) *CronJob {
+func newCronJob(cronJob *v1beta1.CronJob, client goappsv1beta1.CronJobInterface) *CronJob {
 	return &CronJob{
 		cronJob: cronJob,
 		client:  client,
