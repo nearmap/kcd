@@ -62,8 +62,8 @@ func NewSyncer(cs *kubernetes.Clientset, cv *cv1.ContainerVersion, ns string,
 // and acting if differences are found. In case of different expected
 // version is identified, deployment roll-out is performed
 func (s *syncer) Sync() error {
-	log.Printf("Beginning sync....at every %dm", s.cv.Spec.PollIntervalSeconds)
-	d, _ := time.ParseDuration(fmt.Sprintf("%dm", s.cv.Spec.PollIntervalSeconds))
+	log.Printf("Beginning sync....at every %ds", s.cv.Spec.PollIntervalSeconds)
+	d, _ := time.ParseDuration(fmt.Sprintf("%ds", s.cv.Spec.PollIntervalSeconds))
 	for range time.Tick(d) {
 		if err := SetSyncStatus(); err != nil {
 			return err
