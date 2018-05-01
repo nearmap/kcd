@@ -13,10 +13,7 @@ RUN mkdir -p /health/ && \
 
 RUN mkdir -p /cvmanager
 ADD ./k8s /cvmanager/
-
-ARG VERSION=NA
 ADD version /cvmanager/
-RUN echo $VERSION > /cvmanager/version
 
 WORKDIR /cvmanager
 
