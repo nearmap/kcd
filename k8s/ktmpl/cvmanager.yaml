@@ -135,7 +135,7 @@ objects:
             - key: "node-role.kubernetes.io/master"
               effect: NoSchedule
           containers:
-            - name: cvmanagerapp-container
+            - name: cvmanagerapp
               image: $(REPOSITORY):$(VERSION)
               imagePullPolicy: Always
               ports:
@@ -189,10 +189,10 @@ objects:
     spec:
       imageRepo: $(REPOSITORY)
       tag: $(VERSION)
-      checkFrequency: 5
+      pollIntervalSeconds: 5
       selector:
         cvapp: cvmanagercv
-      container: cvmanagerapp-container
+      container: cvmanagerapp
       config:
         name: cvmanager
         key: version

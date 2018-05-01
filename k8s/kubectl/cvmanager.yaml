@@ -126,7 +126,7 @@ spec:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
       containers:
-        - name: "cvmanagerapp-container"
+        - name: "cvmanagerapp"
           image: "nearmap/cvmanager:latest"
           imagePullPolicy: Always
           ports:
@@ -182,10 +182,10 @@ metadata:
 spec:
   imageRepo: nearmap/cvmanager
   tag: latest
-  checkFrequency: 5
+  pollIntervalSeconds: 5
   selector:
     cvapp: cvmanagercv
-  container: "cvmanagerapp-container"
+  container: "cvmanagerapp"
   config:
     name: cvmanager
     key: version

@@ -7,7 +7,7 @@ metadata:
 spec:
   imageRepo: "{{ .Values.image.repository }}"
   tag: {{ .Values.cvCD.refTag }}
-  checkFrequency: {{ .Values.cvCD.frequecy }}
+  pollIntervalSeconds: {{ .Values.cvCD.frequecy }}
 {{- with .Values.cvCD.selector }}
   selector:
 {{ toYaml . | indent 4 }}

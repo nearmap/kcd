@@ -20,7 +20,7 @@ metadata:
 spec:
   imageRepo: nearmap/myapp
   tag: dev
-  checkFrequency: 5
+  pollIntervalSeconds: 5
   container: myapp
   selector:
     cvapp: myappcv
@@ -36,7 +36,7 @@ metadata:
 spec:
   imageRepo: nearmap/myapp
   tag: dev
-  checkFrequency: 5
+  pollIntervalSeconds: 5
   container: myappapp-container
   selector:
     cvapp: photocv
