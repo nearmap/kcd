@@ -145,7 +145,7 @@ func newRunCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		// TODO: this is dodgy
+		// TODO: this is dodgy it expects k8s files to always be available from runtime directory
 		// need to packae the yaml n version file using tool chains properly
 		err = updateCVCRDSpec(cfg)
 		if err != nil {
