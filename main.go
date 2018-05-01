@@ -145,13 +145,14 @@ func newRunCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		// TODO: this is dodgy it expects k8s files to always be available from runtime directory
-		// need to packae the yaml n version file using tool chains properly
-		err = updateCVCRDSpec(cfg)
-		if err != nil {
-			log.Printf("Failed to update CRD spec: %v", err)
-			//return errors.Wrap(err, "Failed to read CV CRD specification")
-		}
+		// // TODO: this is dodgy it expects k8s files to always be available from runtime directory
+		// // need to packae the yaml n version file using tool chains properly
+		// There is also problem in how its updated .. it corrupts the definition
+		// err = updateCVCRDSpec(cfg)
+		// if err != nil {
+		// 	log.Printf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
+		// 	//return errors.Wrap(err, "Failed to read CV CRD specification")
+		// }
 
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)

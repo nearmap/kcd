@@ -7,6 +7,105 @@ metadata:
 labels:
   template: "cvmanager-template"
 objects:
+  - kind: CustomResourceDefinition
+    # https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/
+    apiVersion: apiextensions.k8s.io/v1beta1
+    metadata:
+      name: containerversions.custom.k8s.io
+    spec:
+      group: custom.k8s.io
+      version: v1
+      scope: Namespaced
+      names:
+        plural: containerversions
+    #    singular: containerversion
+        kind: ContainerVersion
+    #    listKind: ContainerVersionList
+        shortNames:
+        - cv
+      validation:
+       # openAPIV3Schema is the schema for validating custom objects.
+        openAPIV3Schema:
+          properties:
+            spec:
+              required:
+                - tag
+                - imageRepo
+                - selector
+                - container
+              properties:
+                tag:
+                  type: string
+                  pattern: '^[a-zA-Z0-9-_.]*$'
+                versionSyntax:
+                  type: string
+                  ## default to regex for sha
+                  # default: '[0-9a-f]{5,40}'
+                imageRepo:
+                  type: string
+                  pattern: '^[^:]*$'
+                # selector:
+                #   type: objects
+                selector:
+                  properties:
+                    cvapp:
+                      type: string
+                  required:
+                    - cvapp
+                  # type: object
+                  # See https://github.com/kubernetes/kubernetes/issues/59485 maps not supported fully
+                  # additionalProperties:
+                  #   type: string
+                  # # This would work .. map should only be keyed on string type
+                  # # so not using it
+                  # additionalProperties: true
+                container:
+                  name:
+                    type: string
+                  verify:
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
+                    timeoutSeconds:
+                      type: integer
+                  required:
+                    - name
+                pollIntervalSeconds:
+                  type: integer
+                livenessSeconds:
+                  type: integer
+                config:
+                  name:
+                    type: string
+                  key:
+                    type: string
+                strategy:
+                  kind:
+                    type: string
+                  blueGreen:
+                    serviceName:
+                      type: string
+                    verificationServiceName:
+                      type: string
+                    labelNames:
+                      type: array
+                      items:
+                        type: string
+                    scaleDown:
+                      type: boolean
+                    timeoutSeconds:
+                      type: integer
+                  verify:
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
+                    timeoutSeconds:
+                      type: integer
+
   - kind: Deployment
     apiVersion: apps/v1
     metadata:
@@ -47,6 +146,7 @@ objects:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
                 - "--history=$(USE_HISTORY)"
+                - "--rollback=$(USE_ROLLBACK)"
                 - "--cv-img-repo=$(REPOSITORY)"
               env:
               - name: NAME
@@ -115,7 +215,13 @@ parameters:
     parameterType: "string"
     value: "nearmap/cvmanager"
   - name: "USE_HISTORY"
-    description: "version of the application for deployment"
+    description: "Flag to indicate whether cvmanager should record history in configmap"
     required: true
     value: true
     parameterType: "bool"
+  - name: "USE_ROLLBACK"
+    description: "Flag to indicate whether cvmanager should rollback if a deployment fails"
+    required: true
+    value: true
+    parameterType: "bool"
+
