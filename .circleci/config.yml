@@ -31,7 +31,7 @@ jobs:
       - run:
           name: Build cvmanager container image
           command: |
-            docker build -t nearmap/cvmanager .
+            docker build --build-arg VERSION=$CIRCLE_SHA1 -t nearmap/cvmanager .
       - run:
           name: Run unit and integration tests
           command: |
