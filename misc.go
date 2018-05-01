@@ -164,8 +164,9 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to find CV resource")
 		}
 
-		if root.params.provider == registry.ProviderByRepo(cv.Spec.ImageRepo) {
-			return errors.Errorf("Container registry provider invalid. Check provider and image repository arg.")
+		if root.params.provider != registry.ProviderByRepo(cv.Spec.ImageRepo) {
+			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
+				root.params.provider, registry.ProviderByRepo(cv.Spec.ImageRepo))
 		}
 
 		// CRD does not allow us to specify default type on OpenAPISpec
@@ -260,8 +261,9 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
-		if root.params.provider == registry.ProviderByRepo(root.params.cr) {
-			return errors.Errorf("Container registry provider invalid. Check provider and image repository arg.")
+		if root.params.provider != registry.ProviderByRepo(root.params.cr) {
+			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
+				root.params.provider, registry.ProviderByRepo(cv.Spec.ImageRepo))
 		}
 		switch root.params.provider {
 		case "ecr":
