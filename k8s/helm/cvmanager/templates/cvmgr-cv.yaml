@@ -12,7 +12,8 @@ spec:
   selector:
 {{ toYaml . | indent 4 }}
 {{- end }}
-  container: {{ .Chart.Name }}
+  container:
+    name: {{ .Chart.Name }}
   config:
     name: {{ template "cvmanager.fullname" . }}
     key: version

@@ -192,7 +192,8 @@ objects:
       pollIntervalSeconds: 5
       selector:
         cvapp: cvmanagercv
-      container: cvmanagerapp
+      container:
+        name: cvmanagerapp
       config:
         name: cvmanager
         key: version
