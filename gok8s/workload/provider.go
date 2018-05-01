@@ -11,7 +11,6 @@ import (
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry/errs"
-	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,8 +48,6 @@ type K8sProvider struct {
 
 	hp   history.Provider
 	opts *conf.Options
-
-	stats stats.Stats
 
 	Recorder events.Recorder
 }
@@ -94,7 +91,7 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 					return errors.WithStack(err)
 				}
 			} else {
-				k.stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()), err.Error(), "", "error", time.Now().UTC())
+				k.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()), err.Error(), "", "error", time.Now().UTC())
 				k.Recorder.Event(events.Warning, "CRSyncFailed", err.Error())
 				return errors.Wrapf(err, "failed to check pod spec %s", spec.Name())
 			}
@@ -115,9 +112,9 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 
 	switch kind {
 	case deploy.KindServieBlueGreen:
-		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.opts.Stats, k.namespace)
 	default:
-		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.namespace, conf.WithStats(k.stats))
+		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.namespace, conf.WithStats(k.opts.Stats))
 	}
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
