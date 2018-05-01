@@ -63,6 +63,7 @@ objects:
                   name:
                     type: string
                   verify:
+                    type: array
                     kind:
                       type: string
                     image:

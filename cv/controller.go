@@ -111,6 +111,7 @@ func NewCVController(configMapKey, cvImgRepo string,
 
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ContainerVersions"),
 		recorder: recorder,
+		opts:     opts,
 	}
 
 	log.Printf("Setting up event handlers in container version controller")
