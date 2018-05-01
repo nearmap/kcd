@@ -103,7 +103,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
 	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of cv resources to use in CR Syncer")
 	cmd.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
-	cmd.Flags().BoolVar(&params.rollback, "use-rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
+	cmd.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {

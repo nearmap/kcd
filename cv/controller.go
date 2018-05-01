@@ -410,7 +410,7 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--cv=%s", cv.Name),
 								fmt.Sprintf("--version=%s", cv.ResourceVersion),
 								fmt.Sprintf("--history=%t", c.opts.UseHistory),
-								fmt.Sprintf("--use-rollback=%t", c.opts.UseRollback),
+								fmt.Sprintf("--rollback=%t", c.opts.UseRollback),
 							},
 							Env: []corev1.EnvVar{{
 								Name: "NAME",
