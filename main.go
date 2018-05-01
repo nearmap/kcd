@@ -145,9 +145,12 @@ func newRunCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
+		// TODO: this is dodgy
+		// need to packae the yaml n version file using tool chains properly
 		err = updateCVCRDSpec(cfg)
 		if err != nil {
-			return errors.Wrap(err, "Failed to read CV CRD specification")
+			log.Printf("Failed to update CRD spec: %v", err)
+			//return errors.Wrap(err, "Failed to read CV CRD specification")
 		}
 
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
