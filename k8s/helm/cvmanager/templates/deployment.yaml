@@ -36,6 +36,10 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+          - name: NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

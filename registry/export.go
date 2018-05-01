@@ -23,10 +23,14 @@ type Syncer interface {
 // Environment tags or any other tags are then added or removed from the ECR images.
 type Tagger interface {
 	// Add adds list of tags to the image identified with version
-	Add(ecr string, version string, tags ...string) error
+	Add(version string, tags ...string) error
 	// Remove removes the list of tags from ECR repository such that no image contains these
 	// tags
-	Remove(ecr string, tags ...string) error
+	Remove(tags ...string) error
 	// Get gets the list of tags to the image identified with version
-	Get(ecr string, version string) ([]string, error)
+	Get(version string) ([]string, error)
+}
+
+type Registry interface {
+	Version(tag string) (string, error)
 }

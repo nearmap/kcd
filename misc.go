@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
+	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/cv"
 	"github.com/nearmap/cvmanager/events"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
@@ -28,7 +28,6 @@ type crRoot struct {
 	*cobra.Command
 
 	stats stats.Stats
-	sess  *session.Session
 
 	stopChan chan os.Signal
 
@@ -73,19 +72,6 @@ func newCRRootCommand() *crRoot {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
-		switch root.params.provider {
-		case "ecr":
-			root.sess, err = session.NewSession()
-			if err != nil {
-				return errors.Wrap(err, "failed to obtain AWS session")
-			}
-			log.Printf("AWS ECR docker registry in use")
-		case "dockerhub":
-			log.Printf("Dockerhub/Docker.io docker registry in use")
-		default:
-			return errors.Errorf("Requested docker registry %s is not supported", root.params.provider)
-		}
-
 		root.stopChan = signals.SetupTwoWaySignalHandler()
 
 		return nil
@@ -101,7 +87,7 @@ type crSyncParams struct {
 	cvName    string
 	version   string
 
-	history bool
+	history, rollback bool
 }
 
 func newCRSyncCommand(root *crRoot) *cobra.Command {
@@ -117,6 +103,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
 	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of cv resources to use in CR Syncer")
 	cmd.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
+	cmd.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {
@@ -160,16 +147,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
-		var recorder events.Recorder
-		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-		pod, err := k8sClient.CoreV1().Pods(params.namespace).Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
-		if err != nil {
-			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
-			recorder = &events.FakeRecorder{}
-		} else {
-			recorder = events.NewRecorder(k8sClient, params.namespace, pod)
-		}
-
 		customCS, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
@@ -187,18 +164,32 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to find CV resource")
 		}
 
-		var crSyncer registry.Syncer
+		if root.params.provider != registry.ProviderByRepo(cv.Spec.ImageRepo) {
+			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
+				root.params.provider, registry.ProviderByRepo(cv.Spec.ImageRepo))
+		}
+
+		// CRD does not allow us to specify default type on OpenAPISpec
+		// TODO: this needs a better strategy but hacking it for now
+		//
+		if cv.Spec.VersionSyntax == "" {
+			cv.Spec.VersionSyntax = "[0-9a-f]{5,40}"
+		}
+		var crProvider registry.Registry
 		switch root.params.provider {
 		case "ecr":
-			crSyncer, err = ecr.NewSyncer(root.sess, k8sClient, params.namespace, cv, recorder, stats, params.history)
+			crProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
 		case "dockerhub":
-			crSyncer, err = dh.NewSyncer(k8sClient, params.namespace, cv, recorder, stats, params.history)
+			crProvider, err = dh.NewDH(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
 		}
 		if err != nil {
 			log.Printf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
 				params.namespace, params.cvName, err)
 			return errors.Wrap(err, "Failed to create syncer")
 		}
+
+		crSyncer := registry.NewSyncer(k8sClient, cv, params.namespace, crProvider,
+			conf.WithStats(stats), conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
 		log.Printf("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)
@@ -245,8 +236,7 @@ type crTagParams struct {
 
 	username string
 	pwd      string
-
-	stats statsParams
+	verPat   string
 }
 
 // newCRTagCommand is CLI interface to managing tags on cr images
@@ -257,11 +247,36 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		Long:  "Manages adds/removes tags on cr repositories",
 	}
 
+	var crProvider registry.Tagger
 	var params crTagParams
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
+	cmd.PersistentFlags().StringVar(&params.verPat, "version-pattern", "[0-9a-f]{5,40}", "Regex pattern for container version")
 	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of cr image that is being tagged")
 	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
 	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
+
+		root.stats, err = root.params.stats.stats("crtagger")
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize stats")
+		}
+
+		if root.params.provider != registry.ProviderByRepo(root.params.cr) {
+			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
+				root.params.provider, registry.ProviderByRepo(root.params.cr))
+		}
+		switch root.params.provider {
+		case "ecr":
+			crProvider, err = ecr.NewECR(root.params.cr, params.verPat, root.stats)
+		case "dockerhub":
+			crProvider, err = dh.NewDH(root.params.cr, params.verPat, dh.WithStats(root.stats))
+		}
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 
 	addTagCmd := &cobra.Command{
 		Use:   "add",
@@ -276,14 +291,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		return nil
 	}
 	addTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		switch root.params.provider {
-		case "ecr":
-			return ecr.NewTagger(root.sess, root.stats).Add(root.params.cr, params.version, params.tags...)
-		case "dockerhub":
-			return dh.NewTagger(params.username, params.pwd).
-				Add(root.params.cr, params.version, params.tags...)
-		}
-		return nil
+		return crProvider.Add(params.version, params.tags...)
 	}
 
 	rmTagCmd := &cobra.Command{
@@ -299,16 +307,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		return nil
 	}
 	rmTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-
-		switch root.params.provider {
-		case "ecr":
-			return ecr.NewTagger(root.sess, root.stats).Remove(root.params.cr, params.tags...)
-		case "dockerhub":
-			return dh.NewTagger(params.username, params.pwd).
-				Remove(root.params.cr, params.tags...)
-		}
-
-		return nil
+		return crProvider.Remove(params.tags...)
 	}
 
 	getTagCmd := &cobra.Command{
@@ -324,17 +323,12 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		return nil
 	}
 	getTagCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		var err error
-		var t []string
-		switch root.params.provider {
-		case "ecr":
-			t, err = ecr.NewTagger(root.sess, root.stats).Get(root.params.cr, params.version)
-		case "dockerhub":
-			t, err = dh.NewTagger(params.username, params.pwd).
-				Get(root.params.cr, params.version)
+		ts, err := crProvider.Get(params.version)
+		if err != nil {
+			return err
 		}
-		fmt.Printf("Found tags %s on requested cr repository of image %s \n", t, params.version)
-		return err
+		fmt.Printf("Found tags %s on requested cr repository of image %s \n", ts, params.version)
+		return nil
 	}
 
 	cmd.AddCommand(addTagCmd)
@@ -386,9 +380,9 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, "", &events.FakeRecorder{}, stats.NewFake(), false)
+		k8sProvider := k8s.NewK8sProvider(k8sClient, "", &events.FakeRecorder{}, conf.WithStats(stats.NewFake()))
 
-		return cv.ExecuteWorkloadsList(os.Stdout, "json", k8sProvider, customClient)
+		return cv.GetAllContainerVersion(os.Stdout, "json", k8sProvider, customClient)
 	}
 
 	cmd.AddCommand(listCmd)

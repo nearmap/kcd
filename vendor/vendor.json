@@ -791,6 +791,36 @@
 			"revisionTime": "2018-03-08T01:20:04Z"
 		},
 		{
+			"checksumSHA1": "cPBC2sI0942bGzD1uWm64mYKh74=",
+			"path": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions",
+			"revision": "a83bd3db57723078a5d8a4044452d5199eb1a075",
+			"revisionTime": "2018-04-27T04:24:05Z"
+		},
+		{
+			"checksumSHA1": "7XxpiaUUpgIbeeDvM+BCp+m9ro0=",
+			"path": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
+			"revision": "a83bd3db57723078a5d8a4044452d5199eb1a075",
+			"revisionTime": "2018-04-27T04:24:05Z"
+		},
+		{
+			"checksumSHA1": "6dBFHYzYbQmsi+7JPK7QlgU6b70=",
+			"path": "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
+			"revision": "a83bd3db57723078a5d8a4044452d5199eb1a075",
+			"revisionTime": "2018-04-27T04:24:05Z"
+		},
+		{
+			"checksumSHA1": "DNCNLepTuA20zkcx5W+Mbml3BfE=",
+			"path": "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
+			"revision": "a83bd3db57723078a5d8a4044452d5199eb1a075",
+			"revisionTime": "2018-04-27T04:24:05Z"
+		},
+		{
+			"checksumSHA1": "JPFPoHGTRGuw42t6DzzuaDqnXuo=",
+			"path": "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
+			"revision": "a83bd3db57723078a5d8a4044452d5199eb1a075",
+			"revisionTime": "2018-04-27T04:24:05Z"
+		},
+		{
 			"checksumSHA1": "kAxC6UWROH6EQu0q4x2G+3ONhHk=",
 			"path": "k8s.io/apimachinery/pkg/api/errors",
 			"revision": "180eddb345a5be3a157cea1c624700ad5bd27b8f",
@@ -831,6 +861,12 @@
 			"path": "k8s.io/apimachinery/pkg/apis/meta/v1alpha1",
 			"revision": "180eddb345a5be3a157cea1c624700ad5bd27b8f",
 			"revisionTime": "2017-11-27T17:38:05Z"
+		},
+		{
+			"checksumSHA1": "JPIy+3B1/pq56O9sjuB9XAsT45E=",
+			"path": "k8s.io/apimachinery/pkg/apis/meta/v1beta1",
+			"revision": "83d7ef28e0fad5ab58a504754c1def10404d297d",
+			"revisionTime": "2018-04-26T23:40:12Z"
 		},
 		{
 			"checksumSHA1": "NlwUHr59gJrUDk6Cz/xF3vfHoBE=",

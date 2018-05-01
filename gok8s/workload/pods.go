@@ -82,6 +82,16 @@ func (p *Pod) PodSpec() corev1.PodSpec {
 	return p.pod.Spec
 }
 
+// RollbackAfter implements the Workload interface.
+func (p *Pod) RollbackAfter() *time.Duration {
+	return nil
+}
+
+//ProgressHealth implements the Workload interface.
+func (p *Pod) ProgressHealth() bool {
+	return true
+}
+
 // PatchPodSpec implements the Workload interface.
 func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
 	_, err := p.client.Patch(p.pod.ObjectMeta.Name, types.StrategicMergePatchType,
@@ -95,13 +105,13 @@ func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container,
 // AsResource implements the Workload interface.
 func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range p.pod.Spec.Containers {
-		if cv.Spec.Container == c.Name {
+		if cv.Spec.Container.Name == c.Name {
 			return &Resource{
 				Namespace: cv.Namespace,
 				Name:      p.pod.Name,
 				Type:      TypePod,
 				Container: c.Name,
-				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				Version:   version(c.Image),
 				CV:        cv.Name,
 				Tag:       cv.Spec.Tag,
 			}
@@ -118,7 +128,7 @@ func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
 func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) error {
 	match := false
 	for _, c := range podSpec.Containers {
-		if c.Name == cv.Spec.Container {
+		if c.Name == cv.Spec.Container.Name {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
 			if len(parts) > 2 {
@@ -129,16 +139,13 @@ func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSp
 					parts[0], cv.Spec.ImageRepo)
 			}
 			if version != parts[1] {
-				if validate(version) != nil {
-					return errors.Errorf("failed to validate image with tag %s", version)
-				}
 				return errs.ErrVersionMismatch
 			}
 		}
 	}
 
 	if !match {
-		return errors.Errorf("no container of name %s was found in workload", cv.Spec.Container)
+		return errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
 	}
 
 	return nil
@@ -147,7 +154,7 @@ func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSp
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
 func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
 	log.Printf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
-	k.stats.Event(fmt.Sprintf("%s.sync.failure", name),
+	k.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
 	k.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))

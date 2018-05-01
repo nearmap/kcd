@@ -2,15 +2,15 @@ package k8s
 
 import (
 	"fmt"
-	"strings"
+	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
-	batchv2alpha1 "k8s.io/api/batch/v2alpha1"
+	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	goappsv2alpha1 "k8s.io/client-go/kubernetes/typed/batch/v2alpha1"
+	goappsv1beta1 "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
 )
 
 const (
@@ -19,18 +19,18 @@ const (
 
 // CronJob defines a workload for managing CronJobs.
 type CronJob struct {
-	cronJob *batchv2alpha1.CronJob
+	cronJob *v1beta1.CronJob
 
-	client goappsv2alpha1.CronJobInterface
+	client goappsv1beta1.CronJobInterface
 }
 
 // NewCronJob returns an instance for managing CronJob workloads.
-func NewCronJob(cs kubernetes.Interface, namespace string, cronJob *batchv2alpha1.CronJob) *CronJob {
-	client := cs.BatchV2alpha1().CronJobs(namespace)
+func NewCronJob(cs kubernetes.Interface, namespace string, cronJob *v1beta1.CronJob) *CronJob {
+	client := cs.BatchV1beta1().CronJobs(namespace)
 	return newCronJob(cronJob, client)
 }
 
-func newCronJob(cronJob *batchv2alpha1.CronJob, client goappsv2alpha1.CronJobInterface) *CronJob {
+func newCronJob(cronJob *v1beta1.CronJob, client goappsv1beta1.CronJobInterface) *CronJob {
 	return &CronJob{
 		cronJob: cronJob,
 		client:  client,
@@ -59,6 +59,16 @@ func (cj *CronJob) Type() string {
 // PodSpec implements the Workload interface.
 func (cj *CronJob) PodSpec() corev1.PodSpec {
 	return cj.cronJob.Spec.JobTemplate.Spec.Template.Spec
+}
+
+// RollbackAfter implements the Workload interface.
+func (cj *CronJob) RollbackAfter() *time.Duration {
+	return nil
+}
+
+//ProgressHealth implements the Workload interface.
+func (d *CronJob) ProgressHealth() bool {
+	return true
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.
@@ -90,13 +100,13 @@ func (cj *CronJob) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Conta
 // AsResource implements the Workload interface.
 func (cj *CronJob) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range cj.cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers {
-		if cv.Spec.Container == c.Name {
+		if cv.Spec.Container.Name == c.Name {
 			return &Resource{
 				Namespace: cv.Namespace,
 				Name:      cj.cronJob.Name,
 				Type:      TypeCronJob,
 				Container: c.Name,
-				Version:   strings.SplitAfterN(c.Image, ":", 2)[1],
+				Version:   version(c.Image),
 				CV:        cv.Name,
 				Tag:       cv.Spec.Tag,
 			}

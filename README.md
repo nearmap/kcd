@@ -8,7 +8,7 @@
 # CVManager
 Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
 
-Deployments that requires CI/CD, can declare [ContainerVersion](k8s/cv-crd.yaml) resource. [CVManager](k8s/Backend.yaml), ContainerVersion (CV) controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
+Deployments that requires CI/CD, can declare [ContainerVersion](k8s/cv-crd.yaml) resource. [CVManager](k8s/cvmanager.yaml), ContainerVersion (CV) controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
 
 CVManager assumes ECR as the container registry. Supporting other registeries is T2D.
 
@@ -97,6 +97,8 @@ docker run -ti  nearmap/cvmanager <command>
 
 
 ## Deploying CVManager to Kubernetes cluster
+*CVManage is only supported on Kubernetes >= 1.9*
+
 CVManager can be deployed using:
 
 1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)

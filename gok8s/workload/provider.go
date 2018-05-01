@@ -2,15 +2,16 @@ package k8s
 
 import (
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
+	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry/errs"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -45,25 +46,29 @@ type K8sProvider struct {
 	cs        kubernetes.Interface
 	namespace string
 
-	hp            history.Provider
-	recordHistory bool
+	hp   history.Provider
+	opts *conf.Options
 
-	stats    stats.Stats
 	Recorder events.Recorder
 }
 
 // NewK8sProvider abstracts operation performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, stats stats.Stats, recordHistory bool) *K8sProvider {
+func NewK8sProvider(cs kubernetes.Interface, ns string, recorder events.Recorder, options ...func(*conf.Options)) *K8sProvider {
+
+	opts := conf.NewOptions()
+	for _, opt := range options {
+		opt(opts)
+	}
+
 	return &K8sProvider{
 		cs:        cs,
 		namespace: ns,
 
-		hp:            history.NewProvider(cs, stats),
-		recordHistory: recordHistory,
+		Recorder: events.PodEventRecorder(cs, ns),
+		opts:     opts,
 
-		Recorder: recorder,
-		stats:    stats,
+		hp: history.NewProvider(cs, opts.Stats),
 	}
 }
 
@@ -79,11 +84,14 @@ func (k *K8sProvider) SyncWorkload(cv *cv1.ContainerVersion, version string) err
 	for _, spec := range specs {
 		if err := checkPodSpec(cv, version, spec.PodSpec()); err != nil {
 			if err == errs.ErrVersionMismatch {
+				if k.validate(version, cv.Spec.Container.Verify) != nil {
+					return errors.Errorf("failed to validate image with tag %s", version)
+				}
 				if err := k.deploy(cv, version, spec); err != nil {
 					return errors.WithStack(err)
 				}
 			} else {
-				k.stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()), err.Error(), "", "error", time.Now().UTC())
+				k.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", spec.Name()), err.Error(), "", "error", time.Now().UTC())
 				k.Recorder.Event(events.Warning, "CRSyncFailed", err.Error())
 				return errors.Wrapf(err, "failed to check pod spec %s", spec.Name())
 			}
@@ -104,9 +112,9 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 
 	switch kind {
 	case deploy.KindServieBlueGreen:
-		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.opts.Stats, k.namespace)
 	default:
-		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.namespace, conf.WithStats(k.opts.Stats))
 	}
 
 	if err := deployer.Deploy(cv, version, target); err != nil {
@@ -146,11 +154,9 @@ func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Work
 		result = append(result, NewDeployment(k.cs, k.namespace, &wl))
 	}
 
-	cronJobs, err := k.cs.BatchV2alpha1().CronJobs(k.namespace).List(listOpts)
+	cronJobs, err := k.cs.BatchV1beta1().CronJobs(k.namespace).List(listOpts)
 	if err != nil {
-		// ignore this error - cron jobs may not be available in cluster
-		log.Printf("failed to query cron jobs: %v", err)
-		//return nil, k.handleError(err, "cronJobs")
+		return nil, k.handleError(err, "cronJobs")
 	} else {
 		for _, item := range cronJobs.Items {
 			wl := item
@@ -211,7 +217,19 @@ func (k *K8sProvider) handleError(err error, typ string) error {
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
 
-func validate(v string) error {
-	//TODO later regression check etc
+func (k *K8sProvider) validate(v string, cvvs []*cv1.VerifySpec) error {
+	for _, v := range cvvs {
+		verifier, err := verify.NewVerifier(k.cs, k.Recorder, k.opts.Stats, k.namespace, v)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if err = verifier.Verify(); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	return nil
+}
+
+func version(img string) string {
+	return strings.SplitAfterN(img, ":", 2)[1]
 }
