@@ -157,7 +157,7 @@ func newRunCommand() *cobra.Command {
 		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo,
 			k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory,
-			conf.WithStats(stats), conf.WithHistory(params.history), conf.WithRollback(params.rollback))
+			conf.WithStats(stats), conf.WithHistory(params.history), conf.WithUseRollback(params.rollback))
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")
 		}

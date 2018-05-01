@@ -188,7 +188,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		}
 
 		crSyncer := registry.NewSyncer(k8sClient, cv, params.namespace, crProvider,
-			conf.WithStats(stats), conf.WithRollback(params.rollback), conf.WithHistory(params.history))
+			conf.WithStats(stats), conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
 		log.Printf("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)

@@ -34,9 +34,3 @@ type Tagger interface {
 type Registry interface {
 	Version(tag string) (string, error)
 }
-
-// type Tagger interface {
-// 	Add(version string, tags ...string) error
-// 	RemoveTag(tags ...string) error
-// 	Get(version string) ([]string, error)
-// }

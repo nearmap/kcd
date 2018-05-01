@@ -18,8 +18,8 @@ func WithStats(instance stats.Stats) func(*Options) {
 	}
 }
 
-// WithRollback applies the rollback config to controller
-func WithRollback(r bool) func(*Options) {
+// WithUseRollback applies the rollback config to controller
+func WithUseRollback(r bool) func(*Options) {
 	return func(opts *Options) {
 		opts.UseRollback = r
 	}

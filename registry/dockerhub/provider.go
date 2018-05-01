@@ -100,7 +100,7 @@ func (s *dhV2Provider) Remove(tags ...string) error {
 func (s *dhV2Provider) Get(version string) ([]string, error) {
 	digest, err := s.getDigest(version)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to connect to dockerhun")
+		return nil, errors.Wrap(err, "Failed to connect to dockerhub")
 	}
 	return []string{version, digest}, nil
 }

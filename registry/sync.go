@@ -44,7 +44,7 @@ func NewSyncer(cs *kubernetes.Clientset, cv *cv1.ContainerVersion, ns string,
 
 	k8sProvider := k8s.NewK8sProvider(cs, ns, recorder, conf.WithStats(opts.Stats),
 		conf.WithHistory(opts.UseHistory),
-		conf.WithRollback(opts.UseRollback))
+		conf.WithUseRollback(opts.UseRollback))
 
 	syncer := &syncer{
 		k8sProvider: k8sProvider,
