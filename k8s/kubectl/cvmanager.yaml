@@ -183,7 +183,7 @@ metadata:
 spec:
   imageRepo: nearmap/cvmanager
   tag: latest
-  pollIntervalSeconds: 5
+  pollIntervalSeconds: 300
   selector:
     cvapp: cvmanagercv
   container:

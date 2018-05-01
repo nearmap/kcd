@@ -190,7 +190,7 @@ objects:
     spec:
       imageRepo: $(REPOSITORY)
       tag: $(VERSION)
-      pollIntervalSeconds: 5
+      pollIntervalSeconds: 300
       selector:
         cvapp: cvmanagercv
       container:

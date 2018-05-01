@@ -52,7 +52,7 @@ affinity: {}
 autoUpdateCVM: false
 
 cvCD:
-  frequecy: 5
+  frequecy: 300
   refTag: latest
   selector:
     cvapp: cvmanager-cv
