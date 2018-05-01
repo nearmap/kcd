@@ -263,7 +263,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 
 		if root.params.provider != registry.ProviderByRepo(root.params.cr) {
 			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
-				root.params.provider, registry.ProviderByRepo(cv.Spec.ImageRepo))
+				root.params.provider, registry.ProviderByRepo(root.params.cr))
 		}
 		switch root.params.provider {
 		case "ecr":
