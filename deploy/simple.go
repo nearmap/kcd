@@ -9,7 +9,7 @@ import (
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/stats"
-	"k8s.io/client-go/kubernetes"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -20,19 +20,16 @@ type SimpleDeployer struct {
 	hp            history.Provider
 	recordHistory bool
 
-	cs       kubernetes.Interface
 	recorder events.Recorder
-
-	stats stats.Stats
+	stats    stats.Stats
 }
 
 // NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
 // by patching the target's pod spec with a new version and using the default
 // Kubernetes deployment strategy for the workload.
-func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string) *SimpleDeployer {
+func NewSimpleDeployer(eventRecorder events.Recorder, stats stats.Stats, namespace string) *SimpleDeployer {
 	return &SimpleDeployer{
 		namespace: namespace,
-		cs:        cs,
 		recorder:  eventRecorder,
 		stats:     stats,
 	}
@@ -42,28 +39,33 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, s
 func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
 	log.Printf("Performing simple deployment on %s with version %s", target.Name(), version)
 
+	found := false
 	podSpec := target.PodSpec()
 
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container {
+				found = true
 				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
+					log.Printf("Failed to update container version: version=%v, target=%v, error=%v",
 						version, target.Name(), updateErr)
-
 					return updateErr
 				}
 			}
 		}
 		return nil
 	})
-	if retryErr != nil {
+	if err == nil && !found {
+		err = errors.Errorf("container with name %s not found in PodSpec for target %s", cv.Spec.Container, target.Name())
+	}
+	if err != nil {
 		sd.stats.Event(fmt.Sprintf("%s.sync.failure", target.Name()),
 			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
 			time.Now().UTC())
 		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
-			version, target.Name(), retryErr)
+			version, target.Name(), err)
 		sd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
+		return errors.WithStack(err)
 	}
 
 	if sd.recordHistory {

@@ -76,6 +76,7 @@ func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 
 // PatchPodSpec implements the Workload interface.
 func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	// TODO: should we update the deployment with the returned patch version?
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
 	if err != nil {

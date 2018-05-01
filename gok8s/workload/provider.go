@@ -119,7 +119,7 @@ func (k *K8sProvider) deploy(cv *cv1.ContainerVersion, version string, target de
 	case deploy.KindServieBlueGreen:
 		deployer = deploy.NewBlueGreenDeployer(k.cs, k.Recorder, k.stats, k.namespace)
 	default:
-		deployer = deploy.NewSimpleDeployer(k.cs, k.Recorder, k.stats, k.namespace)
+		deployer = deploy.NewSimpleDeployer(k.Recorder, k.stats, k.namespace)
 	}
 
 	if err := deployer.Deploy(cv, version, target); err != nil {

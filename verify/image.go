@@ -17,9 +17,12 @@ import (
 )
 
 const (
+	// KindImage represents the Image Verifier kind.
 	KindImage = "Image"
 )
 
+// ImageVerifier is a Verifier implementation that runs a container image that
+// tests the verification of a deployment or other image.
 type ImageVerifier struct {
 	client gocorev1.PodInterface
 
@@ -92,6 +95,9 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 	return p, nil
 }
 
+// waitForPod waits for the pod with the given name to complete returning
+// ErrFailed if the pod terminated with a failed status or if verification
+// timed out.
 func (iv *ImageVerifier) waitForPod(name string) error {
 	defer timeTrack(time.Now(), "verification waitForPod")
 	timeout := time.Minute * 5
@@ -119,12 +125,12 @@ func (iv *ImageVerifier) waitForPod(name string) error {
 			return nil
 		case corev1.PodFailed:
 			log.Printf("verification pod %s failed", name)
-			return Failed
+			return ErrFailed
 		}
 	}
 
 	log.Printf("Verification timed out")
-	return Failed
+	return ErrFailed
 }
 
 func timeTrack(start time.Time, name string) {

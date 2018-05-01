@@ -20,10 +20,13 @@ import (
 )
 
 const (
+	// KindServieBlueGreen defines a deployment type that performs a blue-green rollout
+	// at the service level.
 	KindServieBlueGreen = "ServiceBlueGreen"
 )
 
-// BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy.
+// BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy at
+// the service level.
 type BlueGreenDeployer struct {
 	namespace string
 
@@ -32,8 +35,7 @@ type BlueGreenDeployer struct {
 
 	cs       kubernetes.Interface
 	recorder events.Recorder
-
-	stats stats.Stats
+	stats    stats.Stats
 }
 
 // NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.
@@ -99,7 +101,7 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		target.Name(), version, bgd.namespace)
 	defer timeTrack(time.Now(), "blue-green deployment")
 
-	service, err := bgd.getService(cv, cv.Spec.Strategy.BlueGreen.ServiceName)
+	service, err := bgd.getService(cv.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
@@ -155,7 +157,8 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 	return nil
 }
 
-func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName string) (*corev1.Service, error) {
+// getService returns the service with the given name.
+func (bgd *BlueGreenDeployer) getService(serviceName string) (*corev1.Service, error) {
 	service, err := bgd.cs.CoreV1().Services(bgd.namespace).Get(serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get service with name %s", serviceName)
@@ -164,8 +167,10 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 	return service, nil
 }
 
+// getBlueGreenTargets returns the primary and secondary rollout targets based on whether
+// the live service (as specified) is currently selecting them.
 func (bgd *BlueGreenDeployer) getBlueGreenTargets(cv *cv1.ContainerVersion, target TemplateRolloutTarget,
-	service *corev1.Service) (current, secondary TemplateRolloutTarget, err error) {
+	service *corev1.Service) (primary, secondary TemplateRolloutTarget, err error) {
 
 	// get all the workloads managed by this cv spec
 	workloads, err := target.Select(cv.Spec.Selector)
@@ -180,10 +185,10 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(cv *cv1.ContainerVersion, targ
 	for _, wl := range workloads {
 		ptLabels := labels.Set(wl.PodTemplateSpec().Labels)
 		if selector.Matches(ptLabels) {
-			if current != nil {
-				return nil, nil, errors.Errorf("unexpected state: found 2 current blue-green workloads for cv spec %s", cv.Name)
+			if primary != nil {
+				return nil, nil, errors.Errorf("unexpected state: found 2 primary blue-green workloads for cv spec %s", cv.Name)
 			}
-			current = wl
+			primary = wl
 		} else {
 			if secondary != nil {
 				return nil, nil, errors.Errorf("unexpected state: found 2 secondary blue-green workloads for cv spec %s", cv.Name)
@@ -192,9 +197,11 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(cv *cv1.ContainerVersion, targ
 		}
 	}
 
-	return current, secondary, nil
+	return primary, secondary, nil
 }
 
+// selectPodTemplates returns all PodTemplates that match the given selector in the
+// current namespace.
 func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]corev1.PodTemplate, error) {
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
@@ -207,6 +214,7 @@ func (bgd *BlueGreenDeployer) selectPodTemplates(selector map[string]string) ([]
 	return podTemplates.Items, nil
 }
 
+// updateVersion patches the container version of the given rollout target.
 func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version string, target TemplateRolloutTarget) error {
 	podSpec := target.PodSpec()
 
@@ -228,6 +236,8 @@ func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version st
 	return nil
 }
 
+// updateVerificationServiceSelector updates the verification service defined in the ContainerVersion
+// to point to the given rollout target.
 func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(cv *cv1.ContainerVersion, target TemplateRolloutTarget) error {
 	if cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
 		log.Printf("No test service defined for cv spec %s", cv.Name)
@@ -240,12 +250,14 @@ func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(cv *cv1.Containe
 	return nil
 }
 
+// updateServiceSelector updates the selector of the service with the given name to point to
+// the given rollout target, based on the label names defined in the ContainerVersion.
 func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion,
 	target TemplateRolloutTarget, serviceName string) error {
 
 	labelNames := cv.Spec.Strategy.BlueGreen.LabelNames
 
-	testService, err := bgd.getService(cv, serviceName)
+	service, err := bgd.getService(serviceName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to find test service for cv spec %s", cv.Name)
 	}
@@ -257,20 +269,22 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(cv *cv1.ContainerVersion,
 				target.Name(), labelName, cv.Name)
 		}
 
-		testService.Spec.Selector[labelName] = targetLabel
+		service.Spec.Selector[labelName] = targetLabel
 	}
 
-	log.Printf("Updating service %s with selectors %v", serviceName, testService.Spec.Selector)
+	log.Printf("Updating service %s with selectors %v", serviceName, service.Spec.Selector)
 
 	// TODO: is update appropriate?
-	if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(testService); err != nil {
+	if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(service); err != nil {
 		return errors.Wrapf(err, "failed to update test service %s while processing blue-green deployment for %s",
-			testService.Name, cv.Name)
+			service.Name, cv.Name)
 	}
 
 	return nil
 }
 
+// ensureHasPods will set the target's number of replicas to a positive value
+// if it currently has none.
 func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget) error {
 	// ensure at least 1 pod
 	numReplicas := target.NumReplicas()
@@ -365,30 +379,37 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRol
 	return result, nil
 }
 
+// verify runs any verification tests defined for the given ContainerVersion.
 func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
-	if cv.Spec.Strategy == nil || cv.Spec.Strategy.Verify == nil || cv.Spec.Strategy.Verify.Kind == "" {
-		log.Printf("No verification defined for %s", cv.Name)
+	if cv.Spec.Strategy == nil || len(cv.Spec.Strategy.Verifications) == 0 {
+		log.Printf("No verifications defined for %s", cv.Name)
 		return nil
 	}
 
-	var verifier verify.Verifier
-	switch cv.Spec.Strategy.Verify.Kind {
-	case verify.KindImage:
-		verifier = verify.NewImageVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, cv.Spec.Strategy.Verify)
-	default:
-		return errors.Errorf("unknown verify type: %v", cv.Spec.Strategy.Verify.Kind)
+	for _, verification := range cv.Spec.Strategy.Verifications {
+		var verifier verify.Verifier
+		switch verification.Kind {
+		case verify.KindImage:
+			verifier = verify.NewImageVerifier(bgd.cs, bgd.recorder, bgd.stats, bgd.namespace, &verification)
+		default:
+			return errors.Errorf("unknown verify type: %v", verification.Kind)
+		}
+
+		err := verifier.Verify()
+		if err != nil {
+			if err == verify.ErrFailed {
+				return NewFailed(err, "verification failed")
+			}
+			return errors.WithStack(err)
+		}
 	}
 
-	err := verifier.Verify()
-	if err != nil {
-		if err == verify.Failed {
-			return NewFailed(err, "verification failed")
-		}
-		return errors.WithStack(err)
-	}
 	return nil
 }
 
+// scaleUpSecondary scales up the secondary deployment to be the same as the primary.
+// This should be done before cutting the service over to the secondary to ensure there
+// is sufficient capacity.
 func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary TemplateRolloutTarget) error {
 	currentNum := current.NumReplicas()
 	secondaryNum := secondary.NumReplicas()
@@ -409,6 +430,7 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current
 	return nil
 }
 
+// scaleDown scales the rollout target down to zero replicas.
 func (bgd *BlueGreenDeployer) scaleDown(spec TemplateRolloutTarget) error {
 	if err := spec.PatchNumReplicas(0); err != nil {
 		return errors.WithStack(err)
