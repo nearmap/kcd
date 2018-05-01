@@ -19,9 +19,12 @@ import (
 	"github.com/spf13/cobra"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextCS "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -188,13 +191,32 @@ func updateCVCRDSpec(cfg *rest.Config) error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to read CV CRD specification")
 	}
-	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(v, nil, nil)
+
+	scheme := runtime.NewScheme()
+	apiextv1beta1.AddToScheme(scheme)
+	codec := serializer.NewCodecFactory(scheme)
+	decode := codec.UniversalDeserializer().Decode
+
+	obj, _, err := decode(v, nil, nil)
 	if err != nil {
 		return errors.Wrap(err, "Failed to read CV CRD specification")
 	}
-	_, err = apiExtCS.ApiextensionsV1beta1().CustomResourceDefinitions().Update(obj.(*apiextv1beta1.CustomResourceDefinition))
+
+	crd := obj.(*apiextv1beta1.CustomResourceDefinition)
+
+	crdSrc, err := apiExtCS.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, "Failed to read CV CRD specification")
+		if k8serr.IsNotFound(err) {
+			if _, err = apiExtCS.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return errors.WithStack(err)
+	}
+	crd.ObjectMeta = crdSrc.ObjectMeta
+	_, err = apiExtCS.ApiextensionsV1beta1().CustomResourceDefinitions().Update(crd)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 	return err
 }

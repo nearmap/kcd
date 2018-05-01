@@ -168,6 +168,12 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Errorf("Container registry provider invalid. Check provider and image repository arg.")
 		}
 
+		// CRD does not allow us to specify default type on OpenAPISpec
+		// TODO: this needs a better strategy but hacking it for now
+		//
+		if cv.Spec.VersionSyntax == "" {
+			cv.Spec.VersionSyntax = "[0-9a-f]{5,40}"
+		}
 		var crProvider registry.Registry
 		switch root.params.provider {
 		case "ecr":
