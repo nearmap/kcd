@@ -103,7 +103,7 @@ func (bgd *BlueGreenDeployer) doDeploy(cv *cv1.ContainerVersion, version string,
 		return errors.Wrapf(err, "failed to find service for cv spec %s", cv.Name)
 	}
 
-	primary, secondary, err := bgd.getBlueGreenDeploySpecs(cv, tTarget, service)
+	primary, secondary, err := bgd.getBlueGreenTargets(cv, tTarget, service)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -163,7 +163,7 @@ func (bgd *BlueGreenDeployer) getService(cv *cv1.ContainerVersion, serviceName s
 	return service, nil
 }
 
-func (bgd *BlueGreenDeployer) getBlueGreenDeploySpecs(cv *cv1.ContainerVersion, target TemplateRolloutTarget,
+func (bgd *BlueGreenDeployer) getBlueGreenTargets(cv *cv1.ContainerVersion, target TemplateRolloutTarget,
 	service *corev1.Service) (current, secondary TemplateRolloutTarget, err error) {
 
 	// get all the workloads managed by this cv spec
@@ -296,6 +296,8 @@ func (bgd *BlueGreenDeployer) waitForAllPods(cv *cv1.ContainerVersion, version s
 		timeout = time.Second * time.Duration(cv.Spec.Strategy.BlueGreen.TimeoutSeconds)
 	}
 	start := time.Now()
+
+	// TODO: use informer factory on pods.
 
 outer:
 	for {
