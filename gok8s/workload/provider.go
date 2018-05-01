@@ -2,7 +2,6 @@ package k8s
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -160,9 +159,7 @@ func (k *K8sProvider) getMatchingWorkloadSpecs(cv *cv1.ContainerVersion) ([]Work
 
 	cronJobs, err := k.cs.BatchV1beta1().CronJobs(k.namespace).List(listOpts)
 	if err != nil {
-		// ignore this error - cron jobs may not be available in cluster
-		log.Printf("failed to query cron jobs: %v", err)
-		//return nil, k.handleError(err, "cronJobs")
+		return nil, k.handleError(err, "cronJobs")
 	} else {
 		for _, item := range cronJobs.Items {
 			wl := item
