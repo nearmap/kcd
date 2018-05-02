@@ -195,7 +195,7 @@ spec:
 kind: ConfigMap
 apiVersion: v1
 data:
-  version: latest
+  version: 295505031a9a8dd0a215c43e2371c811eb8c0e25
 metadata:
   name: cvmanager
   namespace: "kube-system"
