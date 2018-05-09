@@ -11,6 +11,14 @@ VOLUME /go/src
 RUN mkdir -p /health/ && \
 	chmod 0777 /health/
 
+# TODO: this is dodgy it expects k8s files to always be available from runtime directory
+# need to packae the yaml n version file using tool chains properly
+RUN mkdir -p /cvmanager
+ADD ./k8s /cvmanager/k8s/
+ADD version /cvmanager/
+
+WORKDIR /cvmanager
+
 EXPOSE 2019
 
 ENTRYPOINT ["cvmanager"]

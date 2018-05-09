@@ -7,12 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	k8s "github.com/nearmap/cvmanager/cv"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	"github.com/nearmap/cvmanager/cv"
+	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/history"
 	goji "goji.io"
 	"goji.io/pat"
-	"k8s.io/client-go/kubernetes"
 )
 
 // StaticContentHandler returns a HandlerFunc that writes the given content
@@ -27,12 +26,14 @@ func StaticContentHandler(content string) http.HandlerFunc {
 
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
-func NewServer(port int, version string, cs kubernetes.Interface, cvCS clientset.Interface, stopCh chan struct{}) {
+func NewServer(port int, version string,
+	k8sProvider *k8s.K8sProvider, historyProvider history.Provider, stopCh chan struct{}) {
+
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Get("/v1/cv/workloads"), k8s.NewCVHandler(cs, cvCS))
-	mux.Handle(pat.Get("/v1/cv/workloads/:name"), history.NewHandler(cs))
+	mux.Handle(pat.Get("/v1/cv/workloads"), cv.NewCVHandler(k8sProvider))
+	mux.Handle(pat.Get("/v1/cv/workloads/:name"), history.NewHandler(historyProvider))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

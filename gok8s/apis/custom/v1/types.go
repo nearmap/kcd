@@ -21,19 +21,26 @@ type ContainerVersion struct {
 
 // ContainerVersionSpec is ContainerVersionSpec
 type ContainerVersionSpec struct {
-	ImageRepo         string `json:"imageRepo"`
-	Tag               string `json:"tag"`
-	CheckFrequency    int    `json:"checkFrequency"`
-	LivenessFrequency int    `json:"livenessFrequency"`
-	MaxAttempts       int    `json:"maxAttempts"`
+	ImageRepo     string `json:"imageRepo"`
+	Tag           string `json:"tag"`
+	VersionSyntax string `json:"versionSyntax"`
+
+	PollIntervalSeconds int `json:"pollIntervalSeconds"`
+	LivenessSeconds     int `json:"livenessSeconds"`
+	MaxAttempts         int `json:"maxAttempts"`
+
+	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
+	Container ContainerSpec     `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
-	Selector map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
-
-	Container string `json:"container"`
-
 	Config *ConfigSpec `json:"config"`
+}
+
+// ContainerSpec defines a name of container and option container level verification step
+type ContainerSpec struct {
+	Name   string        `json:"name"`
+	Verify []*VerifySpec `json:"verify"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.

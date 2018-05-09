@@ -35,6 +35,7 @@ func (r *Record) String() string {
 type Provider interface {
 	// History returns the historical record in CV update history
 	History(namespace, name string) (string, error)
+
 	// Add adds the history record in CV update history
 	Add(namespace, name string, record *Record) error
 }
