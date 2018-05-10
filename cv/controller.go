@@ -366,9 +366,12 @@ func (c *CVController) syncDeployNames(namespace, key, version string, cv *cv1.C
 func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
 	dName := syncDeployName(cv.Name)
-	livenessFrequency := cv.Spec.LivenessSeconds
-	if livenessFrequency <= 0 {
-		livenessFrequency = cv.Spec.PollIntervalSeconds
+	livenessSeconds := cv.Spec.LivenessSeconds
+	if livenessSeconds <= 0 {
+		livenessSeconds = cv.Spec.PollIntervalSeconds
+	}
+	if livenessSeconds <= 0 {
+		livenessSeconds = 5 * 60
 	}
 
 	labels := map[string]string{
@@ -431,12 +434,12 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								},
 							},
 							LivenessProbe: &corev1.Probe{
-								PeriodSeconds: int32(cv.Spec.PollIntervalSeconds * 60),
+								PeriodSeconds: int32(cv.Spec.PollIntervalSeconds),
 								Handler: corev1.Handler{
 									Exec: &corev1.ExecAction{
 										Command: []string{
 											"cvmanager", "cr", "sync",
-											"status", "--by", fmt.Sprintf("%dm", livenessFrequency),
+											"status", "--by", fmt.Sprintf("%ds", livenessSeconds),
 										},
 									},
 								},
