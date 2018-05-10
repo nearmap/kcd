@@ -28,6 +28,10 @@ spec:
             tag:
               type: string
               pattern: '^[a-zA-Z0-9-_.]*$'
+            versionSyntax:
+              type: string
+              ## default to regex for sha
+              # default: '[0-9a-f]{5,40}'
             imageRepo:
               type: string
               pattern: '^[^:]*$'
@@ -46,16 +50,23 @@ spec:
               # # This would work .. map should only be keyed on string type
               # # so not using it
               # additionalProperties: true
-
-            ## Would be better to use label selector but this will be done later
-            ## Simple for now
             container:
-              type: string
-            checkFrequency:
-              ## frequency in minutes
+              name:
+                type: string
+              verify:
+                type: array
+                kind:
+                  type: string
+                image:
+                  type: string
+                  pattern: '^[^:]*$'
+                timeoutSeconds:
+                  type: integer
+              required:
+                - name
+            pollIntervalSeconds:
               type: integer
-            livenessFrequency:
-              ## frequency in minutes
+            livenessSeconds:
               type: integer
             config:
               name:

@@ -7,12 +7,13 @@ metadata:
 spec:
   imageRepo: "{{ .Values.image.repository }}"
   tag: {{ .Values.cvCD.refTag }}
-  checkFrequency: {{ .Values.cvCD.frequecy }}
+  pollIntervalSeconds: {{ .Values.cvCD.frequecy }}
 {{- with .Values.cvCD.selector }}
   selector:
 {{ toYaml . | indent 4 }}
 {{- end }}
-  container: {{ .Chart.Name }}
+  container:
+    name: {{ .Chart.Name }}
   config:
     name: {{ template "cvmanager.fullname" . }}
     key: version

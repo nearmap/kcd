@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +25,13 @@ type RolloutTarget interface {
 	// PatchPodSpec receives a pod spec and container which is to be patched
 	// according to an appropriate strategy for the type.
 	PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error
+
+	// RollbackAfter indicates duration after which a failed rollout
+	// should attempt rollback
+	RollbackAfter() *time.Duration
+
+	// ProgressHealth indicates weather the current status of progress healthy or not
+	ProgressHealth() bool
 }
 
 // TemplateRolloutTarget defines methods for deployable resources that manage a collection

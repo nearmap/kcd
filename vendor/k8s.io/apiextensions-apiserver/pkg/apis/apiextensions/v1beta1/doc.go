@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+// +k8s:deepcopy-gen=package
+// +k8s:conversion-gen=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
+// +k8s:defaulter-gen=TypeMeta
 
-import "k8s.io/apimachinery/pkg/conversion"
-
-// Convert_Slice_string_To_v1alpha1_IncludeObjectPolicy allows converting a URL query parameter value
-func Convert_Slice_string_To_v1alpha1_IncludeObjectPolicy(input *[]string, out *IncludeObjectPolicy, s conversion.Scope) error {
-	if len(*input) > 0 {
-		*out = IncludeObjectPolicy((*input)[0])
-	}
-	return nil
-}
+// Package v1beta1 is the v1beta1 version of the API.
+// +groupName=apiextensions.k8s.io
+// +k8s:openapi-gen=true
+package v1beta1 // import "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"

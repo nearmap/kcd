@@ -220,7 +220,7 @@ func (bgd *BlueGreenDeployer) updateVersion(cv *cv1.ContainerVersion, version st
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
-			if c.Name == cv.Spec.Container {
+			if c.Name == cv.Spec.Container.Name {
 				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
 					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
 						version, target.Name(), updateErr)
@@ -445,7 +445,7 @@ func (bgd *BlueGreenDeployer) scaleDown(spec TemplateRolloutTarget) error {
 func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
 	match := false
 	for _, c := range podSpec.Containers {
-		if c.Name == cv.Spec.Container {
+		if c.Name == cv.Spec.Container.Name {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
 			if len(parts) > 2 {
@@ -453,7 +453,7 @@ func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec co
 			}
 			if parts[0] != cv.Spec.ImageRepo {
 				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
-					cv.Spec.Container, parts[0], cv.Spec.ImageRepo)
+					cv.Spec.Container.Name, parts[0], cv.Spec.ImageRepo)
 			}
 			if version != parts[1] {
 				return false, nil
@@ -462,7 +462,7 @@ func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec co
 	}
 
 	if !match {
-		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container)
+		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
 	}
 
 	return true, nil

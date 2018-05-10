@@ -3,7 +3,7 @@ package k8s
 import (
 	"fmt"
 	"log"
-	"strings"
+	"time"
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -67,6 +67,24 @@ func (d *Deployment) Type() string {
 // PodSpec implements the Workload interface.
 func (d *Deployment) PodSpec() corev1.PodSpec {
 	return d.deployment.Spec.Template.Spec
+}
+
+// RollbackAfter implements the Workload interface.
+func (d *Deployment) RollbackAfter() *time.Duration {
+	var dur time.Duration
+	dur = time.Duration(int32(*d.deployment.Spec.ProgressDeadlineSeconds)) * time.Second
+	return &dur
+}
+
+//ProgressHealth implements the Workload interface.
+func (d *Deployment) ProgressHealth() bool {
+	ok := true
+	for _, c := range d.deployment.Status.Conditions {
+		if c.Type == appsv1.DeploymentReplicaFailure {
+			ok = !(c.Status == corev1.ConditionTrue)
+		}
+	}
+	return ok
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.
@@ -169,13 +187,13 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 // AsResource implements the Workload interface.
 func (d *Deployment) AsResource(cv *cv1.ContainerVersion) *Resource {
 	for _, c := range d.deployment.Spec.Template.Spec.Containers {
-		if cv.Spec.Container == c.Name {
+		if cv.Spec.Container.Name == c.Name {
 			return &Resource{
 				Namespace:     cv.Namespace,
 				Name:          d.deployment.Name,
 				Type:          TypeDeployment,
 				Container:     c.Name,
-				Version:       strings.SplitAfterN(c.Image, ":", 2)[1],
+				Version:       version(c.Image),
 				AvailablePods: d.deployment.Status.AvailableReplicas,
 				CV:            cv.Name,
 				Tag:           cv.Spec.Tag,

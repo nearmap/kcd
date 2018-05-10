@@ -6,15 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/nearmap/cvmanager/events"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 func genCVHTML(w io.Writer, cvs []*k8s.Resource) error {
@@ -36,21 +30,13 @@ func genCV(w io.Writer, cvs []*k8s.Resource) error {
 	return nil
 }
 
-// ExecuteWorkloadsList generates HTML tabular text listing all status of all CV managed resource
-// as represented by Workloads
-func ExecuteWorkloadsList(w io.Writer, typ string, k8sProvider *k8s.K8sProvider, cs clientset.Interface) error {
-	cvs, err := cs.CustomV1().ContainerVersions("").List(metav1.ListOptions{})
+// AllContainerVersions provides details of current container version of all workload
+// managed by CV managed resource.
+// supports json and html format specified via typ.
+func AllContainerVersions(w io.Writer, typ string, k8sProvider *k8s.K8sProvider) error {
+	cvsList, err := k8sProvider.AllResources()
 	if err != nil {
-		return errors.Wrap(err, "Failed to generate template of CV list")
-	}
-
-	var cvsList []*k8s.Resource
-	for _, cv := range cvs.Items {
-		cvs, err := k8sProvider.CVWorkload(&cv)
-		if err != nil {
-			return errors.Wrap(err, "Failed to generate template of CV list")
-		}
-		cvsList = append(cvsList, cvs...)
+		return errors.Wrap(err, "failed to generate list of cv resources")
 	}
 
 	switch typ {
@@ -67,25 +53,14 @@ func ExecuteWorkloadsList(w io.Writer, typ string, k8sProvider *k8s.K8sProvider,
 
 // NewCVHandler is web handler to generate HTML tabular text listing all status of all CV managed resource
 // as represented by Workloads
-func NewCVHandler(cs kubernetes.Interface, customCS clientset.Interface) http.HandlerFunc {
+func NewCVHandler(k8sProvider *k8s.K8sProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		typ := r.URL.Query().Get("format")
 		if typ != "json" && typ != "html" {
 			typ = "json"
 		}
 
-		var recorder events.Recorder
-		// We set INSTANCENAME as ENV variable using downward api on the container that maps to pod name
-		pod, err := cs.CoreV1().Pods("").Get(os.Getenv("INSTANCENAME"), metav1.GetOptions{})
-		if err != nil {
-			log.Printf("failed to get pod with name %s for event recorder: %v", os.Getenv("INSTANCENAME"), err)
-			recorder = &events.FakeRecorder{}
-		} else {
-			recorder = events.NewRecorder(cs, "", pod)
-		}
-
-		k8sProvider := k8s.NewK8sProvider(cs, customCS, "", recorder, stats.NewFake(), false)
-		err = ExecuteWorkloadsList(w, typ, k8sProvider, customCS)
+		err := AllContainerVersions(w, typ, k8sProvider)
 		if err != nil {
 			log.Printf("failed to get workload list %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
