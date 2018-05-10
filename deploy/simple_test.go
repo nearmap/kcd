@@ -8,12 +8,11 @@ import (
 	"github.com/nearmap/cvmanager/deploy/fake"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	//"k8s.io/client-go/kubernetes/fake"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
 const (
@@ -23,17 +22,19 @@ const (
 func TestSimpleDeploy(t *testing.T) {
 	cv := &cv1.ContainerVersion{
 		Spec: cv1.ContainerVersionSpec{
-			Container: containerName,
+			Container: cv1.ContainerSpec{
+				Name: containerName,
+			},
 		},
 	}
 	version := "version-string"
 	namespace := "test-namespace"
 	target := fake.NewRolloutTarget()
 
-	//cs := fake.NewSimpleClientset()
+	cs := gofake.NewSimpleClientset()
 
 	// SUT
-	deployer := deploy.NewSimpleDeployer(events.NewFakeRecorder(100), stats.NewFake(), namespace)
+	deployer := deploy.NewSimpleDeployer(cs, events.NewFakeRecorder(100), namespace)
 
 	target.FakePodSpec.Containers = []corev1.Container{}
 	err := deployer.Deploy(cv, version, target)

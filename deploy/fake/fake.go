@@ -3,6 +3,7 @@ package fake
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -11,10 +12,12 @@ import (
 
 // RolloutTarget defines a fake RolloutTarget implementation for use in testing.
 type RolloutTarget struct {
-	FakeName      string
-	FakeNamespace string
-	FakeType      string
-	FakePodSpec   corev1.PodSpec
+	FakeName           string
+	FakeNamespace      string
+	FakeType           string
+	FakePodSpec        corev1.PodSpec
+	FakeRollbackAfter  *time.Duration
+	FakeProgressHealth bool
 
 	Invocations chan interface{}
 }
@@ -99,6 +102,16 @@ func (rt *RolloutTarget) PatchPodSpec(cv *cv1.ContainerVersion, container corev1
 	}
 
 	return pps.Error
+}
+
+// RollbackAfter implements the RolloutTarget interface.
+func (rt *RolloutTarget) RollbackAfter() *time.Duration {
+	return rt.FakeRollbackAfter
+}
+
+// ProgressHealth implements the ProgressHealth interface.
+func (rt *RolloutTarget) ProgressHealth() bool {
+	return rt.FakeProgressHealth
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.

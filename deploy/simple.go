@@ -40,6 +40,7 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, n
 	return &SimpleDeployer{
 		namespace: namespace,
 		recorder:  eventRecorder,
+		opts:      opts,
 	}
 }
 

@@ -14,7 +14,9 @@ import (
 func TestBlueGreenDeployErrorCases(t *testing.T) {
 	cv := &cv1.ContainerVersion{
 		Spec: cv1.ContainerVersionSpec{
-			Container: containerName,
+			Container: cv1.ContainerSpec{
+				Name: containerName,
+			},
 		},
 	}
 	version := "version-string"
@@ -35,7 +37,9 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 func TestBlueGreenDeployWithSecondary(t *testing.T) {
 	cv := &cv1.ContainerVersion{
 		Spec: cv1.ContainerVersionSpec{
-			Container: containerName,
+			Container: cv1.ContainerSpec{
+				Name: containerName,
+			},
 		},
 	}
 	version := "version-string"
@@ -47,5 +51,8 @@ func TestBlueGreenDeployWithSecondary(t *testing.T) {
 	// SUT
 	deployer := deploy.NewBlueGreenDeployer(cs, events.NewFakeRecorder(100), stats.NewFake(), namespace)
 
-	// TODO:
+	err := deployer.Deploy(cv, version, target)
+	if err == nil {
+		t.Errorf("expected error for target that does not implement TemplateRolloutTarget")
+	}
 }
