@@ -51,6 +51,7 @@ func TestBlueGreenDeployWithSecondary(t *testing.T) {
 	// SUT
 	deployer := deploy.NewBlueGreenDeployer(cs, events.NewFakeRecorder(100), stats.NewFake(), namespace)
 
+	// TODO:
 	err := deployer.Deploy(cv, version, target)
 	if err == nil {
 		t.Errorf("expected error for target that does not implement TemplateRolloutTarget")
