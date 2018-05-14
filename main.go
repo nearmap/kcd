@@ -7,6 +7,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/nearmap/cvmanager/events"
+	"github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/cvmanager/history"
+
 	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/cv"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
@@ -172,13 +176,17 @@ func newRunCommand() *cobra.Command {
 
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
+		recorder := events.PodEventRecorder(k8sClient, "")
+		k8sProvider := k8s.NewK8sProvider(k8sClient, customClient, "", recorder, conf.WithStats(stats))
+		historyProvider := history.NewProvider(k8sClient, stats)
+
 		go func() {
 			if err = cvc.Run(2, stopCh); err != nil {
 				log.Printf("Shutting down container version controller: %v", err)
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(params.port, Version, k8sClient, customClient, stopCh)
+		handler.NewServer(params.port, Version, k8sProvider, historyProvider, stopCh)
 
 		return nil
 	}

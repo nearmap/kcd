@@ -56,6 +56,7 @@ func (bgd *BlueGreenDeployer) Deploy(cv *cv1.ContainerVersion, version string, t
 		log.Printf("Failed to blue-green deploy cv target %s: version=%v, workload=%v, error=%v",
 			cv.Name, version, target.Name(), err)
 		bgd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to blue-green deploy workload")
+		return errors.WithStack(err)
 	}
 
 	if bgd.recordHistory {
@@ -274,7 +275,7 @@ func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget) error 
 	// ensure at least 1 pod
 	numReplicas := target.NumReplicas()
 	if numReplicas > 0 {
-		log.Printf("DeploySpec %s has %d replicas", target.Name(), numReplicas)
+		log.Printf("Target %s has %d replicas", target.Name(), numReplicas)
 		return nil
 	}
 
@@ -375,7 +376,14 @@ func (bgd *BlueGreenDeployer) verify(cv *cv1.ContainerVersion) error {
 		return errors.WithStack(err)
 	}
 
-	return verifier.Verify()
+	err = verifier.Verify()
+	if err != nil {
+		if err == verify.Failed {
+			return NewFailed(err, "verification failed")
+		}
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (bgd *BlueGreenDeployer) scaleUpSecondary(cv *cv1.ContainerVersion, current, secondary TemplateRolloutTarget) error {

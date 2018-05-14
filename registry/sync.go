@@ -10,7 +10,6 @@ import (
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/kubernetes"
 )
 
 // syncer is responsible to syncing with the ecr repository and
@@ -32,7 +31,7 @@ type syncer struct {
 
 // NewSyncer provides new reference of dhSyncer
 // to manage AWS ECR repository and sync deployments periodically
-func NewSyncer(cs *kubernetes.Clientset, cv *cv1.ContainerVersion, ns string,
+func NewSyncer(k8sProvider *k8s.K8sProvider, cv *cv1.ContainerVersion,
 	registry Registry, options ...func(*conf.Options)) *syncer {
 
 	opts := conf.NewOptions()
@@ -40,19 +39,11 @@ func NewSyncer(cs *kubernetes.Clientset, cv *cv1.ContainerVersion, ns string,
 		opt(opts)
 	}
 
-	recorder := events.PodEventRecorder(cs, ns)
-
-	k8sProvider := k8s.NewK8sProvider(cs, ns, recorder, conf.WithStats(opts.Stats),
-		conf.WithHistory(opts.UseHistory),
-		conf.WithUseRollback(opts.UseRollback))
-
 	syncer := &syncer{
 		k8sProvider: k8sProvider,
-		namespace:   ns,
 		cv:          cv,
 		registry:    registry,
 		opts:        opts,
-		recorder:    recorder,
 	}
 
 	return syncer

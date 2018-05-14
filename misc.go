@@ -154,6 +154,11 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
+		recorder := events.PodEventRecorder(k8sClient, params.namespace)
+
+		k8sProvider := k8s.NewK8sProvider(k8sClient, customCS, params.namespace, recorder,
+			conf.WithStats(stats), conf.WithHistory(params.history))
+
 		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName,
 			metav1.GetOptions{
 				ResourceVersion: params.version,
@@ -188,7 +193,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to create syncer")
 		}
 
-		crSyncer := registry.NewSyncer(k8sClient, cv, params.namespace, crProvider,
+		crSyncer := registry.NewSyncer(k8sProvider, cv, crProvider,
 			conf.WithStats(stats), conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
 		log.Printf("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
@@ -380,9 +385,9 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, "", &events.FakeRecorder{}, conf.WithStats(stats.NewFake()))
+		k8sProvider := k8s.NewK8sProvider(k8sClient, customClient, "", &events.FakeRecorder{})
 
-		return cv.GetAllContainerVersion(os.Stdout, "json", k8sProvider, customClient)
+		return cv.AllContainerVersions(os.Stdout, "json", k8sProvider)
 	}
 
 	cmd.AddCommand(listCmd)

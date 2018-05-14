@@ -27,6 +27,7 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
+	MaxAttempts         int `json:"maxAttempts"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
@@ -74,6 +75,9 @@ type ConfigSpec struct {
 // ContainerVersionStatus is status  for Deployment resources
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
+
+	// FailedRollouts is map of failed versions and the number of failures.
+	FailedRollouts map[string]int
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

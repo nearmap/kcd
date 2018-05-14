@@ -74,6 +74,7 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 			Name: name,
 		},
 		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				corev1.Container{
 					Name:  fmt.Sprintf("cv-verifier-container-%s", id),
