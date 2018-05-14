@@ -227,14 +227,10 @@ func (in *StrategySpec) DeepCopyInto(out *StrategySpec) {
 			(*in).DeepCopyInto(*out)
 		}
 	}
-	if in.Verify != nil {
-		in, out := &in.Verify, &out.Verify
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(VerifySpec)
-			**out = **in
-		}
+	if in.Verifications != nil {
+		in, out := &in.Verifications, &out.Verifications
+		*out = make([]VerifySpec, len(*in))
+		copy(*out, *in)
 	}
 	return
 }

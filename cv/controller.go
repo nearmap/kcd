@@ -416,14 +416,15 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--history=%t", c.opts.UseHistory),
 								fmt.Sprintf("--rollback=%t", c.opts.UseRollback),
 							},
-							Env: []corev1.EnvVar{{
-								Name: "NAME",
-								ValueFrom: &corev1.EnvVarSource{
-									FieldRef: &corev1.ObjectFieldSelector{
-										FieldPath: "metadata.name",
+							Env: []corev1.EnvVar{
+								{
+									Name: "NAME",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "metadata.name",
+										},
 									},
 								},
-							},
 								{
 									Name: "STATS_HOST",
 									ValueFrom: &corev1.EnvVarSource{

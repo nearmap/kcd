@@ -70,9 +70,9 @@ type ErrorFailed struct {
 	cause   error
 }
 
-// ERror implements the error interface.
+// Error implements the error interface.
 func (ef *ErrorFailed) Error() string {
-	return fmt.Sprintf("deployment permanently failed: %s: %s", ef.message, ef.cause.Error())
+	return fmt.Sprintf("%s: %s", ef.message, ef.cause.Error())
 }
 
 // Cause implements the errors.Cause interface
@@ -82,7 +82,7 @@ func (ef *ErrorFailed) Cause() error {
 
 // NewFailed returns a permanent error of type ErrorFailed, indicating that the rollout
 // failed for a known reason.
-func NewFailed(err error, message string, args ...interface{}) error {
+func NewFailed(err error, message string, args ...interface{}) *ErrorFailed {
 	return &ErrorFailed{
 		cause:   err,
 		message: fmt.Sprintf(message, args...),

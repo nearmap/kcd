@@ -77,6 +77,8 @@ objects:
                   type: integer
                 livenessSeconds:
                   type: integer
+                maxAttempts:
+                  type: integer
                 config:
                   name:
                     type: string

@@ -10,6 +10,7 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
@@ -20,7 +21,6 @@ type SimpleDeployer struct {
 
 	hp history.Provider
 
-	cs       kubernetes.Interface
 	recorder events.Recorder
 
 	opts *conf.Options
@@ -39,8 +39,8 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, n
 
 	return &SimpleDeployer{
 		namespace: namespace,
-		cs:        cs,
 		recorder:  eventRecorder,
+		opts:      opts,
 	}
 }
 
@@ -48,13 +48,15 @@ func NewSimpleDeployer(cs kubernetes.Interface, eventRecorder events.Recorder, n
 func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, target RolloutTarget) error {
 	log.Printf("Performing simple deployment on %s with version %s", target.Name(), version)
 
+	found := false
 	podSpec := target.PodSpec()
 
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == cv.Spec.Container.Name {
+				found = true
 				if updateErr := target.PatchPodSpec(cv, c, version); updateErr != nil {
-					log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
+					log.Printf("Failed to update container version: version=%v, target=%v, error=%v",
 						version, target.Name(), updateErr)
 
 					if updateErr != nil {
@@ -80,7 +82,10 @@ func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, targe
 		}
 		return nil
 	})
-	if retryErr == nil {
+	if err == nil && !found {
+		err = errors.Errorf("container with name %s not found in PodSpec for target %s", cv.Spec.Container, target.Name())
+	}
+	if err == nil {
 		if sd.opts.UseHistory {
 			err := sd.hp.Add(sd.namespace, target.Name(), &history.Record{
 				Type:    target.Type(),
@@ -102,8 +107,9 @@ func (sd *SimpleDeployer) Deploy(cv *cv1.ContainerVersion, version string, targe
 			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
 			time.Now().UTC())
 		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
-			version, target.Name(), retryErr)
+			version, target.Name(), err)
 		sd.recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
+		return errors.WithStack(err)
 	}
 	return nil
 }
