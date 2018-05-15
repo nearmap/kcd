@@ -93,27 +93,58 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 func (m *Machine) Start() {
 	m.newOp()
 
-	for i := uint64(1); ; i++ {
-		m.updateSyncStatus()
-
+	for i := uint64(0); ; i++ {
 		select {
-		case op := <-m.ops:
-			m.doOp(op)
-			i = 1
+		case o := <-m.ops:
+			m.updateSyncStatus()
+			if m.executeOp(o) {
+				i = 0
+			} else {
+				m.scheduleOps(o)
+				m.sleep(i)
+			}
 		case ch := <-m.stop:
 			ch <- nil
 			return
 		default:
-			sleep := time.Duration(i*5) * time.Second
-			if sleep > maxSleepSeconds*time.Second {
-				sleep = maxSleepSeconds * time.Second
-			}
-			time.Sleep(sleep)
+			m.sleep(i)
 		}
 	}
 }
 
-func (m *Machine) doOp(o *op) {
+func (m *Machine) sleep(i uint64) {
+	if i == 0 {
+		return
+	}
+
+	sleep := time.Duration(i*5) * time.Second
+	if sleep > maxSleepSeconds*time.Second {
+		sleep = maxSleepSeconds * time.Second
+	}
+	time.Sleep(sleep)
+}
+
+// canExecute returns true if the operation is in a state that can be executed.
+func (m *Machine) canExecute(o *op) bool {
+	if aft, ok := o.state.(HasAfter); ok {
+		return time.Now().UTC().After(aft.After())
+	}
+	return true
+}
+
+// scheduleOps schedules the given operations on the state machine.
+func (m *Machine) scheduleOps(ops ...*op) {
+	go func() {
+		for _, op := range ops {
+			m.ops <- op
+		}
+	}()
+}
+
+// executeOp executes the given operation. Returns true if the operation was
+// executed (either successfully or failed) or false if it could not be executed
+// and needs to be rescheduled.
+func (m *Machine) executeOp(o *op) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Panic processing operation %s: %+v", ID(o.ctx), r)
@@ -122,7 +153,11 @@ func (m *Machine) doOp(o *op) {
 
 	if err := o.ctx.Err(); err != nil {
 		log.Printf("Operation %s context error: %+v", ID(o.ctx), err)
-		return
+		return true
+	}
+
+	if !m.canExecute(o) {
+		return false
 	}
 
 	states, err := o.state.Do(o.ctx)
@@ -138,35 +173,29 @@ func (m *Machine) doOp(o *op) {
 			states = NewStates()
 		} else {
 			log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
-			states = NewStates(NewAfterState(2*time.Second, o.state))
+			states = NewStates(NewAfterState(time.Now().UTC().Add(2*time.Second), o.state))
 		}
 	}
 
 	if states.Empty() {
 		o.cancel()
 		go m.newOp()
-		return
+		return true
 	}
 
 	var ops []*op
 	for _, st := range states.States {
 		ops = append(ops, o.new(st))
 	}
+	m.scheduleOps(ops...)
 
-	for _, op := range ops {
-		opVal := op
-		go func() {
-			if after, ok := opVal.state.(HasAfter); ok {
-				time.Sleep(after.After())
-			}
-			m.ops <- opVal
-		}()
-	}
+	return true
 }
 
 func (m *Machine) newOp() {
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
+	ctx = context.WithValue(ctx, ctxStartTime, time.Now().UTC())
 	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout)
 
 	m.ops <- &op{
@@ -180,6 +209,7 @@ type ctxKey int
 
 const (
 	ctxID ctxKey = iota
+	ctxStartTime
 )
 
 // ID returns the unique identifier of an operation from its context.
@@ -190,6 +220,16 @@ func ID(ctx context.Context) string {
 		return "UNKNOWN"
 	}
 	return id
+}
+
+// StartTime returns the time the operation started.
+func StartTime(ctx context.Context) time.Time {
+	stVal := ctx.Value(ctxStartTime)
+	st, ok := stVal.(time.Time)
+	if !ok {
+		return time.Time{}
+	}
+	return st
 }
 
 // Stop stops the state machine, returning any errors encountered.

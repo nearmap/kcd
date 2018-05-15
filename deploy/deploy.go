@@ -3,7 +3,7 @@ package deploy
 import (
 	"time"
 
-	conf "github.com/nearmap/cvmanager/config"
+	"github.com/nearmap/cvmanager/config"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/state"
 	corev1 "k8s.io/api/core/v1"
@@ -116,7 +116,12 @@ func IsPermanent(err error) bool {
 // NewDeployState returns a state that performs a deployment operation according to the
 // ContainerVersion spec.
 func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
-	target RolloutTarget, next state.State, options ...func(*conf.Options)) state.State {
+	target RolloutTarget, next state.State, options ...func(*config.Options)) state.State {
+
+	opts := config.NewOptions()
+	for _, opt := range options {
+		opt(opts)
+	}
 
 	var kind string
 	if cv.Spec.Strategy != nil {
@@ -127,6 +132,6 @@ func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.Container
 	case KindServieBlueGreen:
 		return NewBlueGreenDeployer(cs, namespace, cv, version, target, next)
 	default:
-		return NewSimpleDeployer(namespace, cv, version, target, next)
+		return NewSimpleDeployer(namespace, cv, version, target, opts.UseRollback, next)
 	}
 }

@@ -109,7 +109,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {
-			return errors.New("CV  and namespace to watch on must be provided.")
+			return errors.New("cv and namespace to watch on must be provided")
 		}
 
 		return nil
@@ -139,7 +139,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		if err != nil {
 			scStatus = 2
 			log.Printf("Failed to get k8s config: %v", err)
-			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
+			return errors.Wrap(err, "error building k8s config: either run in cluster or provide config file")
 		}
 
 		k8sClient, err := kubernetes.NewForConfig(cfg)

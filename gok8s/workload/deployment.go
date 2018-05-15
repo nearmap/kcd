@@ -71,12 +71,14 @@ func (d *Deployment) PodSpec() corev1.PodSpec {
 
 // RollbackAfter implements the Workload interface.
 func (d *Deployment) RollbackAfter() *time.Duration {
-	var dur time.Duration
-	dur = time.Duration(int32(*d.deployment.Spec.ProgressDeadlineSeconds)) * time.Second
+	if d.deployment.Spec.ProgressDeadlineSeconds == nil {
+		return nil
+	}
+	dur := time.Duration(*d.deployment.Spec.ProgressDeadlineSeconds) * time.Second
 	return &dur
 }
 
-//ProgressHealth implements the Workload interface.
+// ProgressHealth implements the Workload interface.
 func (d *Deployment) ProgressHealth() bool {
 	ok := true
 	for _, c := range d.deployment.Status.Conditions {

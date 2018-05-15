@@ -42,22 +42,22 @@ func (sf StateFunc) Do(ctx context.Context) (States, error) {
 	return sf(ctx)
 }
 
-// HasAfter is an interface defining a State that is to be executed after a given duration.
+// HasAfter is an interface defining a State that is to be executed after a given time.
 type HasAfter interface {
-	After() time.Duration
+	After() time.Time
 }
 
 // AfterState defines a state operation that is invoked after a given duration.
 type AfterState struct {
-	dur   time.Duration
+	t     time.Time
 	state State
 }
 
-// NewAfterState returns a State instance that invokes the given state operation after
-// the given duration.
-func NewAfterState(d time.Duration, state State) State {
+// NewAfterState returns a State instance that invokes the given state operation at or after
+// the given time.
+func NewAfterState(t time.Time, state State) State {
 	return &AfterState{
-		dur:   d,
+		t:     t,
 		state: state,
 	}
 }
@@ -68,8 +68,8 @@ func (as AfterState) Do(ctx context.Context) (States, error) {
 }
 
 // After implements the HasAfter interface.
-func (as AfterState) After(ctx context.Context) time.Duration {
-	return as.dur
+func (as AfterState) After(ctx context.Context) time.Time {
+	return as.t
 }
 
 // NewErrorState returns a StateFunc that will return the given error.
@@ -81,7 +81,7 @@ func NewErrorState(err error) StateFunc {
 
 // After performs the state function after a given duration.
 func After(d time.Duration, state State) (States, error) {
-	return Single(NewAfterState(d, state))
+	return Single(NewAfterState(time.Now().UTC().Add(d), state))
 }
 
 // None returns a state that has no additional operations.
