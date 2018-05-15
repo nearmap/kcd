@@ -66,15 +66,8 @@ func (in *ContainerSpec) DeepCopyInto(out *ContainerSpec) {
 	*out = *in
 	if in.Verify != nil {
 		in, out := &in.Verify, &out.Verify
-		*out = make([]*VerifySpec, len(*in))
-		for i := range *in {
-			if (*in)[i] == nil {
-				(*out)[i] = nil
-			} else {
-				(*out)[i] = new(VerifySpec)
-				(*in)[i].DeepCopyInto((*out)[i])
-			}
-		}
+		*out = make([]VerifySpec, len(*in))
+		copy(*out, *in)
 	}
 	return
 }
@@ -227,8 +220,8 @@ func (in *StrategySpec) DeepCopyInto(out *StrategySpec) {
 			(*in).DeepCopyInto(*out)
 		}
 	}
-	if in.Verifications != nil {
-		in, out := &in.Verifications, &out.Verifications
+	if in.Verify != nil {
+		in, out := &in.Verify, &out.Verify
 		*out = make([]VerifySpec, len(*in))
 		copy(*out, *in)
 	}

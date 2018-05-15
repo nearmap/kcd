@@ -10,8 +10,7 @@ type Options struct {
 	Stats    stats.Stats
 	Recorder events.Recorder
 
-	UseHistory bool
-
+	UseHistory  bool
 	UseRollback bool
 }
 
@@ -50,5 +49,15 @@ func NewOptions() *Options {
 		Recorder:    events.NewFakeRecorder(100),
 		UseHistory:  false,
 		UseRollback: false,
+	}
+}
+
+// WithOptions returns an options func that sets all the defined options.
+func WithOptions(options *Options) func(*Options) {
+	return func(opts *Options) {
+		opts.Stats = options.Stats
+		opts.Recorder = options.Recorder
+		opts.UseHistory = options.UseHistory
+		opts.UseRollback = options.UseRollback
 	}
 }

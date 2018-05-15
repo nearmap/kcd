@@ -15,7 +15,9 @@ import (
 	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
 	"github.com/nearmap/cvmanager/signals"
+	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/sync"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -156,8 +158,8 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 		recorder := events.PodEventRecorder(k8sClient, params.namespace)
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, customCS, params.namespace, recorder,
-			conf.WithStats(stats), conf.WithHistory(params.history))
+		k8sProvider := k8s.NewProvider(k8sClient, customCS, params.namespace,
+			conf.WithRecorder(recorder), conf.WithStats(stats), conf.WithHistory(params.history))
 
 		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName,
 			metav1.GetOptions{
@@ -193,26 +195,24 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to create syncer")
 		}
 
-		crSyncer := registry.NewSyncer(k8sProvider, cv, crProvider,
-			conf.WithStats(stats), conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
+		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider,
+			conf.WithRecorder(recorder), conf.WithStats(stats),
+			conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
 		log.Printf("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)
 
 		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
+		machine := state.NewMachine(crSyncer)
+
 		go func() {
-			err := registry.SetSyncStatus()
-			if err == nil {
-				err = crSyncer.Sync()
-			}
-			if err != nil {
-				scStatus = 2
-				log.Printf("Server error during cr sync: %v", err)
-				root.stopChan <- os.Interrupt
-			}
+			machine.Start()
 		}()
 
 		<-root.stopChan
+		if err = machine.Stop(); err != nil {
+			log.Printf("error received while stopping state machine: %v", err)
+		}
 		log.Printf("crsync Server gracefully stopped")
 
 		return nil
@@ -385,7 +385,7 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, customClient, "", &events.FakeRecorder{})
+		k8sProvider := k8s.NewProvider(k8sClient, customClient, "")
 
 		return cv.AllContainerVersions(os.Stdout, "json", k8sProvider)
 	}

@@ -177,7 +177,7 @@ func newRunCommand() *cobra.Command {
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
 		recorder := events.PodEventRecorder(k8sClient, "")
-		k8sProvider := k8s.NewK8sProvider(k8sClient, customClient, "", recorder, conf.WithStats(stats))
+		k8sProvider := k8s.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
 		historyProvider := history.NewProvider(k8sClient, stats)
 
 		go func() {

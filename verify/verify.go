@@ -1,9 +1,10 @@
 package verify
 
 import (
-	"github.com/nearmap/cvmanager/events"
+	"context"
+
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/state"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 )
@@ -13,25 +14,30 @@ var (
 	ErrFailed = errors.New("Verification failed")
 )
 
-// Verifier is an interface used for verifying deployments or container images.
-type Verifier interface {
-	// Verify runs a verification determined by the underlying implementation.
-	// It returns a Failed verification error if the verification process ran
-	// successfully but it was determined that verification failed. Other errors
-	// indicate some other temporary failure, such that the verification process
-	// can be re-run. A nil error returned indicates that verification was
-	// successful.
-	Verify() error
-}
-
-func NewVerifier(cs kubernetes.Interface, recorder events.Recorder, stats stats.Stats, ns string,
-	spec *cv1.VerifySpec) (Verifier, error) {
-	var verifier Verifier
+// NewVerifier returns a state instance that implements a verifier, as defined in the verify spec.
+func NewVerifier(cs kubernetes.Interface, namespace, version string, spec cv1.VerifySpec, next state.State) (state.States, error) {
+	var verifier state.State
 	switch spec.Kind {
 	case KindImage:
-		verifier = NewImageVerifier(cs, recorder, stats, ns, spec)
+		verifier = NewImageVerifier(cs, namespace, spec, next)
 	default:
-		return nil, errors.Errorf("unknown verify type: %v", spec.Kind)
+		return state.Error(errors.Errorf("unknown verify type: %v", spec.Kind))
 	}
-	return verifier, nil
+
+	return state.Single(verifier)
+}
+
+// NewVerifiers returns a state function that invokes verify operations for the given verify specs.
+func NewVerifiers(cs kubernetes.Interface, namespace, version string, cvvs []cv1.VerifySpec, next state.State) state.StateFunc {
+	return newVerifiers(cs, namespace, version, cvvs, next, 0)
+}
+
+func newVerifiers(cs kubernetes.Interface, namespace, version string, cvvs []cv1.VerifySpec, next state.State, idx int) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		if idx >= len(cvvs) {
+			return state.Single(next)
+		}
+
+		return NewVerifier(cs, namespace, version, cvvs[idx], newVerifiers(cs, namespace, version, cvvs, next, idx+1))
+	}
 }

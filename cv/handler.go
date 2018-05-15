@@ -33,7 +33,7 @@ func genCV(w io.Writer, cvs []*k8s.Resource) error {
 // AllContainerVersions provides details of current container version of all workload
 // managed by CV managed resource.
 // supports json and html format specified via typ.
-func AllContainerVersions(w io.Writer, typ string, k8sProvider *k8s.K8sProvider) error {
+func AllContainerVersions(w io.Writer, typ string, k8sProvider *k8s.Provider) error {
 	cvsList, err := k8sProvider.AllResources()
 	if err != nil {
 		return errors.Wrap(err, "failed to generate list of cv resources")
@@ -53,7 +53,7 @@ func AllContainerVersions(w io.Writer, typ string, k8sProvider *k8s.K8sProvider)
 
 // NewCVHandler is web handler to generate HTML tabular text listing all status of all CV managed resource
 // as represented by Workloads
-func NewCVHandler(k8sProvider *k8s.K8sProvider) http.HandlerFunc {
+func NewCVHandler(k8sProvider *k8s.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		typ := r.URL.Query().Get("format")
 		if typ != "json" && typ != "html" {

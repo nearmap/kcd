@@ -27,7 +27,7 @@ func StaticContentHandler(content string) http.HandlerFunc {
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
 func NewServer(port int, version string,
-	k8sProvider *k8s.K8sProvider, historyProvider history.Provider, stopCh chan struct{}) {
+	k8sProvider *k8s.Provider, historyProvider history.Provider, stopCh chan struct{}) {
 
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))

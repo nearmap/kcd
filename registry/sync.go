@@ -1,16 +1,6 @@
 package registry
 
-import (
-	"fmt"
-	"log"
-	"time"
-
-	conf "github.com/nearmap/cvmanager/config"
-	"github.com/nearmap/cvmanager/events"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/pkg/errors"
-)
+/*
 
 // syncer is responsible to syncing with the ecr repository and
 // ensuring that the deployment it is monitoring is up to date. If it finds
@@ -88,3 +78,5 @@ func (s *syncer) doSync() error {
 
 	return nil
 }
+
+*/

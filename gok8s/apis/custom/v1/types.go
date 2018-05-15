@@ -39,15 +39,15 @@ type ContainerVersionSpec struct {
 
 // ContainerSpec defines a name of container and option container level verification step
 type ContainerSpec struct {
-	Name   string        `json:"name"`
-	Verify []*VerifySpec `json:"verify"`
+	Name   string       `json:"name"`
+	Verify []VerifySpec `json:"verify"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
 type StrategySpec struct {
-	Kind          string         `json:"kind"`
-	BlueGreen     *BlueGreenSpec `json:"blueGreen"`
-	Verifications []VerifySpec   `json:"verifications"`
+	Kind      string         `json:"kind"`
+	BlueGreen *BlueGreenSpec `json:"blueGreen"`
+	Verify    []VerifySpec   `json:"verify"`
 }
 
 // BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.

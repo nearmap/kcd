@@ -1,11 +1,13 @@
 package deploy
 
 import (
-	"fmt"
 	"time"
 
+	conf "github.com/nearmap/cvmanager/config"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/cvmanager/state"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // RolloutTarget defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
@@ -63,6 +65,7 @@ type Deployer interface {
 	Deploy(cv *cv1.ContainerVersion, version string, spec RolloutTarget) error
 }
 
+/*
 // ErrorFailed indicates that a deployment failed for a permanent reason,
 // such as verification failure. Such deployments should not be retried.
 type ErrorFailed struct {
@@ -107,4 +110,23 @@ func IsPermanent(err error) bool {
 		err = cause.Cause()
 	}
 	return false
+}
+*/
+
+// NewDeployState returns a state that performs a deployment operation according to the
+// ContainerVersion spec.
+func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
+	target RolloutTarget, next state.State, options ...func(*conf.Options)) state.State {
+
+	var kind string
+	if cv.Spec.Strategy != nil {
+		kind = cv.Spec.Strategy.Kind
+	}
+
+	switch kind {
+	case KindServieBlueGreen:
+		return NewBlueGreenDeployer(cs, namespace, cv, version, target, next)
+	default:
+		return NewSimpleDeployer(namespace, cv, version, target, next)
+	}
 }
