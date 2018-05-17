@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	healthFilename = "/state/health"
+	healthFilename = "/health/state"
 )
 
 // UpdateHealthStatus updates the health status of the syncer to indicate that it is
