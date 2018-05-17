@@ -84,6 +84,6 @@ func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.Container
 	case KindServieBlueGreen:
 		return NewBlueGreenDeployer(cs, namespace, cv, version, target, next)
 	default:
-		return NewSimpleDeployer(namespace, cv, version, target, opts.UseRollback, next)
+		return NewSimpleDeployer(cv, version, target, opts.UseRollback, next)
 	}
 }
