@@ -20,8 +20,6 @@ type Options struct {
 	OperationTimeout time.Duration
 	MaxRetries       int
 
-	//OnFailure State
-
 	Stats    stats.Stats
 	Recorder events.Recorder
 }
@@ -39,13 +37,6 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 		op.Recorder = rec
 	}
 }
-
-// OnFailure registers a state to be executed when the state machine fails permanently.
-//func OnFailure(onFailure State) func(*Options) {
-//	return func(op *Options) {
-//		op.OnFailure = onFailure
-//	}
-//}
 
 type op struct {
 	state  State
@@ -108,6 +99,8 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 
 // Start the state machine.
 func (m *Machine) Start() {
+	log.Printf("Starting state machine")
+
 	m.newOp()
 
 	for i := uint64(0); ; i++ {
@@ -151,6 +144,11 @@ func (m *Machine) canExecute(o *op) bool {
 
 // scheduleOps schedules the given operations on the state machine.
 func (m *Machine) scheduleOps(ops ...*op) {
+	log.Printf("scheduleOps:")
+	for _, o := range ops {
+		log.Printf(" -- %+v", o)
+	}
+
 	go func() {
 		for _, op := range ops {
 			m.ops <- op
@@ -168,12 +166,15 @@ func (m *Machine) executeOp(o *op) bool {
 		}
 	}()
 
+	log.Printf("Executing operation: %+v", o)
+
 	if err := o.ctx.Err(); err != nil {
 		log.Printf("Operation %s context error: %+v", ID(o.ctx), err)
 		return true
 	}
 
 	if !m.canExecute(o) {
+		log.Printf("Can't execute")
 		return false
 	}
 
@@ -218,11 +219,15 @@ func (m *Machine) newOp() {
 	ctx = context.WithValue(ctx, ctxStartTime, time.Now().UTC())
 	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout)
 
-	m.ops <- &op{
+	o := &op{
 		ctx:    ctx,
 		cancel: cancel,
 		state:  m.start,
 	}
+
+	log.Printf("newOp: created %+v", o)
+
+	m.ops <- o
 }
 
 type ctxKey int

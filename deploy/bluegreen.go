@@ -47,6 +47,9 @@ type BlueGreenDeployer struct {
 func NewBlueGreenDeployer(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
 	target RolloutTarget, next state.State) *BlueGreenDeployer {
 
+	log.Printf("Creating BlueGreenDeployer: namespace=%s, cv=%s, version=%s, target=%s",
+		namespace, cv.Name, version, target.Name())
+
 	tTarget, ok := target.(TemplateRolloutTarget)
 	if !ok {
 		log.Printf("Rollout Target must be of type TemplateRolloutTarget for ServiceBlueGreen deployments")

@@ -63,11 +63,15 @@ func (s *Syncer) Stop() error {
 
 func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
+		log.Printf("Running initial state")
+
 		version, err := s.registry.Version(s.cv.Spec.Tag)
 		if err != nil {
 			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get version from registry")
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
+
+		log.Printf("Current version: :%v", version)
 
 		if !s.k8sProvider.CanRollout(s.cv, version) {
 			log.Printf("Not attempting %s rollout of version %s: already failed.", s.cv.Name, version)
@@ -80,6 +84,8 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", s.cv.Name))
 		}
 
+		log.Printf("Got %d workloads", len(workloads))
+
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
 			currVersion, err := s.containerVersion(wl)
@@ -90,6 +96,8 @@ func (s *Syncer) initialState() state.StateFunc {
 				toUpdate = append(toUpdate, wl)
 			}
 		}
+
+		log.Printf("Found %d workloads to update", len(toUpdate))
 
 		var states []state.State
 		for _, wl := range toUpdate {
@@ -107,11 +115,12 @@ func (s *Syncer) initialState() state.StateFunc {
 
 func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFailureFunc {
 	return func(ctx context.Context, err error) {
+		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
+			version, workload.Name(), err)
+
 		s.options.Stats.Event(fmt.Sprintf("%s.sync.failure", workload.Name()),
 			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
 			time.Now().UTC())
-		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
-			version, workload.Name(), err)
 		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 
 		_, uErr := s.k8sProvider.UpdateFailedRollout(s.cv, version)
@@ -142,6 +151,8 @@ func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
 
 func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
+		log.Printf("Updating stats for successful deployment")
+
 		s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", workload.Name()))
 		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
 		return state.Single(next)
@@ -154,6 +165,8 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource
 func (s *Syncer) syncVersionConfig(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
+		log.Printf("SyncVersionConfig: cv=%s, version=%s", s.cv.Name, version)
+
 		if s.cv.Spec.Config == nil {
 			return state.Single(next)
 		}

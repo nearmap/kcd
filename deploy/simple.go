@@ -29,6 +29,8 @@ type SimpleDeployer struct {
 func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutTarget, checkRollback bool,
 	next state.State) *SimpleDeployer {
 
+	log.Printf("Creating SimpleDeployer: cv=%s, version=%s, target=%s", cv.Name, version, target.Name())
+
 	return &SimpleDeployer{
 		cv:            cv,
 		version:       version,

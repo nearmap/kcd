@@ -26,8 +26,7 @@ const (
 type ImageVerifier struct {
 	client gocorev1.PodInterface
 	spec   cv1.VerifySpec
-	//options *config.Options
-	next state.State
+	next   state.State
 }
 
 // NewImageVerifier runs a verification action by initializing a pod
@@ -45,6 +44,8 @@ func NewImageVerifier(cs kubernetes.Interface, namespace string, spec cv1.Verify
 
 // Do implements the State interface.
 func (iv *ImageVerifier) Do(ctx context.Context) (state.States, error) {
+	log.Printf("ImageVerifier with spec %+v", iv.spec)
+
 	pod, err := iv.createPod()
 	if err != nil {
 		return state.Error(errors.WithStack(err))
