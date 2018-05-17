@@ -47,7 +47,7 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 		registry:    reg,
 		options:     opts,
 	}
-	s.machine = state.NewMachine(s.initialState())
+	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur))
 	return s
 }
 
@@ -71,7 +71,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
-		log.Printf("Current version: :%v", version)
+		log.Printf("Current version: %v", version)
 
 		if !s.k8sProvider.CanRollout(s.cv, version) {
 			log.Printf("Not attempting %s rollout of version %s: already failed.", s.cv.Name, version)

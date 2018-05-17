@@ -16,11 +16,21 @@ const (
 
 // Options contains optional state machine parameters.
 type Options struct {
+	// StartWaitTime is the time to wait before beginning a new "start" operation
+	StartWaitTime time.Duration
+
 	OperationTimeout time.Duration
 	MaxRetries       int
 
 	Stats    stats.Stats
 	Recorder events.Recorder
+}
+
+// WithStartWaitTime sets a StartWaitTime duration as options.
+func WithStartWaitTime(dur time.Duration) func(*Options) {
+	return func(op *Options) {
+		op.StartWaitTime = dur
+	}
 }
 
 // WithStats sets a stats instance for options.
@@ -75,7 +85,8 @@ type Machine struct {
 // and timeout durations for operations.
 func NewMachine(start State, options ...func(*Options)) *Machine {
 	opts := &Options{
-		OperationTimeout: 5 * time.Minute,
+		StartWaitTime:    5 * time.Minute,
+		OperationTimeout: 10 * time.Minute,
 		MaxRetries:       5,
 		Stats:            stats.NewFake(),
 		Recorder:         events.NewFakeRecorder(100),
@@ -222,7 +233,7 @@ func (m *Machine) newOp() {
 	o := &op{
 		ctx:    ctx,
 		cancel: cancel,
-		state:  m.start,
+		state:  NewAfterState(time.Now().UTC().Add(m.options.StartWaitTime), m.start),
 	}
 
 	log.Printf("newOp: created %+v", o)
