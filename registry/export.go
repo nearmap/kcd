@@ -13,9 +13,9 @@ func ProviderByRepo(repoARN string) string {
 }
 
 // Syncer offers capability to periodically sync with docker registry
-type Syncer interface {
-	Sync() error
-}
+//type Syncer interface {
+//	Sync() error
+//}
 
 // Tagger provides capability of adding/removing environment tags on ECR
 // This interface is purely designed for CI/CD purposes such that the version

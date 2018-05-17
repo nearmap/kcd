@@ -15,6 +15,7 @@ import (
 	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
 	"github.com/nearmap/cvmanager/signals"
+	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/sync"
 	"github.com/pkg/errors"
@@ -115,7 +116,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	}
 
 	cmd.PostRun = func(cmd *cobra.Command, args []string) {
-		registry.CleanupSyncStart()
+		state.CleanupHealthStatus()
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
@@ -216,19 +217,19 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		return nil
 	}
 
-	state := &cobra.Command{
+	status := &cobra.Command{
 		Use:   "status",
 		Short: "Checks whether sync was run recently",
 		Long:  "Checks whether sync was run recently",
 	}
 
 	var by time.Duration
-	state.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
-	state.RunE = func(cmd *cobra.Command, args []string) error {
-		return registry.SyncCheck(by)
+	status.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
+	status.RunE = func(cmd *cobra.Command, args []string) error {
+		return state.CheckHealth(by)
 	}
 
-	cmd.AddCommand(state)
+	cmd.AddCommand(status)
 
 	return cmd
 }

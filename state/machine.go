@@ -16,7 +16,6 @@ const (
 
 // Options contains optional state machine parameters.
 type Options struct {
-	HealthFilename   string
 	OperationTimeout time.Duration
 	MaxRetries       int
 
@@ -76,7 +75,6 @@ type Machine struct {
 // and timeout durations for operations.
 func NewMachine(start State, options ...func(*Options)) *Machine {
 	opts := &Options{
-		HealthFilename:   "/statemachine/health",
 		OperationTimeout: 5 * time.Minute,
 		MaxRetries:       5,
 		Stats:            stats.NewFake(),
@@ -106,7 +104,7 @@ func (m *Machine) Start() {
 	for i := uint64(0); ; i++ {
 		select {
 		case o := <-m.ops:
-			m.updateSyncStatus()
+			UpdateSyncStatus()
 			if m.executeOp(o) {
 				i = 0
 			} else {
