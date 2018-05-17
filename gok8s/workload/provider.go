@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"log"
 	"strings"
 
 	"github.com/nearmap/cvmanager/config"
@@ -42,7 +43,6 @@ type Provider struct {
 	cvcs      clientset.Interface
 	namespace string
 
-	//hp      history.Provider
 	options *config.Options
 }
 
@@ -59,8 +59,6 @@ func NewProvider(cs kubernetes.Interface, cvcs clientset.Interface, ns string, o
 		cvcs:      cvcs,
 		namespace: ns,
 		options:   opts,
-
-		//hp: history.NewProvider(cs, opts.Stats),
 	}
 }
 
@@ -75,79 +73,33 @@ func (k *Provider) Client() kubernetes.Interface {
 	return k.cs
 }
 
-/*
-func (k *Provider) deploy(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) error {
-	if ok := k.checkRolloutStatus(cv, version, target); !ok {
-		return nil
-	}
-
-	var deployer deploy.Deployer
-
-	var kind string
-	if cv.Spec.Strategy != nil {
-		kind = cv.Spec.Strategy.Kind
-	}
-
-	switch kind {
-	case deploy.KindServieBlueGreen:
-		deployer = deploy.NewBlueGreenDeployer(k.cs, k.namespace, config.WithOptions(k.options))
-	default:
-		deployer = deploy.NewSimpleDeployer(k.namespace, config.WithOptions(k.options))
-	}
-
-	if err := deployer.Deploy(cv, version, target); err != nil {
-		if deploy.IsPermanent(err) {
-			log.Printf("Permanent failure from deploy operation: %v", err)
-			if _, e := k.updateFailedRollouts(cv, version); e != nil {
-				log.Printf("Failed to update state for container version %s: %v", cv.Name, e)
-			}
-		}
-		return errors.WithStack(err)
-	}
-	return nil
+// CanRollout returns true if we can attempt a rollout for the cv resource at the given version.
+func (k *Provider) CanRollout(cv *cv1.ContainerVersion, version string) bool {
+	return cv.Status.LastFailedVersion != version
 }
 
-// checkRolloutStatus determines whether a rollout should occur for the target.
-// TODO: put the version check and this logic in a single place with a single
-// shouldPerformRollout() style method.
-func (k *Provider) checkRolloutStatus(cv *cv1.ContainerVersion, version string, target deploy.RolloutTarget) bool {
-	maxAttempts := cv.Spec.MaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = 1
-	}
-
-	if numFailed := cv.Status.FailedRollouts[version]; numFailed >= maxAttempts {
-		log.Printf("Not attempting rollout: cv spec %s for version %s has failed %d times.", cv.Name, version, numFailed)
-		return false
-	}
-
-	return true
-}
-
-func (k *Provider) updateFailedRollouts(cv *cv1.ContainerVersion, version string) (*cv1.ContainerVersion, error) {
+// UpdateFailedRollout updates the cv status to indicate that the rollout of the given
+// version has failed and thus should not be reattempted.
+func (k *Provider) UpdateFailedRollout(cv *cv1.ContainerVersion, version string) (*cv1.ContainerVersion, error) {
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 
 	// ensure state is up to date
-	spec, err := client.Get(cv.Name, metav1.GetOptions{})
+	var err error
+	cv, err = client.Get(cv.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", cv.Name)
 	}
-	if spec.Status.FailedRollouts == nil {
-		spec.Status.FailedRollouts = map[string]int{}
-	}
-	spec.Status.FailedRollouts[version] = spec.Status.FailedRollouts[version] + 1
 
-	result, err := client.Update(spec)
+	cv.Status.LastFailedVersion = version
+
+	result, err := client.Update(cv)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
-	log.Printf("Updated failed rollouts for cv spec=%s, version=%s, numFailures=%d",
-		cv.Name, version, cv.Status.FailedRollouts[version])
-
+	log.Printf("Updated last failed version for cv spec=%s, version=%s", cv.Name, version)
 	return result, nil
 }
-*/
 
 // AllResources returns all resources managed by container versions in the current namespace.
 func (k *Provider) AllResources() ([]*Resource, error) {
@@ -262,21 +214,6 @@ func (k *Provider) handleError(err error, typ string) error {
 	//k.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get workload")
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
-
-/*
-func (k *Provider) validate(v string, cvvs []*cv1.VerifySpec) error {
-	for _, v := range cvvs {
-		verifier, err := verify.NewVerifier(k.cs, k.options.Recorder, k.options.Stats, k.namespace, v)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if err = verifier.Verify(); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	return nil
-}
-*/
 
 func version(img string) string {
 	return strings.SplitAfterN(img, ":", 2)[1]

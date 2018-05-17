@@ -76,8 +76,10 @@ type ConfigSpec struct {
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
 
-	// FailedRollouts is map of failed versions and the number of failures.
-	FailedRollouts map[string]int
+	// LastFailedVersion contains the version number of the most recent failed
+	// rollout attempt. This ensures that we don't keep attempting to rollout
+	// a failed version.
+	LastFailedVersion string `json:"lastFailedVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -69,6 +69,11 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
+		if !s.k8sProvider.CanRollout(s.cv, version) {
+			log.Printf("Not attempting %s rollout of version %s: already failed.", s.cv.Name, version)
+			return state.None()
+		}
+
 		workloads, err := s.k8sProvider.Workloads(s.cv)
 		if err != nil {
 			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to obtain workloads for cv resource")
@@ -108,6 +113,12 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
 			version, workload.Name(), err)
 		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
+
+		_, uErr := s.k8sProvider.UpdateFailedRollout(s.cv, version)
+		if uErr != nil {
+			log.Printf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
+			// TODO: something else?
+		}
 	}
 }
 
