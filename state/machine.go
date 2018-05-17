@@ -148,8 +148,11 @@ func (m *Machine) sleep(i uint64) {
 // canExecute returns true if the operation is in a state that can be executed.
 func (m *Machine) canExecute(o *op) bool {
 	if aft, ok := o.state.(HasAfter); ok {
+		log.Printf("Operation has after feature. Will execute after %v", aft.After())
 		return time.Now().UTC().After(aft.After())
 	}
+
+	log.Printf("Operation does not have after feature. Executing immediately.")
 	return true
 }
 
@@ -205,7 +208,7 @@ func (m *Machine) executeOp(o *op) bool {
 			states = NewStates()
 		} else {
 			log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
-			states = NewStates(NewAfterState(time.Now().UTC().Add(2*time.Second), o.state))
+			states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second), o.state))
 		}
 	}
 

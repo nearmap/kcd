@@ -74,7 +74,7 @@ type AfterState struct {
 
 // NewAfterState returns a State instance that invokes the given state operation at or after
 // the given time.
-func NewAfterState(t time.Time, state State) State {
+func NewAfterState(t time.Time, state State) *AfterState {
 	return &AfterState{
 		t:     t,
 		state: state,
@@ -87,7 +87,7 @@ func (as AfterState) Do(ctx context.Context) (States, error) {
 }
 
 // After implements the HasAfter interface.
-func (as AfterState) After(ctx context.Context) time.Time {
+func (as AfterState) After() time.Time {
 	return as.t
 }
 
