@@ -2,6 +2,7 @@ package state
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"time"
 
@@ -12,9 +13,11 @@ const (
 	healthFilename = "/state/health"
 )
 
-// UpdateSyncStatus updates the health status of the syncer to indicate that it is
+// UpdateHealthStatus updates the health status of the syncer to indicate that it is
 // in a healthy state.
-func UpdateSyncStatus() error {
+func UpdateHealthStatus() error {
+	log.Printf("updating health status")
+
 	if err := ioutil.WriteFile(healthFilename, []byte(""), 0755); err != nil {
 		return errors.Wrapf(err, "failed to write health file at %s", healthFilename)
 	}

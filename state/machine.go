@@ -104,7 +104,9 @@ func (m *Machine) Start() {
 	for i := uint64(0); ; i++ {
 		select {
 		case o := <-m.ops:
-			UpdateSyncStatus()
+			if err := UpdateHealthStatus(); err != nil {
+				log.Printf("Failed to update health status: %v", err)
+			}
 			if m.executeOp(o) {
 				i = 0
 			} else {
