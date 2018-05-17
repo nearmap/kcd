@@ -1,13 +1,12 @@
 package deploy_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/deploy/fake"
-	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
 	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -17,28 +16,8 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 			Container: cv1.ContainerSpec{
 				Name: containerName,
 			},
-		},
-	}
-	version := "version-string"
-	namespace := "test-namespace"
-	target := fake.NewRolloutTarget()
-
-	cs := gofake.NewSimpleClientset()
-
-	// SUT
-	deployer := deploy.NewBlueGreenDeployer(cs, events.NewFakeRecorder(100), stats.NewFake(), namespace)
-
-	err := deployer.Deploy(cv, version, target)
-	if err == nil {
-		t.Errorf("expected error for target that does not implement TemplateRolloutTarget")
-	}
-}
-
-func TestBlueGreenDeployWithSecondary(t *testing.T) {
-	cv := &cv1.ContainerVersion{
-		Spec: cv1.ContainerVersionSpec{
-			Container: cv1.ContainerSpec{
-				Name: containerName,
+			Strategy: &cv1.StrategySpec{
+				BlueGreen: &cv1.BlueGreenSpec{},
 			},
 		},
 	}
@@ -49,10 +28,9 @@ func TestBlueGreenDeployWithSecondary(t *testing.T) {
 	cs := gofake.NewSimpleClientset()
 
 	// SUT
-	deployer := deploy.NewBlueGreenDeployer(cs, events.NewFakeRecorder(100), stats.NewFake(), namespace)
+	deployer := deploy.NewBlueGreenDeployer(cs, namespace, cv, version, target, nil)
 
-	// TODO:
-	err := deployer.Deploy(cv, version, target)
+	_, err := deployer.Do(context.Background())
 	if err == nil {
 		t.Errorf("expected error for target that does not implement TemplateRolloutTarget")
 	}

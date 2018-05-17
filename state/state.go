@@ -10,10 +10,21 @@ type State interface {
 	Do(ctx context.Context) (States, error)
 }
 
+// OnFailure is invoked when a permanent failure occurs during processing.
+type OnFailure interface {
+	Fail(ctx context.Context, err error)
+}
+
 // States represents a collection of states returned from a particular machine state.
-// Implemented as a struct so that additional semantics can be added in the future.
 type States struct {
+	// States contains the states that will be independently executed by the state machine.
 	States []State
+
+	// OnFailure will be invoked if non-nil if any of the states or their following states
+	// fail permanently (i.e. after all retry attempts).
+	// If additional OnFailure functions are defined by later states then all functions
+	// will be invoked in reverse order (i.e. last defined will be invoked first).
+	OnFailure OnFailure
 }
 
 // NewStates returns a States instance with the given state operations.
@@ -40,6 +51,14 @@ type StateFunc func(ctx context.Context) (States, error)
 // Do implements the State interface.
 func (sf StateFunc) Do(ctx context.Context) (States, error) {
 	return sf(ctx)
+}
+
+// OnFailureFunc defines a function that implements the OnFailure interface.
+type OnFailureFunc func(ctx context.Context, err error)
+
+// Fail implements the OnFailure interface.
+func (off OnFailureFunc) Fail(ctx context.Context, err error) {
+	off(ctx, err)
 }
 
 // HasAfter is an interface defining a State that is to be executed after a given time.
@@ -102,4 +121,14 @@ func Many(states ...State) (States, error) {
 // Error returns a state that simply returns the given error.
 func Error(err error) (States, error) {
 	return NewStates(), err
+}
+
+// WithFailure returns a state that handles the failure of the given state by invoking
+// the given OnFailure func.
+func WithFailure(state State, onFailure OnFailure) StateFunc {
+	return func(ctx context.Context) (States, error) {
+		sts := NewStates(state)
+		sts.OnFailure = onFailure
+		return sts, nil
+	}
 }

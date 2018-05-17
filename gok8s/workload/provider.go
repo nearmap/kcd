@@ -5,10 +5,8 @@ import (
 
 	"github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
-	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	"github.com/nearmap/cvmanager/history"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -44,7 +42,7 @@ type Provider struct {
 	cvcs      clientset.Interface
 	namespace string
 
-	hp      history.Provider
+	//hp      history.Provider
 	options *config.Options
 }
 
@@ -62,7 +60,7 @@ func NewProvider(cs kubernetes.Interface, cvcs clientset.Interface, ns string, o
 		namespace: ns,
 		options:   opts,
 
-		hp: history.NewProvider(cs, opts.Stats),
+		//hp: history.NewProvider(cs, opts.Stats),
 	}
 }
 
@@ -261,7 +259,7 @@ func (k *Provider) Workloads(cv *cv1.ContainerVersion) ([]Workload, error) {
 }
 
 func (k *Provider) handleError(err error, typ string) error {
-	k.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get dependent deployment")
+	//k.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get workload")
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
 

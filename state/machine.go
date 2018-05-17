@@ -20,6 +20,8 @@ type Options struct {
 	OperationTimeout time.Duration
 	MaxRetries       int
 
+	//OnFailure State
+
 	Stats    stats.Stats
 	Recorder events.Recorder
 }
@@ -38,20 +40,35 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 	}
 }
 
+// OnFailure registers a state to be executed when the state machine fails permanently.
+//func OnFailure(onFailure State) func(*Options) {
+//	return func(op *Options) {
+//		op.OnFailure = onFailure
+//	}
+//}
+
 type op struct {
-	state   State
-	ctx     context.Context
-	cancel  context.CancelFunc
-	retries int
+	state  State
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	retries      int
+	failureFuncs []OnFailure
 }
 
-func (o *op) new(state State) *op {
-	return &op{
-		state:   state,
-		ctx:     o.ctx,
-		cancel:  o.cancel,
-		retries: 0,
+func (o *op) new(state State, failureFunc OnFailure) *op {
+	newOp := &op{
+		state:        state,
+		ctx:          o.ctx,
+		cancel:       o.cancel,
+		retries:      0,
+		failureFuncs: o.failureFuncs,
 	}
+
+	if failureFunc != nil {
+		newOp.failureFuncs = append(newOp.failureFuncs, failureFunc)
+	}
+	return newOp
 }
 
 // Machine implements the main state machine loop.
@@ -163,6 +180,9 @@ func (m *Machine) executeOp(o *op) bool {
 	states, err := o.state.Do(o.ctx)
 	if err != nil && IsPermanent(err) {
 		log.Printf("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
+		for i := len(o.failureFuncs) - 1; i >= 0; i-- {
+			o.failureFuncs[i].Fail(o.ctx, err)
+		}
 		states = NewStates()
 	}
 	if err != nil && !IsPermanent(err) {
@@ -185,7 +205,7 @@ func (m *Machine) executeOp(o *op) bool {
 
 	var ops []*op
 	for _, st := range states.States {
-		ops = append(ops, o.new(st))
+		ops = append(ops, o.new(st, states.OnFailure))
 	}
 	m.scheduleOps(ops...)
 

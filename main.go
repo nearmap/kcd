@@ -161,7 +161,7 @@ func newRunCommand() *cobra.Command {
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
-		//Controllers here
+		// Controllers here
 		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo,
 			k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory,

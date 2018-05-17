@@ -1,18 +1,17 @@
 package deploy_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/deploy/fake"
-	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
 const (
@@ -31,13 +30,8 @@ func TestSimpleDeploy(t *testing.T) {
 	namespace := "test-namespace"
 	target := fake.NewRolloutTarget()
 
-	cs := gofake.NewSimpleClientset()
-
-	// SUT
-	deployer := deploy.NewSimpleDeployer(cs, events.NewFakeRecorder(100), namespace)
-
 	target.FakePodSpec.Containers = []corev1.Container{}
-	err := deployer.Deploy(cv, version, target)
+	_, err := deploy.NewSimpleDeployer(namespace, cv, version, target, false, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when podspec does not contain any containers")
 	}
@@ -49,7 +43,8 @@ func TestSimpleDeploy(t *testing.T) {
 	}
 	pps := fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
-	err = deployer.Deploy(cv, version, target)
+
+	_, err = deploy.NewSimpleDeployer(namespace, cv, version, target, false, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
@@ -76,7 +71,7 @@ func TestSimpleDeploy(t *testing.T) {
 	}
 	pps = fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
-	err = deployer.Deploy(cv, version, target)
+	_, err = deploy.NewSimpleDeployer(namespace, cv, version, target, false, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
@@ -93,7 +88,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps = fake.NewInvocationPatchPodSpec()
 	pps.Error = errors.New("an error occurred")
 	target.Invocations <- pps
-	err = deployer.Deploy(cv, version, target)
+	_, err = deploy.NewSimpleDeployer(namespace, cv, version, target, false, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when PatchPodSpec returns an error that is not a conflict")
 	}
@@ -102,7 +97,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps.Error = apimacherrors.NewConflict(schema.GroupResource{}, "", errors.New(""))
 	target.Invocations <- pps
 	target.Invocations <- fake.NewInvocationPatchPodSpec()
-	err = deployer.Deploy(cv, version, target)
+	_, err = deploy.NewSimpleDeployer(namespace, cv, version, target, false, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PatchPodSpec returns an error that IS conflict")
 	}

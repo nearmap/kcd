@@ -65,54 +65,6 @@ type Deployer interface {
 	Deploy(cv *cv1.ContainerVersion, version string, spec RolloutTarget) error
 }
 
-/*
-// ErrorFailed indicates that a deployment failed for a permanent reason,
-// such as verification failure. Such deployments should not be retried.
-type ErrorFailed struct {
-	message string
-	cause   error
-}
-
-// Error implements the error interface.
-func (ef *ErrorFailed) Error() string {
-	return fmt.Sprintf("%s: %s", ef.message, ef.cause.Error())
-}
-
-// Cause implements the errors.Cause interface
-func (ef *ErrorFailed) Cause() error {
-	return ef.cause
-}
-
-// NewFailed returns a permanent error of type ErrorFailed, indicating that the rollout
-// failed for a known reason.
-func NewFailed(err error, message string, args ...interface{}) *ErrorFailed {
-	return &ErrorFailed{
-		cause:   err,
-		message: fmt.Sprintf(message, args...),
-	}
-}
-
-// IsPermanent returns true if the error returned by a deployment indicates
-// a permanent failure, which should not be retried.
-func IsPermanent(err error) bool {
-	type causer interface {
-		Cause() error
-	}
-
-	for err != nil {
-		if _, ok := err.(*ErrorFailed); ok {
-			return true
-		}
-		cause, ok := err.(causer)
-		if !ok {
-			break
-		}
-		err = cause.Cause()
-	}
-	return false
-}
-*/
-
 // NewDeployState returns a state that performs a deployment operation according to the
 // ContainerVersion spec.
 func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,

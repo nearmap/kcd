@@ -15,7 +15,6 @@ import (
 	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
 	"github.com/nearmap/cvmanager/signals"
-	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/sync"
 	"github.com/pkg/errors"
@@ -203,14 +202,13 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			params.namespace, params.cvName, err)
 
 		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
-		machine := state.NewMachine(crSyncer)
 
 		go func() {
-			machine.Start()
+			crSyncer.Start()
 		}()
 
 		<-root.stopChan
-		if err = machine.Stop(); err != nil {
+		if err = crSyncer.Stop(); err != nil {
 			log.Printf("error received while stopping state machine: %v", err)
 		}
 		log.Printf("crsync Server gracefully stopped")

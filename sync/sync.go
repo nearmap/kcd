@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nearmap/cvmanager/verify"
-
 	"github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/events"
@@ -16,12 +14,14 @@ import (
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/state"
+	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Syncer is responsible for handling the main sync loop.
 type Syncer struct {
 	machine *state.Machine
 
@@ -31,10 +31,7 @@ type Syncer struct {
 	options     *config.Options
 }
 
-func (s *Syncer) Stop() error {
-	return s.machine.Stop()
-}
-
+// NewSyncer creates a Syncer instance for handling the main sync loop.
 func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry.Registry, options ...func(*config.Options)) *Syncer {
 	opts := config.NewOptions()
 	for _, opt := range options {
@@ -50,47 +47,68 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 		registry:    reg,
 		options:     opts,
 	}
-	s.machine = state.NewMachine(s)
+	s.machine = state.NewMachine(s.initialState())
 	return s
 }
 
-func (s *Syncer) Do(ctx context.Context) (state.States, error) {
-	version, err := s.registry.Version(s.cv.Spec.Tag)
-	if err != nil {
-		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get version from registry")
-		return state.Error(errors.Wrap(err, "failed to get version from registry"))
-	}
+// Start begins the sync process.
+func (s *Syncer) Start() {
+	s.machine.Start()
+}
 
-	workloads, err := s.k8sProvider.Workloads(s.cv)
-	if err != nil {
-		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to obtain workloads for cv resource")
-		return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", s.cv.Name))
-	}
+// Stop shuts down the sync operation.
+func (s *Syncer) Stop() error {
+	return s.machine.Stop()
+}
 
-	var toUpdate []k8s.Workload
-	for _, wl := range workloads {
-		currVersion, err := s.containerVersion(wl)
+func (s *Syncer) initialState() state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		version, err := s.registry.Version(s.cv.Spec.Tag)
 		if err != nil {
-			return state.Error(errors.Wrapf(err, "failed to obtain container version for workload %s", wl.Name()))
+			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get version from registry")
+			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
-		if currVersion != version {
-			toUpdate = append(toUpdate, wl)
+
+		workloads, err := s.k8sProvider.Workloads(s.cv)
+		if err != nil {
+			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to obtain workloads for cv resource")
+			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", s.cv.Name))
 		}
+
+		var toUpdate []k8s.Workload
+		for _, wl := range workloads {
+			currVersion, err := s.containerVersion(wl)
+			if err != nil {
+				return state.Error(errors.Wrapf(err, "failed to obtain container version for workload %s", wl.Name()))
+			}
+			if currVersion != version {
+				toUpdate = append(toUpdate, wl)
+			}
+		}
+
+		var states []state.State
+		for _, wl := range toUpdate {
+			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify,
+				deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, wl,
+					s.successfulDeploymentStats(wl,
+						s.syncVersionConfig(version, nil))))
+
+			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
+		}
+
+		return state.Many(states...)
 	}
+}
 
-	var states []state.State
-	for _, wl := range toUpdate {
-		st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify,
-			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, wl,
-				s.successfulDeploymentStats(wl,
-					s.syncVersionConfig(version, nil))))
-
-		// TODO: add steps to handle error
-
-		states = append(states, st)
+func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFailureFunc {
+	return func(ctx context.Context, err error) {
+		s.options.Stats.Event(fmt.Sprintf("%s.sync.failure", workload.Name()),
+			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
+			time.Now().UTC())
+		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
+			version, workload.Name(), err)
+		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 	}
-
-	return state.Many(states...)
 }
 
 func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
@@ -182,47 +200,3 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 		},
 	}
 }
-
-/*
-func (s *Syncer) validate(v string, cvvs []*cv1.VerifySpec) error {
-	for _, v := range cvvs {
-		verifier, err := verify.NewVerifier(k.cs, k.options.Recorder, k.options.Stats, k.namespace, v)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if err = verifier.Verify(); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	return nil
-}
-*/
-
-/*
-func (s *Syncer) newDeployer(cv *cv1.ContainerVersion) deploy.Deployer {
-	var kind string
-	if cv.Spec.Strategy != nil {
-		kind = cv.Spec.Strategy.Kind
-	}
-
-	switch kind {
-	case deploy.KindServieBlueGreen:
-		return deploy.NewBlueGreenDeployer(s.k8sProvider.Client(), s.k8sProvider.Namespace(), config.WithOptions(s.options))
-	default:
-		return deploy.NewSimpleDeployer(s.k8sProvider.Namespace(), config.WithOptions(s.options))
-	}
-}
-*/
-/*
-func (s *Syncer) newVerifyState(version string, cvvs []*cv1.VerifySpec, idx int) state.StateFunc {
-	return func(ctx context.Context) (State, error) {
-		if idx >= len(cvvs) {
-			// TODO: move onto next state
-			return nil, nil
-		}
-
-		return verify.NewVerifier(s.client, s.namespace, cvvs[idx], s.newVerifyState(version, cvvs, idx++),
-			config.WithOptions(s.options)), nil
-	}
-}
-*/
