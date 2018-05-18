@@ -71,6 +71,8 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 
 	if sd.checkRollback {
 		return state.Single(sd.checkRollbackState(container, sd.next))
+	} else {
+		log.Printf("Not checking rollback state")
 	}
 
 	return state.Single(sd.next)
@@ -79,8 +81,11 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if sd.target.RollbackAfter() == nil {
+			log.Printf("Target %s does not define a progress deadline.", sd.target.Name())
 			return state.Single(next)
 		}
+
+		log.Printf("Checking progress health of target %s with deadline %v", sd.target.Name(), sd.target.RollbackAfter())
 
 		prevVersion := strings.SplitAfterN(container.Image, ":", 2)[1]
 

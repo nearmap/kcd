@@ -108,8 +108,6 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 
 // Start the state machine.
 func (m *Machine) Start() {
-	log.Printf("Starting state machine")
-
 	m.newOp()
 
 	for i := uint64(0); ; i++ {
@@ -148,11 +146,8 @@ func (m *Machine) sleep(i uint64) {
 // canExecute returns true if the operation is in a state that can be executed.
 func (m *Machine) canExecute(o *op) bool {
 	if aft, ok := o.state.(HasAfter); ok {
-		log.Printf("Operation has after feature. Will execute after %v", aft.After())
 		return time.Now().UTC().After(aft.After())
 	}
-
-	log.Printf("Operation does not have after feature. Executing immediately.")
 	return true
 }
 
@@ -160,7 +155,7 @@ func (m *Machine) canExecute(o *op) bool {
 func (m *Machine) scheduleOps(ops ...*op) {
 	log.Printf("scheduleOps:")
 	for _, o := range ops {
-		log.Printf(" -- %+v", o)
+		log.Printf(" -- id=%s, %+v", ID(o.ctx), o)
 	}
 
 	go func() {
@@ -188,7 +183,6 @@ func (m *Machine) executeOp(o *op) bool {
 	}
 
 	if !m.canExecute(o) {
-		log.Printf("Can't execute")
 		return false
 	}
 
