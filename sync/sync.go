@@ -102,7 +102,7 @@ func (s *Syncer) initialState() state.StateFunc {
 		var states []state.State
 		for _, wl := range toUpdate {
 			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify,
-				deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, wl,
+				deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, wl, s.options.UseRollback,
 					s.successfulDeploymentStats(wl,
 						s.syncVersionConfig(version, nil))))
 
