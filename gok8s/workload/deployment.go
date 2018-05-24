@@ -7,7 +7,6 @@ import (
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/gocore/ptr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -86,7 +85,8 @@ func (d *Deployment) ProgressHealth() *bool {
 		switch c.Type {
 		case appsv1.DeploymentReplicaFailure:
 			if c.Status == corev1.ConditionTrue {
-				return ptr.Bool(false)
+				result := false
+				return &result
 			}
 		//case appsv1.DeploymentProgressing:
 		// ???
@@ -95,7 +95,8 @@ func (d *Deployment) ProgressHealth() *bool {
 		//}
 		case appsv1.DeploymentAvailable:
 			if c.Status == corev1.ConditionTrue && ok == nil {
-				ok = ptr.Bool(true)
+				result := true
+				ok = &result
 			}
 		}
 	}
