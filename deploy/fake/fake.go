@@ -17,7 +17,7 @@ type RolloutTarget struct {
 	FakeType           string
 	FakePodSpec        corev1.PodSpec
 	FakeRollbackAfter  *time.Duration
-	FakeProgressHealth bool
+	FakeProgressHealth *bool
 
 	Invocations chan interface{}
 }
@@ -110,7 +110,7 @@ func (rt *RolloutTarget) RollbackAfter() *time.Duration {
 }
 
 // ProgressHealth implements the ProgressHealth interface.
-func (rt *RolloutTarget) ProgressHealth() bool {
+func (rt *RolloutTarget) ProgressHealth() *bool {
 	return rt.FakeProgressHealth
 }
 
