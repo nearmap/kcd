@@ -9,6 +9,7 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/registry/errs"
+	"github.com/nearmap/gocore/ptr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -88,8 +89,8 @@ func (p *Pod) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (p *Pod) ProgressHealth() bool {
-	return true
+func (p *Pod) ProgressHealth() *bool {
+	return ptr.Bool(true)
 }
 
 // PatchPodSpec implements the Workload interface.

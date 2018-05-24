@@ -32,7 +32,7 @@ type RolloutTarget interface {
 	RollbackAfter() *time.Duration
 
 	// ProgressHealth indicates weather the current status of progress healthy or not
-	ProgressHealth() bool
+	ProgressHealth() *bool
 }
 
 // TemplateRolloutTarget defines methods for deployable resources that manage a collection

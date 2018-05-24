@@ -179,6 +179,7 @@ func (m *Machine) executeOp(o *op) bool {
 
 	if err := o.ctx.Err(); err != nil {
 		log.Printf("Operation %s context error: %+v", ID(o.ctx), err)
+		go m.newOp()
 		return true
 	}
 

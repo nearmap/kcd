@@ -7,6 +7,7 @@ import (
 
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/gocore/ptr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -79,13 +80,26 @@ func (d *Deployment) RollbackAfter() *time.Duration {
 }
 
 // ProgressHealth implements the Workload interface.
-func (d *Deployment) ProgressHealth() bool {
-	ok := true
+func (d *Deployment) ProgressHealth() *bool {
+	var ok *bool
 	for _, c := range d.deployment.Status.Conditions {
-		if c.Type == appsv1.DeploymentReplicaFailure {
-			ok = !(c.Status == corev1.ConditionTrue)
+		switch c.Type {
+		case appsv1.DeploymentReplicaFailure:
+			if c.Status == corev1.ConditionTrue {
+				return ptr.Bool(false)
+			}
+		//case appsv1.DeploymentProgressing:
+		// ???
+		//if c.Status == corev1.ConditionFalse {
+		//	ok = ptr.Bool(false)
+		//}
+		case appsv1.DeploymentAvailable:
+			if c.Status == corev1.ConditionTrue && ok == nil {
+				ok = ptr.Bool(true)
+			}
 		}
 	}
+
 	return ok
 }
 

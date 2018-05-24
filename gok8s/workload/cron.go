@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/gocore/ptr"
 	"github.com/pkg/errors"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -67,8 +68,8 @@ func (cj *CronJob) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (d *CronJob) ProgressHealth() bool {
-	return true
+func (d *CronJob) ProgressHealth() *bool {
+	return ptr.Bool(true)
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.

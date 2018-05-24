@@ -85,18 +85,18 @@ func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state
 			return state.Single(next)
 		}
 
-		log.Printf("Checking progress health of target %s with deadline %v", sd.target.Name(), sd.target.RollbackAfter())
-
-		prevVersion := strings.SplitAfterN(container.Image, ":", 2)[1]
-
-		if time.Now().UTC().Before(state.StartTime(ctx).Add(*sd.target.RollbackAfter())) {
+		healthy := sd.target.ProgressHealth()
+		log.Printf("Checking progress health of target %s: %v", sd.target.Name(), healthy)
+		if healthy == nil {
 			return state.After(time.Second*15, sd.checkRollbackState(container, next))
 		}
-
-		if sd.target.ProgressHealth() {
+		if *healthy == true {
+			log.Printf("Target is healthy")
 			return state.Single(next)
 		}
 
+		prevVersion := strings.SplitAfterN(container.Image, ":", 2)[1]
+		log.Printf("Rolling back ")
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			if rbErr := sd.target.PatchPodSpec(sd.cv, *container, prevVersion); rbErr != nil {
 				log.Printf(`Failed to rollback container version (will retry):
