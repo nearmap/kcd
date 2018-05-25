@@ -91,11 +91,10 @@ func (d *Deployment) ProgressHealth() *bool {
 				result := false
 				return &result
 			}
-		//case appsv1.DeploymentProgressing:
-		// ???
-		//if c.Status == corev1.ConditionFalse {
-		//	ok = ptr.Bool(false)
-		//}
+		case appsv1.DeploymentProgressing:
+			if c.Status == corev1.ConditionTrue {
+				return nil
+			}
 		case appsv1.DeploymentAvailable:
 			if c.Status == corev1.ConditionTrue && ok == nil {
 				result := true
