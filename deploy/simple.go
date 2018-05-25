@@ -86,10 +86,13 @@ func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state
 		}
 
 		healthy := sd.target.ProgressHealth()
-		log.Printf("Checking progress health of target %s: %v", sd.target.Name(), healthy)
 		if healthy == nil {
+			log.Printf("Waiting for healthy state of target %s", sd.target.Name())
 			return state.After(time.Second*15, sd.checkRollbackState(container, next))
 		}
+
+		log.Printf("Checking progress health of target %s: %v", sd.target.Name(), *healthy)
+
 		if *healthy == true {
 			log.Printf("Target is healthy")
 			return state.Single(next)

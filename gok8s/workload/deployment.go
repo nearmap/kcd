@@ -82,6 +82,9 @@ func (d *Deployment) RollbackAfter() *time.Duration {
 func (d *Deployment) ProgressHealth() *bool {
 	var ok *bool
 	for _, c := range d.deployment.Status.Conditions {
+		// temp
+		log.Printf("deployment condition: %v", c)
+
 		switch c.Type {
 		case appsv1.DeploymentReplicaFailure:
 			if c.Status == corev1.ConditionTrue {
