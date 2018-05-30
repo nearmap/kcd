@@ -3,6 +3,7 @@ package k8s
 import (
 	"log"
 	"strings"
+	"time"
 
 	"github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
@@ -73,24 +74,29 @@ func (k *Provider) Client() kubernetes.Interface {
 	return k.cs
 }
 
-// CanRollout returns true if we can attempt a rollout for the cv resource at the given version.
-func (k *Provider) CanRollout(cv *cv1.ContainerVersion, version string) bool {
-	return cv.Status.LastFailedVersion != version
+// CV returns a ContainerVersion resource with the given name.
+func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
+	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
+	cv, err := client.Get(name, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", name)
+	}
+	return cv, nil
 }
 
-// UpdateFailedRollout updates the cv status to indicate that the rollout of the given
-// version has failed and thus should not be reattempted.
-func (k *Provider) UpdateFailedRollout(cv *cv1.ContainerVersion, version string) (*cv1.ContainerVersion, error) {
+// UpdateRolloutStatus updates the ContainerVersion with the given name to indicate a
+// rollout status of the given version and time. Returns the updated ContainerVersion.
+func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm time.Time) (*cv1.ContainerVersion, error) {
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 
-	// ensure state is up to date
-	var err error
-	cv, err = client.Get(cv.Name, metav1.GetOptions{})
+	cv, err := client.Get(cvName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", cv.Name)
 	}
 
-	cv.Status.LastFailedVersion = version
+	cv.Status.CurrVersion = version
+	cv.Status.CurrStatus = status
+	cv.Status.CurrStatusTime = metav1.NewTime(tm)
 
 	result, err := client.Update(cv)
 	if err != nil {

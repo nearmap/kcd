@@ -67,7 +67,7 @@ func (cj *CronJob) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (d *CronJob) ProgressHealth() *bool {
+func (d *CronJob) ProgressHealth(startTime time.Time) *bool {
 	result := true
 	return &result
 }

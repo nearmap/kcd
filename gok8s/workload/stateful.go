@@ -65,7 +65,7 @@ func (ss *StatefulSet) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (ss *StatefulSet) ProgressHealth() *bool {
+func (ss *StatefulSet) ProgressHealth(startTime time.Time) *bool {
 	result := true
 	return &result
 }

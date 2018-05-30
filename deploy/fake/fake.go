@@ -110,7 +110,7 @@ func (rt *RolloutTarget) RollbackAfter() *time.Duration {
 }
 
 // ProgressHealth implements the ProgressHealth interface.
-func (rt *RolloutTarget) ProgressHealth() *bool {
+func (rt *RolloutTarget) ProgressHealth(startTime time.Time) *bool {
 	return rt.FakeProgressHealth
 }
 

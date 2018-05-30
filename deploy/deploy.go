@@ -9,6 +9,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	RolloutStatusFailed      = "Failed"
+	RolloutStatusSuccess     = "Success"
+	RolloutStatusProgressing = "Progressing"
+)
+
 // RolloutTarget defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
 type RolloutTarget interface {
 	// Name is the name of the workload (without the namespace).
@@ -31,8 +37,9 @@ type RolloutTarget interface {
 	// should attempt rollback
 	RollbackAfter() *time.Duration
 
-	// ProgressHealth indicates weather the current status of progress healthy or not
-	ProgressHealth() *bool
+	// ProgressHealth indicates weather the current status of progress healthy or not.
+	// The start time of the deployment operation is provided.
+	ProgressHealth(startTime time.Time) *bool
 }
 
 // TemplateRolloutTarget defines methods for deployable resources that manage a collection

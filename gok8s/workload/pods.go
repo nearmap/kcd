@@ -88,7 +88,7 @@ func (p *Pod) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (p *Pod) ProgressHealth() *bool {
+func (p *Pod) ProgressHealth(startTime time.Time) *bool {
 	result := true
 	return &result
 }

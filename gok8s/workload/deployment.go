@@ -79,24 +79,26 @@ func (d *Deployment) RollbackAfter() *time.Duration {
 }
 
 // ProgressHealth implements the Workload interface.
-func (d *Deployment) ProgressHealth() *bool {
+func (d *Deployment) ProgressHealth(startTime time.Time) *bool {
 	var ok *bool
 	for _, c := range d.deployment.Status.Conditions {
 		// temp
-		log.Printf("deployment condition: %v", c)
+		log.Printf("deployment condition: %+v", c)
+
+		if c.LastTransitionTime.Time.Before(startTime) {
+			continue
+		}
 
 		switch c.Type {
-		case appsv1.DeploymentReplicaFailure:
-			if c.Status == corev1.ConditionTrue {
-				result := false
-				return &result
-			}
 		case appsv1.DeploymentProgressing:
-			if c.Status == corev1.ConditionTrue {
-				return nil
+			if c.Status == corev1.ConditionFalse {
+				if c.Reason == "ProgressDeadlineExceeded" {
+					result := false
+					return &result
+				}
 			}
 		case appsv1.DeploymentAvailable:
-			if c.Status == corev1.ConditionTrue && ok == nil {
+			if c.Status == corev1.ConditionTrue {
 				result := true
 				ok = &result
 			}

@@ -15,9 +15,10 @@ import (
 
 // SimpleDeployer implements a rollout strategy by patching the target's pod spec with a new version.
 type SimpleDeployer struct {
-	cv            *cv1.ContainerVersion
-	version       string
-	target        RolloutTarget
+	cv      *cv1.ContainerVersion
+	version string
+	target  RolloutTarget
+
 	checkRollback bool
 
 	next state.State
@@ -85,7 +86,7 @@ func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state
 			return state.Single(next)
 		}
 
-		healthy := sd.target.ProgressHealth()
+		healthy := sd.target.ProgressHealth(sd.cv.Status.CurrStatusTime.Time)
 		if healthy == nil {
 			log.Printf("Waiting for healthy state of target %s", sd.target.Name())
 			return state.After(time.Second*15, sd.checkRollbackState(container, next))

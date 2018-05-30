@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/nearmap/cvmanager/config"
@@ -25,8 +24,9 @@ import (
 type Syncer struct {
 	machine *state.Machine
 
+	cv *cv1.ContainerVersion
+
 	k8sProvider *k8s.Provider
-	cv          *cv1.ContainerVersion
 	registry    registry.Registry
 	options     *config.Options
 }
@@ -65,7 +65,13 @@ func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		log.Printf("Running initial state")
 
-		version, err := s.registry.Version(s.cv.Spec.Tag)
+		cv, err := s.k8sProvider.CV(s.cv.Name)
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", s.cv.Name))
+		}
+		s.cv = cv
+
+		version, err := s.registry.Version(cv.Spec.Tag)
 		if err != nil {
 			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get version from registry")
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
@@ -73,38 +79,42 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		log.Printf("Current version: %v", version)
 
-		if !s.k8sProvider.CanRollout(s.cv, version) {
-			log.Printf("Not attempting %s rollout of version %s: already failed.", s.cv.Name, version)
+		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusProgressing {
+			log.Printf("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
 			return state.None()
 		}
 
-		workloads, err := s.k8sProvider.Workloads(s.cv)
+		workloads, err := s.k8sProvider.Workloads(cv)
 		if err != nil {
 			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to obtain workloads for cv resource")
-			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", s.cv.Name))
+			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
 
 		log.Printf("Got %d workloads", len(workloads))
 
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
-			currVersion, err := s.containerVersion(wl)
-			if err != nil {
-				return state.Error(errors.Wrapf(err, "failed to obtain container version for workload %s", wl.Name()))
-			}
-			if currVersion != version {
-				toUpdate = append(toUpdate, wl)
-			}
+			toUpdate = append(toUpdate, wl)
+
+			//currVersion, err := s.containerVersion(wl)
+			//if err != nil {
+			//	return state.Error(errors.Wrapf(err, "failed to obtain container version for workload %s", wl.Name()))
+			//}
+			//if currVersion != version {
+			//	toUpdate = append(toUpdate, wl)
+			//}
 		}
 
 		log.Printf("Found %d workloads to update", len(toUpdate))
 
 		var states []state.State
 		for _, wl := range toUpdate {
-			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify,
-				deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, wl, s.options.UseRollback,
-					s.successfulDeploymentStats(wl,
-						s.syncVersionConfig(version, nil))))
+			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, cv.Spec.Container.Verify,
+				s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
+					deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), cv, version, wl, s.options.UseRollback,
+						s.successfulDeploymentStats(wl,
+							s.syncVersionConfig(cv, version,
+								s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil))))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
 		}
@@ -123,7 +133,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 			time.Now().UTC())
 		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 
-		_, uErr := s.k8sProvider.UpdateFailedRollout(s.cv, version)
+		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, deploy.RolloutStatusFailed, time.Now().UTC())
 		if uErr != nil {
 			log.Printf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
 			// TODO: something else?
@@ -131,6 +141,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 	}
 }
 
+/*
 func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
 	for _, c := range workload.PodSpec().Containers {
 		if c.Name == s.cv.Spec.Container.Name {
@@ -148,6 +159,7 @@ func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
 
 	return "", errors.Errorf("no container of name %s was found in workload %s", s.cv.Spec.Container.Name, workload.Name())
 }
+*/
 
 func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
@@ -159,42 +171,59 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 	}
 }
 
+func (s *Syncer) updateRolloutStatus(version, status string, next state.State) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		log.Printf("updateRolloutStatus: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
+
+		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
+		if err != nil {
+			log.Printf("Failed to update Rollout Status status for cv=%s, version=%s, status=%s: %v", s.cv.Name, version, status, err)
+			events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
+			return state.Error(errors.Wrapf(err, "failed to update Rollout status for cv=%s, version=%s, status=%s",
+				s.cv.Name, version, status))
+		}
+
+		s.cv = cv
+		return state.Single(next)
+	}
+}
+
 // syncVersionConfig sync the config map referenced by CV resource - creates if absent and updates if required
 // The controller is not responsible for managing the config resource it reference but only for updating
 // and ensuring its present. If the reference to config was removed from CV resource its not the responsibility
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource
-func (s *Syncer) syncVersionConfig(version string, next state.State) state.StateFunc {
+func (s *Syncer) syncVersionConfig(cv *cv1.ContainerVersion, version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("SyncVersionConfig: cv=%s, version=%s", s.cv.Name, version)
+		log.Printf("syncVersionConfig: cv=%s, version=%s", s.cv.Name, version)
 
-		if s.cv.Spec.Config == nil {
+		if cv.Spec.Config == nil {
 			return state.Single(next)
 		}
 
 		client := s.k8sProvider.Client()
 		namespace := s.k8sProvider.Namespace()
 
-		cm, err := client.CoreV1().ConfigMaps(namespace).Get(s.cv.Spec.Config.Name, metav1.GetOptions{})
+		cm, err := client.CoreV1().ConfigMaps(namespace).Get(cv.Spec.Config.Name, metav1.GetOptions{})
 		if err != nil {
 			if k8serr.IsNotFound(err) {
 				_, err = client.CoreV1().ConfigMaps(namespace).Create(
-					newVersionConfig(namespace, s.cv.Spec.Config.Name, s.cv.Spec.Config.Key, version))
+					newVersionConfig(namespace, cv.Spec.Config.Name, cv.Spec.Config.Key, version))
 				if err != nil {
 					events.FromContext(ctx).Event(events.Warning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
 					return state.Error(errors.Wrapf(err, "failed to create version configmap from %s/%s:%s",
-						namespace, s.cv.Spec.Config.Name, s.cv.Spec.Config.Key))
+						namespace, cv.Spec.Config.Name, cv.Spec.Config.Key))
 				}
 				return state.Single(next)
 			}
 			return state.Error(errors.Wrapf(err, "failed to get version configmap from %s/%s:%s",
-				namespace, s.cv.Spec.Config.Name, s.cv.Spec.Config.Key))
+				namespace, cv.Spec.Config.Name, cv.Spec.Config.Key))
 		}
 
-		if version == cm.Data[s.cv.Spec.Config.Key] {
+		if version == cm.Data[cv.Spec.Config.Key] {
 			return state.Single(next)
 		}
 
-		cm.Data[s.cv.Spec.Config.Key] = version
+		cm.Data[cv.Spec.Config.Key] = version
 
 		// TODO enable this when patchstretegy is supported on config map https://github.com/kubernetes/client-go/blob/7ac1236/pkg/api/v1/types.go#L3979
 		// _, err = s.k8sClient.CoreV1().ConfigMaps(s.namespace).Patch(cm.ObjectMeta.Name, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{
@@ -206,7 +235,7 @@ func (s *Syncer) syncVersionConfig(version string, next state.State) state.State
 		if err != nil {
 			events.FromContext(ctx).Event(events.Warning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
 			return state.Error(errors.Wrapf(err, "failed to update version configmap from %s/%s:%s",
-				namespace, s.cv.Spec.Config.Name, s.cv.Spec.Config.Key))
+				namespace, cv.Spec.Config.Name, cv.Spec.Config.Key))
 		}
 		return state.Single(next)
 	}

@@ -76,10 +76,11 @@ type ConfigSpec struct {
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
 
-	// LastFailedVersion contains the version number of the most recent failed
-	// rollout attempt. This ensures that we don't keep attempting to rollout
-	// a failed version.
-	LastFailedVersion string `json:"lastFailedVersion"`
+	// CurrVersion is the most recent version of a rollout, which has a status.
+	// CurrStatusTime is the time of the last status change.
+	CurrVersion    string      `json:"prevVersion"`
+	CurrStatus     string      `json:"prevStatus"`
+	CurrStatusTime metav1.Time `json:"prevTime"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
