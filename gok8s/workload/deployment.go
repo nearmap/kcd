@@ -85,20 +85,20 @@ func (d *Deployment) ProgressHealth(startTime time.Time) *bool {
 		// temp
 		log.Printf("deployment condition: %+v", c)
 
-		if c.LastTransitionTime.Time.Before(startTime) {
+		if c.LastUpdateTime.Time.Before(startTime) {
+			continue
+		}
+		if c.Type != appsv1.DeploymentProgressing {
 			continue
 		}
 
-		switch c.Type {
-		case appsv1.DeploymentProgressing:
-			if c.Status == corev1.ConditionFalse {
-				if c.Reason == "ProgressDeadlineExceeded" {
-					result := false
-					return &result
-				}
+		if c.Status == corev1.ConditionFalse {
+			if c.Reason == "ProgressDeadlineExceeded" {
+				result := false
+				return &result
 			}
-		case appsv1.DeploymentAvailable:
-			if c.Status == corev1.ConditionTrue {
+		} else {
+			if c.Reason == "NewReplicaSetAvailable" {
 				result := true
 				ok = &result
 			}
