@@ -78,9 +78,9 @@ type ContainerVersionStatus struct {
 
 	// CurrVersion is the most recent version of a rollout, which has a status.
 	// CurrStatusTime is the time of the last status change.
-	CurrVersion    string      `json:"prevVersion"`
-	CurrStatus     string      `json:"prevStatus"`
-	CurrStatusTime metav1.Time `json:"prevTime"`
+	CurrVersion    string      `json:"currVersion"`
+	CurrStatus     string      `json:"currStatus"`
+	CurrStatusTime metav1.Time `json:"currStatusTime"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

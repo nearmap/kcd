@@ -61,6 +61,7 @@ func (s *Syncer) Stop() error {
 	return s.machine.Stop()
 }
 
+// initialState returns a state that starts a sync process.
 func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		log.Printf("Running initial state")
@@ -123,6 +124,8 @@ func (s *Syncer) initialState() state.StateFunc {
 	}
 }
 
+// handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
+// the rollout status and generating relevant stats and events.
 func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFailureFunc {
 	return func(ctx context.Context, err error) {
 		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
@@ -161,16 +164,8 @@ func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
 }
 */
 
-func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
-	return func(ctx context.Context) (state.States, error) {
-		log.Printf("Updating stats for successful deployment")
-
-		s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", workload.Name()))
-		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
-		return state.Single(next)
-	}
-}
-
+// updateRolloutStatus updates the ContainerVersion resource status with the given version and status
+// value and sests the current cv instance in the syncer with the updated values.
 func (s *Syncer) updateRolloutStatus(version, status string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		log.Printf("updateRolloutStatus: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
@@ -184,6 +179,17 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 		}
 
 		s.cv = cv
+		return state.Single(next)
+	}
+}
+
+// successfulDeploymentStats generates stats for a successful rollout.
+func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		log.Printf("Updating stats for successful deployment")
+
+		s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", workload.Name()))
+		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
 		return state.Single(next)
 	}
 }

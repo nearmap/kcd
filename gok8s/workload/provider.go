@@ -76,6 +76,8 @@ func (k *Provider) Client() kubernetes.Interface {
 
 // CV returns a ContainerVersion resource with the given name.
 func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
+	log.Printf("Getting ContainerVersion with name=%s", name)
+
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 	cv, err := client.Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -103,7 +105,7 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
-	log.Printf("Updated last failed version for cv spec=%s, version=%s", cv.Name, version)
+	log.Printf("Updated rollout status for cv=%s, version=%s, status=%s, time=%v", cv.Name, version, status, tm)
 	return result, nil
 }
 
