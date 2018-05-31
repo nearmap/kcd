@@ -180,7 +180,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 
 		log.Printf("setting cv in syncer: cv=%+v", cv)
 
-		s.cv = cv
+		//s.cv = cv
 
 		log.Printf("finished setting cv in syncer")
 
