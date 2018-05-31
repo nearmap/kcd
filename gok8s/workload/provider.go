@@ -102,12 +102,12 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 	cv.Status.CurrStatus = status
 	cv.Status.CurrStatusTime = metav1.NewTime(tm)
 
-	//result, err := client.Update(cv)
-	//if err != nil {
-	//	return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
-	//}
+	result, err := client.Update(cv)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
+	}
 
-	log.Printf("Successfully updated rollout status")
+	log.Printf("Successfully updated rollout status: %+v", result)
 	//return result, nil
 
 	// TODO:
