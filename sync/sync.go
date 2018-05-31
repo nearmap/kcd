@@ -170,16 +170,17 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 	return func(ctx context.Context) (state.States, error) {
 		log.Printf("updateRolloutStatus: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
 
-		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
-		if err != nil {
-			log.Printf("Failed to update Rollout Status status for cv=%s, version=%s, status=%s: %v", s.cv.Name, version, status, err)
-			events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
-			return state.Error(errors.Wrapf(err, "failed to update Rollout status for cv=%s, version=%s, status=%s",
-				s.cv.Name, version, status))
-		}
+		//cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
+		//if err != nil {
+		//	log.Printf("Failed to update Rollout Status status for cv=%s, version=%s, status=%s: %v", s.cv.Name, version, status, err)
+		//	events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
+		//	return state.Error(errors.Wrapf(err, "failed to update Rollout status for cv=%s, version=%s, status=%s",
+		//		s.cv.Name, version, status))
+		//}
 
-		log.Printf("setting cv in syncer: cv=%+v", cv)
+		//log.Printf("setting cv in syncer: cv=%+v", cv)
 
+		// TODO:
 		//s.cv = cv
 
 		log.Printf("finished setting cv in syncer")
