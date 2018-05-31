@@ -178,13 +178,20 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 				s.cv.Name, version, status))
 		}
 
+		log.Printf("setting cv in syncer")
+
 		s.cv = cv
+
+		log.Printf("finished setting cv in syncer")
+
 		return state.Single(next)
 	}
 }
 
 func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
+		log.Printf("in deploy state: creating new deployer")
+
 		return state.Single(
 			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, s.options.UseRollback, next))
 	}
