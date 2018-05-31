@@ -111,11 +111,11 @@ func (s *Syncer) initialState() state.StateFunc {
 		var states []state.State
 		for _, wl := range toUpdate {
 			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, cv.Spec.Container.Verify,
-				s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
-					s.deploy(version, wl,
-						s.successfulDeploymentStats(wl,
-							s.syncVersionConfig(version,
-								s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil))))))
+				//s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
+				s.deploy(version, wl,
+					s.successfulDeploymentStats(wl,
+						s.syncVersionConfig(version,
+							s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil)))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
 		}
