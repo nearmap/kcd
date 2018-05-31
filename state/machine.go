@@ -7,6 +7,7 @@ import (
 
 	"github.com/nearmap/cvmanager/events"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 )
 
@@ -171,8 +172,8 @@ func (m *Machine) scheduleOps(ops ...*op) {
 func (m *Machine) executeOp(o *op) (finished bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Panic processing operation %s: %+v", ID(o.ctx), r)
 			finished = true
+			m.permanentFailure(o, errors.Errorf("Panic: %v", r))
 		}
 	}()
 
@@ -190,22 +191,20 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 
 	states, err := o.state.Do(o.ctx)
 	if err != nil && IsPermanent(err) {
-		log.Printf("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
-		for i := len(o.failureFuncs) - 1; i >= 0; i-- {
-			o.failureFuncs[i].Fail(o.ctx, err)
-		}
-		states = NewStates()
+		m.permanentFailure(o, err)
+		return
 	}
 	if err != nil && !IsPermanent(err) {
 		log.Printf("Operation %s failed with error: %+v", ID(o.ctx), err)
 		o.retries++
 		if o.retries > m.options.MaxRetries {
 			log.Printf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
-			states = NewStates()
-		} else {
-			log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
-			states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second), o.state))
+			m.permanentFailure(o, err)
+			return
 		}
+
+		log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
+		states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second), o.state))
 	}
 
 	if states.Empty() {
@@ -221,6 +220,17 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	m.scheduleOps(ops...)
 
 	return true
+}
+
+func (m *Machine) permanentFailure(o *op, err error) {
+	log.Printf("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
+
+	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
+		o.failureFuncs[i].Fail(o.ctx, err)
+	}
+
+	o.cancel()
+	go m.newOp()
 }
 
 func (m *Machine) newOp() {

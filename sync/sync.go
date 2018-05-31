@@ -178,7 +178,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 				s.cv.Name, version, status))
 		}
 
-		log.Printf("setting cv in syncer")
+		log.Printf("setting cv in syncer: cv=%+v", cv)
 
 		s.cv = cv
 
