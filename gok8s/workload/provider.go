@@ -89,6 +89,8 @@ func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
 // UpdateRolloutStatus updates the ContainerVersion with the given name to indicate a
 // rollout status of the given version and time. Returns the updated ContainerVersion.
 func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm time.Time) (*cv1.ContainerVersion, error) {
+	log.Printf("Updating rollout status for cv=%s, version=%s, status=%s, time=%v", cvName, version, status, tm)
+
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 
 	cv, err := client.Get(cvName, metav1.GetOptions{})
@@ -105,7 +107,7 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
-	log.Printf("Updated rollout status for cv=%s, version=%s, status=%s, time=%v", cv.Name, version, status, tm)
+	log.Printf("Successfully updated rollout status")
 	return result, nil
 }
 
