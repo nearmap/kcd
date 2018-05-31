@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -73,6 +74,10 @@ func (o *op) new(state State, failureFunc OnFailure) *op {
 		newOp.failureFuncs = append(newOp.failureFuncs, failureFunc)
 	}
 	return newOp
+}
+
+func (o *op) String() string {
+	return fmt.Sprintf("op: %s (retries=%d, onFailures=%d, type=%T)", ID(o.ctx), o.retries, len(o.failureFuncs), o)
 }
 
 // Machine implements the main state machine loop.
@@ -159,10 +164,13 @@ func (m *Machine) canExecute(o *op) bool {
 func (m *Machine) scheduleOps(ops ...*op) {
 	// TODO: try to add operation to channel before creating goroutine?
 
+	log.Printf("scheduling %d ops in new routine", len(ops))
+
 	go func() {
 		for _, op := range ops {
 			m.ops <- op
 		}
+		log.Printf("finished scheduling %d ops", len(ops))
 	}()
 }
 
@@ -177,7 +185,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 		}
 	}()
 
-	log.Printf("Executing operation: %+v", o)
+	log.Printf("Executing operation: %v", o)
 
 	if err := o.ctx.Err(); err != nil {
 		log.Printf("Operation %s context error: %+v", ID(o.ctx), err)
@@ -192,7 +200,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	states, err := o.state.Do(o.ctx)
 	if err != nil && IsPermanent(err) {
 		m.permanentFailure(o, err)
-		return
+		return true
 	}
 	if err != nil && !IsPermanent(err) {
 		log.Printf("Operation %s failed with error: %+v", ID(o.ctx), err)
@@ -200,7 +208,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 		if o.retries > m.options.MaxRetries {
 			log.Printf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
 			m.permanentFailure(o, err)
-			return
+			return true
 		}
 
 		log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
@@ -208,6 +216,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	}
 
 	if states.Empty() {
+		log.Printf("states is empty: cancelling context and initializing new")
 		o.cancel()
 		go m.newOp()
 		return true
