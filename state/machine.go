@@ -77,7 +77,7 @@ func (o *op) new(state State, failureFunc OnFailure) *op {
 }
 
 func (o *op) String() string {
-	return fmt.Sprintf("op: %s (retries=%d, onFailures=%d, type=%T)", ID(o.ctx), o.retries, len(o.failureFuncs), o)
+	return fmt.Sprintf("op: %s (retries=%d, onFailures=%d, type=%T)", ID(o.ctx), o.retries, len(o.failureFuncs), o.state)
 }
 
 // Machine implements the main state machine loop.
@@ -122,6 +122,8 @@ func (m *Machine) Start() {
 	for i := uint64(0); ; i++ {
 		select {
 		case o := <-m.ops:
+			log.Printf("Received op: %v", o)
+
 			if err := UpdateHealthStatus(); err != nil {
 				log.Printf("Failed to update health status: %v", err)
 			}
@@ -132,6 +134,7 @@ func (m *Machine) Start() {
 				m.sleep(i)
 			}
 		case ch := <-m.stop:
+			log.Printf("stop signal received")
 			ch <- nil
 			return
 		default:
@@ -149,6 +152,9 @@ func (m *Machine) sleep(i uint64) {
 	if sleep > maxSleepSeconds*time.Second {
 		sleep = maxSleepSeconds * time.Second
 	}
+
+	log.Printf("sleeping for %v", sleep)
+
 	time.Sleep(sleep)
 }
 
