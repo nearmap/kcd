@@ -109,7 +109,7 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 
 	return &Machine{
 		start:   start,
-		ops:     make(chan *op, 100),
+		ops:     make(chan *op, 1000), // TODO: channel size
 		ctx:     ctx,
 		options: opts,
 	}
@@ -188,6 +188,13 @@ func (m *Machine) scheduleOps(ops ...*op) {
 	log.Printf("scheduling %d ops in new routine", len(ops))
 
 	go func() {
+		// TODO:
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in scheduling goroutine: %v", r)
+			}
+		}()
+
 		for _, op := range ops {
 			m.ops <- op
 		}
@@ -249,6 +256,8 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	}
 	m.scheduleOps(ops...)
 
+	log.Printf("Finished executeOp")
+
 	return true
 }
 
@@ -264,6 +273,8 @@ func (m *Machine) permanentFailure(o *op, err error) {
 }
 
 func (m *Machine) newOp() {
+	log.Printf("Creating newOp")
+
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
 	ctx = context.WithValue(ctx, ctxStartTime, time.Now().UTC())
