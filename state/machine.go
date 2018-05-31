@@ -148,7 +148,11 @@ func (m *Machine) Start() {
 		default:
 			m.sleep(i)
 		}
+
+		log.Printf("finished machine loop")
 	}
+
+	log.Printf("finished machine")
 }
 
 func (m *Machine) sleep(i uint64) {
@@ -156,7 +160,8 @@ func (m *Machine) sleep(i uint64) {
 		return
 	}
 
-	sleep := time.Duration(i*5) * time.Second
+	//sleep := time.Duration(i*5) * time.Second
+	sleep := time.Duration(i*1) * time.Second
 	if sleep > maxSleepSeconds*time.Second {
 		sleep = maxSleepSeconds * time.Second
 	}
@@ -164,6 +169,8 @@ func (m *Machine) sleep(i uint64) {
 	log.Printf("sleeping for %v", sleep)
 
 	time.Sleep(sleep)
+
+	log.Printf("finished sleeping")
 }
 
 // canExecute returns true if the operation is in a state that can be executed.
