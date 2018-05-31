@@ -102,13 +102,16 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 	cv.Status.CurrStatus = status
 	cv.Status.CurrStatusTime = metav1.NewTime(tm)
 
-	result, err := client.Update(cv)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
-	}
+	//result, err := client.Update(cv)
+	//if err != nil {
+	//	return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
+	//}
 
 	log.Printf("Successfully updated rollout status")
-	return result, nil
+	//return result, nil
+
+	// TODO:
+	return cv, nil
 }
 
 // AllResources returns all resources managed by container versions in the current namespace.
