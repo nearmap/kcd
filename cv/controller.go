@@ -368,9 +368,6 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 	dName := syncDeployName(cv.Name)
 	livenessSeconds := cv.Spec.LivenessSeconds
 	if livenessSeconds <= 0 {
-		livenessSeconds = cv.Spec.PollIntervalSeconds
-	}
-	if livenessSeconds <= 0 {
 		livenessSeconds = 5 * 60
 	}
 
@@ -434,17 +431,19 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 									},
 								},
 							},
-							LivenessProbe: &corev1.Probe{
-								PeriodSeconds: int32(cv.Spec.PollIntervalSeconds),
-								Handler: corev1.Handler{
-									Exec: &corev1.ExecAction{
-										Command: []string{
-											"cvmanager", "cr", "sync",
-											"status", "--by", fmt.Sprintf("%ds", livenessSeconds),
+							/*
+								LivenessProbe: &corev1.Probe{
+									PeriodSeconds: int32(livenessSeconds),
+									Handler: corev1.Handler{
+										Exec: &corev1.ExecAction{
+											Command: []string{
+												"cvmanager", "cr", "sync",
+												"status", "--by", fmt.Sprintf("%ds", livenessSeconds),
+											},
 										},
 									},
 								},
-							},
+							*/
 						},
 					},
 				},

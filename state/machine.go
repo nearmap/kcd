@@ -117,9 +117,17 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 
 // Start the state machine.
 func (m *Machine) Start() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovering from panic in machine: %v", r)
+		}
+	}()
+
 	m.newOp()
 
 	for i := uint64(0); ; i++ {
+		log.Printf("entering select...")
+
 		select {
 		case o := <-m.ops:
 			log.Printf("Received op: %v", o)
