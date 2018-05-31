@@ -40,7 +40,14 @@ func main() {
 // withExitCode executes as the main method but returns the status code
 // that will be returned to the operating system. This is done to ensure
 // all deferred functions are completed before calling os.Exit().
-func withExitCode() int {
+func withExitCode() (code int) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic: %v", r)
+			code = 2
+		}
+	}()
+
 	root := &cobra.Command{
 		Short: "cvmanager",
 		Long:  "Container Version Manager (cvmanager): a custom controller and tooling to manage CI/CD on kubernetes clusters",
