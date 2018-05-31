@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"log"
 	"time"
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -75,6 +76,8 @@ type Deployer interface {
 // ContainerVersion spec.
 func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
 	target RolloutTarget, withRollback bool, next state.State) state.State {
+
+	log.Printf("Creating deployment for cv=%+v, version=%s, rolloutTarget=%s", cv, version, target.Name())
 
 	var kind string
 	if cv.Spec.Strategy != nil {

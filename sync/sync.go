@@ -112,9 +112,9 @@ func (s *Syncer) initialState() state.StateFunc {
 		for _, wl := range toUpdate {
 			st := verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, cv.Spec.Container.Verify,
 				s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
-					deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), cv, version, wl, s.options.UseRollback,
+					s.deploy(version, wl,
 						s.successfulDeploymentStats(wl,
-							s.syncVersionConfig(cv, version,
+							s.syncVersionConfig(version,
 								s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil))))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
@@ -183,6 +183,13 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 	}
 }
 
+func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		return state.Single(
+			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, s.options.UseRollback, next))
+	}
+}
+
 // successfulDeploymentStats generates stats for a successful rollout.
 func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
@@ -198,9 +205,10 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 // The controller is not responsible for managing the config resource it reference but only for updating
 // and ensuring its present. If the reference to config was removed from CV resource its not the responsibility
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource
-func (s *Syncer) syncVersionConfig(cv *cv1.ContainerVersion, version string, next state.State) state.StateFunc {
+func (s *Syncer) syncVersionConfig(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("syncVersionConfig: cv=%s, version=%s", s.cv.Name, version)
+		cv := s.cv
+		log.Printf("syncVersionConfig: cv=%s, version=%s", cv.Name, version)
 
 		if cv.Spec.Config == nil {
 			return state.Single(next)

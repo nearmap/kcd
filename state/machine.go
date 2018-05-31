@@ -168,10 +168,11 @@ func (m *Machine) scheduleOps(ops ...*op) {
 // executeOp executes the given operation. Returns true if the operation was
 // executed (either successfully or failed) or false if it could not be executed
 // and needs to be rescheduled.
-func (m *Machine) executeOp(o *op) bool {
+func (m *Machine) executeOp(o *op) (finished bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Panic processing operation %s: %+v", ID(o.ctx), r)
+			finished = true
 		}
 	}()
 
