@@ -226,7 +226,14 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	var by time.Duration
 	status.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
 	status.RunE = func(cmd *cobra.Command, args []string) error {
-		return state.CheckHealth(by)
+		log.Printf("Performing health status check")
+
+		if err := state.CheckHealth(by); err != nil {
+			log.Printf("health status returned error: %v", err)
+			return err
+		}
+		log.Printf("health status check was successful")
+		return nil
 	}
 
 	cmd.AddCommand(status)

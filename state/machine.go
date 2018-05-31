@@ -47,6 +47,7 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 	}
 }
 
+// op is an operation to be performed by the machine.
 type op struct {
 	state  State
 	ctx    context.Context
@@ -56,6 +57,8 @@ type op struct {
 	failureFuncs []OnFailure
 }
 
+// new returns a new operation instance for the given state and failure functions
+// but retaining the context of the receiver operation.
 func (o *op) new(state State, failureFunc OnFailure) *op {
 	newOp := &op{
 		state:        state,
@@ -153,10 +156,7 @@ func (m *Machine) canExecute(o *op) bool {
 
 // scheduleOps schedules the given operations on the state machine.
 func (m *Machine) scheduleOps(ops ...*op) {
-	log.Printf("scheduleOps:")
-	for _, o := range ops {
-		log.Printf(" -- id=%s, %+v", ID(o.ctx), o)
-	}
+	// TODO: try to add operation to channel before creating goroutine?
 
 	go func() {
 		for _, op := range ops {
