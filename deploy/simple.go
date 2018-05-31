@@ -43,7 +43,14 @@ func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutT
 
 // Do implements the state interface.
 func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
+	log.Printf("Starting simple deployer process")
+
+	// TODO:
+	time.Sleep(time.Second * 5)
+
 	log.Printf("Performing simple deployment: target=%s, version=%s", sd.target.Name(), sd.version)
+
+	time.Sleep(time.Second * 5)
 
 	var container *v1.Container
 	podSpec := sd.target.PodSpec()
@@ -69,6 +76,10 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 		log.Printf("Failed to rollout: target=%s, version=%s, error=%v", sd.target.Name(), sd.version, err)
 		return state.Error(err)
 	}
+
+	// TODO:
+	log.Printf("Finished patching spec")
+	time.Sleep(time.Second * 5)
 
 	if sd.checkRollback {
 		return state.Single(sd.checkRollbackState(container, sd.next))

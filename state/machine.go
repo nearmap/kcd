@@ -225,6 +225,10 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 		return false
 	}
 
+	// TODO:
+	log.Printf("Do()")
+	time.Sleep(time.Second * 1)
+
 	states, err := o.state.Do(o.ctx)
 	if err != nil && IsPermanent(err) {
 		m.permanentFailure(o, err)
