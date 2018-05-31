@@ -2,10 +2,10 @@ package history
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -78,7 +78,7 @@ func (p *provider) Add(namespace, name string, record *Record) error {
 
 	_, err = p.cs.CoreV1().ConfigMaps(namespace).Update(updateRecordConfig(cm, record))
 	if err != nil {
-		log.Printf("failed to update cv update history in configmap: %s/%s", namespace, name)
+		glog.Errorf("failed to update cv update history in configmap: %s/%s", namespace, name)
 		return errors.Wrapf(err, "failed to update cv update history in configmap: %s/%s", namespace, name)
 	}
 	return nil

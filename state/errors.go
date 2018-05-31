@@ -21,7 +21,15 @@ func (ef *ErrorFailed) Cause() error {
 
 // NewFailed returns a permanent error of type ErrorFailed, indicating that the operation
 // failed for a known reason.
-func NewFailed(err error, message string, args ...interface{}) *ErrorFailed {
+func NewFailed(message string, args ...interface{}) *ErrorFailed {
+	return &ErrorFailed{
+		message: fmt.Sprintf(message, args...),
+	}
+}
+
+// NewFailedError returns a permanent error of type ErrorFailed that wraps an existing error,
+// indicating that the operation failed for a known reason.
+func NewFailedError(err error, message string, args ...interface{}) *ErrorFailed {
 	return &ErrorFailed{
 		cause:   err,
 		message: fmt.Sprintf(message, args...),

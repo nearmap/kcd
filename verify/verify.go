@@ -5,13 +5,12 @@ import (
 
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/state"
-	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 )
 
 var (
 	// ErrFailed is an error indicating that the verification process failed.
-	ErrFailed = errors.New("Verification failed")
+	ErrFailed = state.NewFailed("Verification failed")
 )
 
 // NewVerifier returns a state instance that implements a verifier, as defined in the verify spec.
@@ -21,7 +20,7 @@ func NewVerifier(cs kubernetes.Interface, namespace, version string, spec cv1.Ve
 	case KindImage:
 		verifier = NewImageVerifier(cs, namespace, spec, next)
 	default:
-		return state.Error(errors.Errorf("unknown verify type: %v", spec.Kind))
+		return state.Error(state.NewFailed("unknown verify type: %v", spec.Kind))
 	}
 
 	return state.Single(verifier)

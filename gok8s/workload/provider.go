@@ -1,10 +1,10 @@
 package k8s
 
 import (
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
@@ -76,7 +76,7 @@ func (k *Provider) Client() kubernetes.Interface {
 
 // CV returns a ContainerVersion resource with the given name.
 func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
-	log.Printf("Getting ContainerVersion with name=%s", name)
+	glog.V(2).Infof("Getting ContainerVersion with name=%s", name)
 
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 	cv, err := client.Get(name, metav1.GetOptions{})
@@ -89,7 +89,7 @@ func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
 // UpdateRolloutStatus updates the ContainerVersion with the given name to indicate a
 // rollout status of the given version and time. Returns the updated ContainerVersion.
 func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm time.Time) (*cv1.ContainerVersion, error) {
-	log.Printf("Updating rollout status for cv=%s, version=%s, status=%s, time=%v", cvName, version, status, tm)
+	glog.V(2).Infof("Updating rollout status for cv=%s, version=%s, status=%s, time=%v", cvName, version, status, tm)
 
 	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
 
@@ -107,7 +107,7 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
-	log.Printf("Successfully updated rollout status: %+v", result)
+	glog.V(2).Info("Successfully updated rollout status: %+v", result)
 	//return result, nil
 
 	// TODO:

@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/cv"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/history"
@@ -44,16 +44,16 @@ func NewServer(port int, version string,
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if err.Error() != "http: Server closed" {
-				log.Printf("Server error during ListenAndServe: %v", err)
+				glog.V(2).Infof("Server error during ListenAndServe: %v", err)
 				close(stopCh)
 			}
 		}
 	}()
 
 	<-stopCh
-	log.Print("Shutting down http server")
+	glog.V(2).Infof("Shutting down http server")
 
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	srv.Shutdown(ctx)
-	log.Print("Server gracefully stopped")
+	glog.V(1).Infof("Server gracefully stopped")
 }

@@ -2,10 +2,10 @@ package deploy
 
 import (
 	"context"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/pkg/errors"
@@ -30,7 +30,7 @@ type SimpleDeployer struct {
 func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutTarget, checkRollback bool,
 	next state.State) *SimpleDeployer {
 
-	log.Printf("Creating SimpleDeployer: cv=%s, version=%s, target=%s", cv.Name, version, target.Name())
+	glog.V(2).Infof("Creating SimpleDeployer: cv=%s, version=%s, target=%s", cv.Name, version, target.Name())
 
 	return &SimpleDeployer{
 		cv:            cv,
@@ -43,14 +43,7 @@ func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutT
 
 // Do implements the state interface.
 func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
-	log.Printf("Starting simple deployer process")
-
-	// TODO:
-	time.Sleep(time.Second * 5)
-
-	log.Printf("Performing simple deployment: target=%s, version=%s", sd.target.Name(), sd.version)
-
-	time.Sleep(time.Second * 5)
+	glog.V(2).Infof("Performing simple deployment: target=%s, version=%s", sd.target.Name(), sd.version)
 
 	var container *v1.Container
 	podSpec := sd.target.PodSpec()
@@ -59,7 +52,7 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 		for _, c := range podSpec.Containers {
 			if c.Name == sd.cv.Spec.Container.Name {
 				if updateErr := sd.target.PatchPodSpec(sd.cv, c, sd.version); updateErr != nil {
-					log.Printf("Failed to update container version: version=%v, target=%v, error=%v",
+					glog.V(2).Infof("Failed to update container version: version=%v, target=%v, error=%v",
 						sd.version, sd.target.Name(), updateErr)
 					return updateErr
 				}
@@ -73,27 +66,22 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 			sd.cv.Spec.Container, sd.target.Name())
 	}
 	if err != nil {
-		log.Printf("Failed to rollout: target=%s, version=%s, error=%v", sd.target.Name(), sd.version, err)
+		glog.V(2).Infof("Failed to rollout: target=%s, version=%s, error=%v", sd.target.Name(), sd.version, err)
 		return state.Error(err)
 	}
 
-	// TODO:
-	log.Printf("Finished patching spec")
-	time.Sleep(time.Second * 5)
-
 	if sd.checkRollback {
 		return state.Single(sd.checkRollbackState(container, sd.next))
-	} else {
-		log.Printf("Not checking rollback state")
 	}
 
+	glog.V(2).Infof("Not checking rollback state")
 	return state.Single(sd.next)
 }
 
 func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if sd.target.RollbackAfter() == nil {
-			log.Printf("Target %s does not define a progress deadline.", sd.target.Name())
+			glog.V(2).Infof("Target %s does not define a progress deadline.", sd.target.Name())
 			return state.Single(next)
 		}
 
@@ -101,23 +89,20 @@ func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state
 		//healthy := sd.target.ProgressHealth(sd.cv.Status.CurrStatusTime.Time)
 		healthy := sd.target.ProgressHealth(time.Now())
 		if healthy == nil {
-			log.Printf("Waiting for healthy state of target %s", sd.target.Name())
+			glog.V(4).Infof("Waiting for healthy state of target %s", sd.target.Name())
 			return state.After(time.Second*15, sd.checkRollbackState(container, next))
 		}
 
-		log.Printf("Checking progress health of target %s: %v", sd.target.Name(), *healthy)
-
 		if *healthy == true {
-			log.Printf("Target is healthy")
+			glog.V(2).Info("Target is healthy")
 			return state.Single(next)
 		}
 
 		prevVersion := strings.SplitAfterN(container.Image, ":", 2)[1]
-		log.Printf("Rolling back ")
+		glog.V(1).Infof("Rolling back target %s", sd.target.Name())
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			if rbErr := sd.target.PatchPodSpec(sd.cv, *container, prevVersion); rbErr != nil {
-				log.Printf(`Failed to rollback container version (will retry):
-						from version=%s, to version=%s, target=%s, error=%v`,
+				glog.V(2).Infof("Failed to rollback container version (will retry):	from version=%s, to version=%s, target=%s, error=%v",
 					sd.version, prevVersion, sd.target.Name(), rbErr)
 				return rbErr
 			}

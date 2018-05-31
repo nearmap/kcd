@@ -7,7 +7,7 @@ import (
 
 func TestErrorFailed(t *testing.T) {
 	existingErr := errors.New("test error")
-	failedErr := NewFailed(existingErr, "test message %s", "and values")
+	failedErr := NewFailedError(existingErr, "test message %s", "and values")
 
 	if failedErr.Cause() != existingErr {
 		t.Error("unexpected failed error cause")
@@ -46,7 +46,7 @@ func TestIsPermanent(t *testing.T) {
 		t.Error("expected error with cause that is an error without cause not to be permanent")
 	}
 
-	terr.cause = NewFailed(errors.New("inner cause"), "failed error message")
+	terr.cause = NewFailedError(errors.New("inner cause"), "failed error message")
 	if !IsPermanent(terr) {
 		t.Error("expected error with cause that is of type *ErrorFailed to be permanent")
 	}

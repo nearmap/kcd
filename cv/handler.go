@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 
+	"github.com/golang/glog"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/pkg/errors"
 )
@@ -62,7 +62,7 @@ func NewCVHandler(k8sProvider *k8s.Provider) http.HandlerFunc {
 
 		err := AllContainerVersions(w, typ, k8sProvider)
 		if err != nil {
-			log.Printf("failed to get workload list %v", err)
+			glog.Errorf("failed to get workload list %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		// // Allow origin so can easily be used by monitoring

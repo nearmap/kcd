@@ -2,10 +2,10 @@ package deploy
 
 import (
 	"context"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/state"
@@ -47,13 +47,13 @@ type BlueGreenDeployer struct {
 func NewBlueGreenDeployer(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
 	target RolloutTarget, next state.State) *BlueGreenDeployer {
 
-	log.Printf("Creating BlueGreenDeployer: namespace=%s, cv=%s, version=%s, target=%s",
+	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, cv=%s, version=%s, target=%s",
 		namespace, cv.Name, version, target.Name())
 
 	tTarget, ok := target.(TemplateRolloutTarget)
 	if !ok {
-		log.Printf("Rollout Target must be of type TemplateRolloutTarget for ServiceBlueGreen deployments")
-
+		glog.Errorf("Rollout Target must be of type TemplateRolloutTarget for ServiceBlueGreen deployments")
+		// target will be nil, which returns an error in Do()
 	}
 
 	return &BlueGreenDeployer{
@@ -70,19 +70,19 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, namespace string, cv *cv1.Con
 // Do implements the State interface.
 func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 	if bgd.target == nil {
-		return state.Error(errors.Errorf("blue-green target not found: ensure workload supports TemplateRolloutTarget."))
+		return state.Error(state.NewFailed("blue-green target not found: ensure workload supports TemplateRolloutTarget."))
 	}
 	if bgd.cv.Spec.Strategy.BlueGreen == nil {
-		return state.Error(errors.Errorf("no blue-green spec provided for cv resource %s", bgd.cv.Name))
+		return state.Error(state.NewFailed("no blue-green spec provided for cv resource %s", bgd.cv.Name))
 	}
 	if bgd.cv.Spec.Strategy.BlueGreen.ServiceName == "" {
-		return state.Error(errors.Errorf("no service defined for blue-green strategy in cv resource %s", bgd.cv.Name))
+		return state.Error(state.NewFailed("no service defined for blue-green strategy in cv resource %s", bgd.cv.Name))
 	}
 	if len(bgd.cv.Spec.Strategy.BlueGreen.LabelNames) == 0 {
-		return state.Error(errors.Errorf("no label names defined for blue-green strategy in cv resource %s", bgd.cv.Name))
+		return state.Error(state.NewFailed("no label names defined for blue-green strategy in cv resource %s", bgd.cv.Name))
 	}
 
-	log.Printf("Beginning blue-green deployment for target %s with version %s in namespace %s",
+	glog.V(2).Infof("Beginning blue-green deployment for target %s with version %s in namespace %s",
 		bgd.target.Name(), bgd.version, bgd.namespace)
 
 	service, err := bgd.getService(bgd.cv.Spec.Strategy.BlueGreen.ServiceName)
@@ -97,7 +97,7 @@ func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 
 	// if we're not the primary live version then nothing to do.
 	if bgd.target.Name() != primary.Name() {
-		log.Printf("Spec %s is not the primary live workload for service %s. Not changing.", bgd.target.Name(), service.Name)
+		glog.V(2).Infof("Spec %s is not the primary live workload for service %s. Not changing.", bgd.target.Name(), service.Name)
 		return state.None()
 	}
 
@@ -164,7 +164,7 @@ func (bgd *BlueGreenDeployer) updateVersion(next state.State) state.StateFunc {
 			for _, c := range podSpec.Containers {
 				if c.Name == bgd.cv.Spec.Container.Name {
 					if updateErr := bgd.target.PatchPodSpec(bgd.cv, c, bgd.version); updateErr != nil {
-						log.Printf("Failed to update container version (will retry): version=%v, target=%v, error=%v",
+						glog.V(2).Infof("Failed to update container version (will retry): version=%v, target=%v, error=%v",
 							bgd.version, bgd.target.Name(), updateErr)
 						return updateErr
 					}
@@ -187,7 +187,7 @@ func (bgd *BlueGreenDeployer) ensureHasPods(next state.State) state.StateFunc {
 		// ensure at least 1 pod
 		numReplicas := bgd.target.NumReplicas()
 		if numReplicas > 0 {
-			log.Printf("Target %s has %d replicas", bgd.target.Name(), numReplicas)
+			glog.V(2).Infof("Target %s has %d replicas", bgd.target.Name(), numReplicas)
 			return state.Single(next)
 		}
 
@@ -205,35 +205,35 @@ func (bgd *BlueGreenDeployer) waitForAllPods(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		pods, err := PodsForTarget(bgd.cs, bgd.namespace, bgd.target)
 		if err != nil {
-			log.Printf("ERROR: failed to get pods for target %s: %v", bgd.target.Name(), err)
+			glog.V(2).Infof("ERROR: failed to get pods for target %s: %v", bgd.target.Name(), err)
 			// TODO: handle?
 			return state.After(15*time.Second, bgd.waitForAllPods(next))
 		}
 		if len(pods) == 0 {
 			// TODO: handle?
-			log.Printf("ERROR: no pods found for target %s", bgd.target.Name())
+			glog.V(2).Infof("ERROR: no pods found for target %s", bgd.target.Name())
 			return state.After(15*time.Second, bgd.waitForAllPods(next))
 		}
 
 		for _, pod := range pods {
 			if pod.Status.Phase != corev1.PodRunning {
-				log.Printf("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
+				glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 				return state.After(15*time.Second, bgd.waitForAllPods(next))
 			}
 
 			ok, err := CheckContainerVersions(bgd.cv, bgd.version, pod.Spec)
 			if err != nil {
 				// TODO: handle?
-				log.Printf("ERROR: failed to check container version for target %s: %v", bgd.target.Name(), err)
+				glog.V(2).Infof("ERROR: failed to check container version for target %s: %v", bgd.target.Name(), err)
 				return state.After(15*time.Second, bgd.waitForAllPods(next))
 			}
 			if !ok {
-				log.Printf("Still waiting for rollout: pod %s is wrong version", pod.Name)
+				glog.V(2).Infof("Still waiting for rollout: pod %s is wrong version", pod.Name)
 				return state.After(15*time.Second, bgd.waitForAllPods(next))
 			}
 		}
 
-		log.Printf("All pods are ready")
+		glog.V(2).Infof("All pods are ready")
 		return state.Single(next)
 	}
 }
@@ -247,7 +247,7 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(current, secondary TemplateRollou
 		secondaryNum := secondary.NumReplicas()
 
 		if secondaryNum >= currentNum {
-			log.Printf("Secondary spec %s has sufficient replicas (%d)", secondary.Name(), secondaryNum)
+			glog.V(2).Infof("Secondary spec %s has sufficient replicas (%d)", secondary.Name(), secondaryNum)
 			return state.Single(next)
 		}
 
@@ -280,7 +280,7 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, next sta
 			service.Spec.Selector[labelName] = targetLabel
 		}
 
-		log.Printf("Updating service %s with selectors %v", serviceName, service.Spec.Selector)
+		glog.V(2).Infof("Updating service %s with selectors %v", serviceName, service.Spec.Selector)
 
 		// TODO: is update appropriate?
 		if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(service); err != nil {
@@ -311,7 +311,7 @@ func (bgd *BlueGreenDeployer) scaleDown(next state.State) state.StateFunc {
 func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if bgd.cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
-			log.Printf("No test service defined for cv spec %s", bgd.cv.Name)
+			glog.V(2).Infof("No test service defined for cv spec %s", bgd.cv.Name)
 			return state.Single(next)
 		}
 

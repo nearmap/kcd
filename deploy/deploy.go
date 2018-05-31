@@ -1,9 +1,9 @@
 package deploy
 
 import (
-	"log"
 	"time"
 
+	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/state"
 	corev1 "k8s.io/api/core/v1"
@@ -77,7 +77,7 @@ type Deployer interface {
 func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
 	target RolloutTarget, withRollback bool, next state.State) state.State {
 
-	log.Printf("Creating deployment for cv=%+v, version=%s, rolloutTarget=%s", cv, version, target.Name())
+	glog.V(2).Infof("Creating deployment for cv=%+v, version=%s, rolloutTarget=%s", cv, version, target.Name())
 
 	var kind string
 	if cv.Spec.Strategy != nil {

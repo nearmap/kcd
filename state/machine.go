@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/events"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
@@ -119,21 +120,21 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 func (m *Machine) Start() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovering from panic in machine: %v", r)
+			glog.Errorf("Recovering from panic in machine: %v", r)
 		}
 	}()
 
 	m.newOp()
 
 	for i := uint64(0); ; i++ {
-		log.Printf("entering select...")
+		glog.V(4).Info("entering select...")
 
 		select {
 		case o := <-m.ops:
-			log.Printf("Received op: %v", o)
+			glog.V(4).Infof("Received op: %v", o)
 
 			if err := UpdateHealthStatus(); err != nil {
-				log.Printf("Failed to update health status: %v", err)
+				glog.V(4).Infof("Failed to update health status: %v", err)
 			}
 			if m.executeOp(o) {
 				i = 0
@@ -142,17 +143,15 @@ func (m *Machine) Start() {
 				m.sleep(i)
 			}
 		case ch := <-m.stop:
-			log.Printf("stop signal received")
+			glog.V(1).Info("stop signal received")
 			ch <- nil
 			return
 		default:
 			m.sleep(i)
 		}
 
-		log.Printf("finished machine loop")
+		glog.V(1).Info("finished machine loop")
 	}
-
-	log.Printf("finished machine")
 }
 
 func (m *Machine) sleep(i uint64) {
@@ -166,11 +165,11 @@ func (m *Machine) sleep(i uint64) {
 		sleep = maxSleepSeconds * time.Second
 	}
 
-	log.Printf("sleeping for %v", sleep)
+	glog.V(4).Infof("sleeping for %v", sleep)
 
 	time.Sleep(sleep)
 
-	log.Printf("finished sleeping")
+	glog.V(4).Info("finished sleeping")
 }
 
 // canExecute returns true if the operation is in a state that can be executed.
@@ -185,7 +184,7 @@ func (m *Machine) canExecute(o *op) bool {
 func (m *Machine) scheduleOps(ops ...*op) {
 	// TODO: try to add operation to channel before creating goroutine?
 
-	log.Printf("scheduling %d ops in new routine", len(ops))
+	glog.V(4).Infof("scheduling %d ops in new routine", len(ops))
 
 	go func() {
 		// TODO:
@@ -198,7 +197,7 @@ func (m *Machine) scheduleOps(ops ...*op) {
 		for _, op := range ops {
 			m.ops <- op
 		}
-		log.Printf("finished scheduling %d ops", len(ops))
+		glog.V(4).Infof("finished scheduling %d ops", len(ops))
 	}()
 }
 
@@ -213,10 +212,10 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 		}
 	}()
 
-	log.Printf("Executing operation: %v", o)
+	glog.V(4).Infof("Executing operation: %v", o)
 
 	if err := o.ctx.Err(); err != nil {
-		log.Printf("Operation %s context error: %+v", ID(o.ctx), err)
+		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
 		go m.newOp()
 		return true
 	}
@@ -226,7 +225,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	}
 
 	// TODO:
-	log.Printf("Do()")
+	glog.V(4).Info("Do()")
 	time.Sleep(time.Second * 1)
 
 	states, err := o.state.Do(o.ctx)
@@ -235,20 +234,20 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 		return true
 	}
 	if err != nil && !IsPermanent(err) {
-		log.Printf("Operation %s failed with error: %+v", ID(o.ctx), err)
+		glog.V(1).Infof("Operation %s failed with error: %+v", ID(o.ctx), err)
 		o.retries++
 		if o.retries > m.options.MaxRetries {
-			log.Printf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
+			glog.Errorf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
 			m.permanentFailure(o, err)
 			return true
 		}
 
-		log.Printf("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
+		glog.V(2).Infof("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
 		states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second), o.state))
 	}
 
 	if states.Empty() {
-		log.Printf("states is empty: cancelling context and initializing new")
+		glog.V(4).Info("states is empty: cancelling context and initializing new")
 		o.cancel()
 		go m.newOp()
 		return true
@@ -260,13 +259,13 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	}
 	m.scheduleOps(ops...)
 
-	log.Printf("Finished executeOp")
+	glog.V(4).Info("Finished executeOp")
 
 	return true
 }
 
 func (m *Machine) permanentFailure(o *op, err error) {
-	log.Printf("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
+	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
 
 	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
 		o.failureFuncs[i].Fail(o.ctx, err)
@@ -277,7 +276,7 @@ func (m *Machine) permanentFailure(o *op, err error) {
 }
 
 func (m *Machine) newOp() {
-	log.Printf("Creating newOp")
+	glog.V(4).Info("Creating newOp")
 
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
@@ -290,7 +289,7 @@ func (m *Machine) newOp() {
 		state:  NewAfterState(time.Now().UTC().Add(m.options.StartWaitTime), m.start),
 	}
 
-	log.Printf("newOp: created %+v", o)
+	glog.V(4).Infof("newOp: created %+v", o)
 
 	m.ops <- o
 }

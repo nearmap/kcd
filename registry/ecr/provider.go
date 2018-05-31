@@ -2,7 +2,6 @@ package ecr
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 )
@@ -86,7 +86,7 @@ func (s *ecrProvider) Version(tag string) (string, error) {
 	}
 	result, err := s.ecr.DescribeImages(req)
 	if err != nil {
-		log.Printf("Failed to get ECR: %v", err)
+		glog.Errorf("Failed to get ECR: %v", err)
 		return "", errors.Wrap(err, "failed to get ecr")
 	}
 	if len(result.ImageDetails) != 1 {
@@ -109,7 +109,6 @@ func (s *ecrProvider) Version(tag string) (string, error) {
 
 // Add adds list of tags to the image identified with version
 func (s *ecrProvider) Add(version string, tags ...string) error {
-
 	for _, tag := range tags {
 		fmt.Printf("Tags are %s \n", tags)
 		getReq := &ecr.BatchGetImageInput{
@@ -148,7 +147,6 @@ func (s *ecrProvider) Add(version string, tags ...string) error {
 				return errors.Wrap(err, fmt.Sprintf("failed to add tag %s to image manifest %s",
 					tag, aws.StringValue(img.ImageManifest)))
 			}
-
 		}
 	}
 	return nil
@@ -193,7 +191,6 @@ func (s *ecrProvider) Remove(tags ...string) error {
 				return errors.Wrap(err, fmt.Sprintf("failed to perform batch delete image by tag %s and digest %s",
 					tag, aws.StringValue(img.ImageId.ImageDigest)))
 			}
-
 		}
 	}
 	return nil
@@ -218,7 +215,7 @@ func (s *ecrProvider) Get(version string) ([]string, error) {
 	}
 
 	if len(getRes.ImageDetails) > 1 {
-		return nil, errors.New("More than one image with version tag was found ... bad state!")
+		return nil, errors.New("more than one image with version tag was found")
 	}
 
 	return aws.StringValueSlice(getRes.ImageDetails[0].ImageTags), nil

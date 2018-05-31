@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
+
+	"github.com/golang/glog"
 
 	"github.com/nearmap/cvmanager/events"
 	"github.com/nearmap/cvmanager/gok8s/workload"
@@ -43,7 +44,7 @@ func main() {
 func withExitCode() (code int) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Panic: %v", r)
+			glog.Errorf("Panic: %v", r)
 			code = 2
 		}
 	}()
@@ -60,7 +61,7 @@ func withExitCode() (code int) {
 	// TODO: recover
 	err := root.Execute()
 	if err != nil {
-		log.Printf("Error executing command: %v", err)
+		glog.Errorf("Error executing command: %v", err)
 		return 1
 	}
 
@@ -138,21 +139,21 @@ func newRunCommand() *cobra.Command {
 		}
 		if err != nil {
 			scStatus = 2
-			log.Printf("Failed to get k8s config: %v", err)
+			glog.Errorf("Failed to get k8s config: %v", err)
 			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
 		}
 
 		k8sClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s clientset: %v", err)
+			glog.Errorf("Error building k8s clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
 		customClient, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s container version clientset: %v", err)
+			glog.Errorf("Error building k8s container version clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
@@ -161,7 +162,7 @@ func newRunCommand() *cobra.Command {
 		// There is also problem in how its updated .. it corrupts the definition
 		// err = updateCVCRDSpec(cfg)
 		// if err != nil {
-		// 	log.Printf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
+		// 	glog.Errorf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
 		// 	//return errors.Wrap(err, "Failed to read CV CRD specification")
 		// }
 
@@ -179,7 +180,7 @@ func newRunCommand() *cobra.Command {
 
 		k8sInformerFactory.Start(stopCh)
 		customInformerFactory.Start(stopCh)
-		log.Printf("Started informer factory")
+		glog.V(1).Info("Started informer factory")
 
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
@@ -189,7 +190,7 @@ func newRunCommand() *cobra.Command {
 
 		go func() {
 			if err = cvc.Run(2, stopCh); err != nil {
-				log.Printf("Shutting down container version controller: %v", err)
+				glog.V(1).Infof("Shutting down container version controller: %v", err)
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()

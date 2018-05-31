@@ -3,9 +3,9 @@ package sync
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/events"
@@ -39,7 +39,7 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 	}
 
 	dur := time.Duration(cv.Spec.PollIntervalSeconds) * time.Second
-	log.Printf("Syncing every %s", dur)
+	glog.V(1).Infof("Syncing every %s", dur)
 
 	s := &Syncer{
 		k8sProvider: k8sProvider,
@@ -64,7 +64,7 @@ func (s *Syncer) Stop() error {
 // initialState returns a state that starts a sync process.
 func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("Running initial state")
+		glog.V(4).Info("Starting initial state")
 
 		cv, err := s.k8sProvider.CV(s.cv.Name)
 		if err != nil {
@@ -78,10 +78,10 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
-		log.Printf("Current version: %v", version)
+		glog.V(4).Infof("Current version: %v", version)
 
 		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusProgressing {
-			log.Printf("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
+			glog.V(4).Info("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
 			return state.None()
 		}
 
@@ -90,8 +90,6 @@ func (s *Syncer) initialState() state.StateFunc {
 			s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to obtain workloads for cv resource")
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
-
-		log.Printf("Got %d workloads", len(workloads))
 
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
@@ -106,7 +104,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			//}
 		}
 
-		log.Printf("Found %d workloads to update", len(toUpdate))
+		glog.V(4).Infof("Found %d workloads to update", len(toUpdate))
 
 		var states []state.State
 		for _, wl := range toUpdate {
@@ -128,7 +126,7 @@ func (s *Syncer) initialState() state.StateFunc {
 // the rollout status and generating relevant stats and events.
 func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFailureFunc {
 	return func(ctx context.Context, err error) {
-		log.Printf("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
+		glog.V(1).Infof("Failed to update container version after maximum retries: version=%v, target=%v, error=%v",
 			version, workload.Name(), err)
 
 		s.options.Stats.Event(fmt.Sprintf("%s.sync.failure", workload.Name()),
@@ -138,7 +136,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 
 		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, deploy.RolloutStatusFailed, time.Now().UTC())
 		if uErr != nil {
-			log.Printf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
+			glog.Errorf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
 			// TODO: something else?
 		}
 	}
@@ -168,21 +166,21 @@ func (s *Syncer) containerVersion(workload k8s.Workload) (string, error) {
 // value and sests the current cv instance in the syncer with the updated values.
 func (s *Syncer) updateRolloutStatus(version, status string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("updateRolloutStatus: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
+		glog.V(2).Info("updateRolloutStatus: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
 
 		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
 		if err != nil {
-			log.Printf("Failed to update Rollout Status status for cv=%s, version=%s, status=%s: %v", s.cv.Name, version, status, err)
+			glog.Errorf("Failed to update Rollout Status status for cv=%s, version=%s, status=%s: %v", s.cv.Name, version, status, err)
 			events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
 			return state.Error(errors.Wrapf(err, "failed to update Rollout status for cv=%s, version=%s, status=%s",
 				s.cv.Name, version, status))
 		}
 
-		log.Printf("setting cv in syncer: cv=%+v", cv)
+		glog.V(4).Info("setting cv in syncer: cv=%+v", cv)
 
 		s.cv = cv
 
-		log.Printf("finished setting cv in syncer")
+		glog.V(4).Info("finished setting cv in syncer")
 
 		return state.Single(next)
 	}
@@ -190,7 +188,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 
 func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("in deploy state: creating new deployer")
+		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
 			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, s.options.UseRollback, next))
@@ -200,7 +198,7 @@ func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.
 // successfulDeploymentStats generates stats for a successful rollout.
 func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		log.Printf("Updating stats for successful deployment")
+		glog.V(4).Info("Updating stats for successful deployment")
 
 		s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", workload.Name()))
 		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
@@ -215,7 +213,7 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 func (s *Syncer) syncVersionConfig(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		cv := s.cv
-		log.Printf("syncVersionConfig: cv=%s, version=%s", cv.Name, version)
+		glog.V(4).Infof("syncVersionConfig: cv=%s, version=%s", cv.Name, version)
 
 		if cv.Spec.Config == nil {
 			return state.Single(next)

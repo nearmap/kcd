@@ -1,9 +1,9 @@
 package history
 
 import (
-	"log"
 	"net/http"
 
+	"github.com/golang/glog"
 	"goji.io/pat"
 )
 
@@ -20,7 +20,7 @@ func NewHandler(provider Provider) http.HandlerFunc {
 
 		msg, err := provider.History(ns, name)
 		if err != nil {
-			log.Printf("failed to get history of workload %v", err)
+			glog.Errorf("Failed to get history of workload %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		w.Write([]byte(msg))
