@@ -140,6 +140,8 @@ spec:
             - "--history=false"
             - "--rollback=false"
             - "--cv-img-repo=nearmap/cvmanager"
+            - "--v=1"
+            - "--logtostderr"
           env:
             - name: NAME
               valueFrom:

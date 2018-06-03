@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -68,6 +69,8 @@ func newCRRootCommand() *crRoot {
 	(&params.stats).addFlags(root.Command)
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		// prevent glog complaining about flags not being parsed
+		flag.CommandLine.Parse([]string{})
 
 		root.stats, err = root.params.stats.stats("crsync")
 		if err != nil {

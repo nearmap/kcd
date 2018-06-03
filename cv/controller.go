@@ -2,6 +2,7 @@ package cv
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
 	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
 	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -412,6 +414,9 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								fmt.Sprintf("--version=%s", cv.ResourceVersion),
 								fmt.Sprintf("--history=%t", c.opts.UseHistory),
 								fmt.Sprintf("--rollback=%t", c.opts.UseRollback),
+								fmt.Sprintf("--logtostderr"),
+								fmt.Sprintf("--v=%d", glogVerbosity),
+								fmt.Sprintf("--vmodule=%s", glogVmodule),
 							},
 							Env: []corev1.EnvVar{
 								{
@@ -431,24 +436,39 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 									},
 								},
 							},
-							/*
-								LivenessProbe: &corev1.Probe{
-									PeriodSeconds: int32(livenessSeconds),
-									Handler: corev1.Handler{
-										Exec: &corev1.ExecAction{
-											Command: []string{
-												"cvmanager", "cr", "sync",
-												"status", "--by", fmt.Sprintf("%ds", livenessSeconds),
-											},
+							LivenessProbe: &corev1.Probe{
+								PeriodSeconds: int32(livenessSeconds),
+								Handler: corev1.Handler{
+									Exec: &corev1.ExecAction{
+										Command: []string{
+											"cvmanager", "cr", "sync",
+											"status", "--by", fmt.Sprintf("%ds", livenessSeconds),
 										},
 									},
 								},
-							*/
+							},
 						},
 					},
 				},
 			},
 		},
+	}
+}
+
+// propagate glog flags
+var (
+	glogVerbosity int
+	glogVmodule   string
+)
+
+func init() {
+	glogFlags := pflag.NewFlagSet("glog-propagation", pflag.ContinueOnError)
+	glogFlags.ParseErrorsWhitelist.UnknownFlags = true
+	glogFlags.IntVar(&glogVerbosity, "v", 1, "log level for V logs")
+	glogFlags.StringVar(&glogVmodule, "vmodule", "", "comma-separated list of pattern=N settings for file-filtered logging")
+	err := glogFlags.Parse(os.Args)
+	if err != nil {
+		fmt.Printf("Error parsing glog propagation flags: %v\n", err)
 	}
 }
 

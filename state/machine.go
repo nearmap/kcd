@@ -150,7 +150,7 @@ func (m *Machine) Start() {
 			m.sleep(i)
 		}
 
-		glog.V(1).Info("finished machine loop")
+		glog.V(4).Info("finished machine loop")
 	}
 }
 

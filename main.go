@@ -1,27 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
 
 	"github.com/golang/glog"
-
-	"github.com/nearmap/cvmanager/events"
-	"github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/history"
-
 	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/cv"
+	"github.com/nearmap/cvmanager/events"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	informer "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
+	"github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/handler"
+	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/signals"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/stats/datadog"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextCS "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -47,19 +47,27 @@ func withExitCode() (code int) {
 			glog.Errorf("Panic: %v", r)
 			code = 2
 		}
+		glog.Flush()
 	}()
 
-	root := &cobra.Command{
+	// add glog flags
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	rootCmd := &cobra.Command{
 		Short: "cvmanager",
 		Long:  "Container Version Manager (cvmanager): a custom controller and tooling to manage CI/CD on kubernetes clusters",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// prevent glog complaining about flags not being parsed
+			flag.CommandLine.Parse([]string{})
+		},
 	}
+	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
-	root.AddCommand(newRunCommand())
-	root.AddCommand(newCRCommands())
-	root.AddCommand(newCVCommand())
+	rootCmd.AddCommand(newRunCommand())
+	rootCmd.AddCommand(newCRCommands())
+	rootCmd.AddCommand(newCVCommand())
 
-	// TODO: recover
-	err := root.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		glog.Errorf("Error executing command: %v", err)
 		return 1
