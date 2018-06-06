@@ -12,6 +12,7 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry"
 	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
@@ -162,7 +163,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		recorder := events.PodEventRecorder(k8sClient, params.namespace)
 
 		k8sProvider := k8s.NewProvider(k8sClient, customCS, params.namespace,
-			conf.WithRecorder(recorder), conf.WithStats(stats), conf.WithHistory(params.history))
+			conf.WithRecorder(recorder), conf.WithStats(stats))
 
 		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName, metav1.GetOptions{})
 		if err != nil {
@@ -195,7 +196,9 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to create syncer")
 		}
 
-		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider,
+		historyProvider := history.NewProvider(k8sClient, stats)
+
+		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider, historyProvider,
 			conf.WithRecorder(recorder), conf.WithStats(stats),
 			conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 

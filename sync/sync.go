@@ -11,6 +11,7 @@ import (
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/verify"
@@ -26,13 +27,16 @@ type Syncer struct {
 
 	cv *cv1.ContainerVersion
 
-	k8sProvider *k8s.Provider
-	registry    registry.Registry
-	options     *config.Options
+	k8sProvider     *k8s.Provider
+	registry        registry.Registry
+	historyProvider history.Provider
+	options         *config.Options
 }
 
 // NewSyncer creates a Syncer instance for handling the main sync loop.
-func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry.Registry, options ...func(*config.Options)) *Syncer {
+func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry.Registry, hp history.Provider,
+	options ...func(*config.Options)) *Syncer {
+
 	opts := config.NewOptions()
 	for _, opt := range options {
 		opt(opts)
@@ -42,10 +46,11 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 	glog.V(1).Infof("Syncing every %s", dur)
 
 	s := &Syncer{
-		k8sProvider: k8sProvider,
-		cv:          cv,
-		registry:    reg,
-		options:     opts,
+		k8sProvider:     k8sProvider,
+		cv:              cv,
+		registry:        reg,
+		historyProvider: hp,
+		options:         opts,
 	}
 	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur))
 	return s
@@ -105,7 +110,8 @@ func (s *Syncer) initialState() state.StateFunc {
 					s.deploy(version, wl,
 						s.successfulDeploymentStats(wl,
 							s.syncVersionConfig(version,
-								s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil))))))
+								s.addHistory(version, wl,
+									s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil)))))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
 		}
@@ -253,5 +259,26 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 		Data: map[string]string{
 			key: version,
 		},
+	}
+}
+
+func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		if !s.options.UseHistory {
+			return state.Single(next)
+		}
+
+		err := s.historyProvider.Add(s.k8sProvider.Namespace(), target.Name(), &history.Record{
+			Type:    target.Type(),
+			Name:    target.Name(),
+			Version: version,
+			Time:    time.Now().UTC(),
+		})
+		if err != nil {
+			s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.history.save.failure", target.Name()))
+			s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
+		}
+
+		return state.Single(next)
 	}
 }
