@@ -27,7 +27,6 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
-	MaxAttempts         int `json:"maxAttempts"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
@@ -56,14 +55,12 @@ type BlueGreenSpec struct {
 	VerificationServiceName string   `json:"verificationServiceName"`
 	LabelNames              []string `json:"labelNames"`
 	ScaleDown               bool     `json:"scaleDown"`
-	TimeoutSeconds          int      `json:"timeoutSeconds"`
 }
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	Kind           string `json:"kind"`
-	Image          string `json:"image"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
+	Kind  string `json:"kind"`
+	Image string `json:"image"`
 }
 
 // ConfigSpec is spec for Config resources
