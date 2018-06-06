@@ -60,8 +60,6 @@ spec:
                 image:
                   type: string
                   pattern: '^[^:]*$'
-                timeoutSeconds:
-                  type: integer
               required:
                 - name
             pollIntervalSeconds:
@@ -87,13 +85,10 @@ spec:
                     type: string
                 scaleDown:
                   type: boolean
-                timeoutSeconds:
-                  type: integer
               verify:
+                type: array
                 kind:
                   type: string
                 image:
                   type: string
                   pattern: '^[^:]*$'
-                timeoutSeconds:
-                  type: integer

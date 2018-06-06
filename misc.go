@@ -199,7 +199,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			conf.WithRecorder(recorder), conf.WithStats(stats),
 			conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
-		glog.V(1).Info("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
+		glog.V(1).Infof("Starting cr syncer with namespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)
 
 		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())

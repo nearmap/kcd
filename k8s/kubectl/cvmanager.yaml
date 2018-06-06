@@ -90,13 +90,12 @@ spec:
                 timeoutSeconds:
                   type: integer
               verify:
+                type: array
                 kind:
                   type: string
                 image:
                   type: string
                   pattern: '^[^:]*$'
-                timeoutSeconds:
-                  type: integer
 ---
 kind: Deployment
 apiVersion: apps/v1

@@ -49,26 +49,55 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 	}
 }
 
+// group tracks a collection of related ops.
+// This allows the machine to determine when a related set of operations
+// has completed so that new ops can be scheduled.
+type group struct {
+	ops []*op
+}
+
 // op is an operation to be performed by the machine.
 type op struct {
+	group *group
+
 	state  State
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	complete     bool
 	retries      int
 	failureFuncs []OnFailure
+}
+
+// addNewOp adds the given operation to this group.
+func (g *group) addNewOp(o *op) {
+	g.ops = append(g.ops, o)
+}
+
+// complete returns true if all operations in the group are complete.
+func (g *group) complete() bool {
+	for i := len(g.ops) - 1; i >= 0; i-- {
+		op := g.ops[i]
+		if !op.complete {
+			return false
+		}
+	}
+	return true
 }
 
 // new returns a new operation instance for the given state and failure functions
 // but retaining the context of the receiver operation.
 func (o *op) new(state State, failureFunc OnFailure) *op {
 	newOp := &op{
+		group:        o.group,
 		state:        state,
 		ctx:          o.ctx,
 		cancel:       o.cancel,
 		retries:      0,
 		failureFuncs: o.failureFuncs,
 	}
+
+	o.group.addNewOp(newOp)
 
 	if failureFunc != nil {
 		newOp.failureFuncs = append(newOp.failureFuncs, failureFunc)
@@ -152,8 +181,7 @@ func (m *Machine) sleep(i uint64) {
 		return
 	}
 
-	//sleep := time.Duration(i*5) * time.Second
-	sleep := time.Duration(i*1) * time.Second
+	sleep := time.Duration(i*3) * time.Second
 	if sleep > maxSleepSeconds*time.Second {
 		sleep = maxSleepSeconds * time.Second
 	}
@@ -167,6 +195,82 @@ func (m *Machine) canExecute(o *op) bool {
 		return time.Now().UTC().After(aft.After())
 	}
 	return true
+}
+
+// executeOp executes the given operation. Returns true if the operation was
+// executed (either successfully or failed) or false if it could not be executed
+// and needs to be rescheduled.
+func (m *Machine) executeOp(o *op) (finished bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			finished = true
+			m.permanentFailure(o, errors.Errorf("Panic: %v", r))
+		}
+	}()
+
+	glog.V(6).Infof("Executing operation: %v", o)
+
+	if err := o.ctx.Err(); err != nil {
+		glog.V(2).Infof("Operation %s context error: %+v", ID(o.ctx), err)
+		m.completeOp(o)
+		return true
+	}
+
+	if !m.canExecute(o) {
+		return false
+	}
+
+	states, err := o.state.Do(o.ctx)
+	if err != nil && IsPermanent(err) {
+		m.permanentFailure(o, err)
+		return true
+	}
+	if err != nil && !IsPermanent(err) {
+		glog.V(1).Infof("Operation %s failed with error: %+v", ID(o.ctx), err)
+		o.retries++
+		if o.retries > m.options.MaxRetries {
+			glog.Errorf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
+			m.permanentFailure(o, err)
+			return true
+		}
+
+		glog.V(2).Infof("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
+		states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second*time.Duration(o.retries)), o.state))
+	}
+
+	var ops []*op
+	for _, st := range states.States {
+		ops = append(ops, o.new(st, states.OnFailure))
+	}
+	m.scheduleOps(ops...)
+
+	m.completeOp(o)
+	return true
+}
+
+// completeOp marks the operation as complete and schedules a new operation
+// if all ops in the group have finished.
+func (m *Machine) completeOp(o *op) {
+	o.complete = true
+	if o.group.complete() {
+		glog.V(2).Info("op group is complete: cancelling context and scheduling new operation")
+		o.cancel()
+		go m.newOp()
+	}
+	glog.V(6).Info("op group is not yet complete")
+}
+
+// permanentFailure runs all failure funcs registered with the operation
+// and cancels the ops context, which will be propagated to the entire group.
+func (m *Machine) permanentFailure(o *op, err error) {
+	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
+
+	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
+		o.failureFuncs[i].Fail(o.ctx, err)
+	}
+
+	o.cancel()
+	m.completeOp(o)
 }
 
 // scheduleOps schedules the given operations on the state machine.
@@ -195,81 +299,13 @@ func (m *Machine) scheduleOps(ops ...*op) {
 	}()
 }
 
-// executeOp executes the given operation. Returns true if the operation was
-// executed (either successfully or failed) or false if it could not be executed
-// and needs to be rescheduled.
-func (m *Machine) executeOp(o *op) (finished bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			finished = true
-			m.permanentFailure(o, errors.Errorf("Panic: %v", r))
-		}
-	}()
-
-	glog.V(6).Infof("Executing operation: %v", o)
-
-	if err := o.ctx.Err(); err != nil {
-		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
-		go m.newOp()
-		return true
-	}
-
-	if !m.canExecute(o) {
-		return false
-	}
-
-	states, err := o.state.Do(o.ctx)
-	if err != nil && IsPermanent(err) {
-		m.permanentFailure(o, err)
-		return true
-	}
-	if err != nil && !IsPermanent(err) {
-		glog.V(1).Infof("Operation %s failed with error: %+v", ID(o.ctx), err)
-		o.retries++
-		if o.retries > m.options.MaxRetries {
-			glog.Errorf("Operation %s reached maximum number of retries (%d). Giving up.", ID(o.ctx), m.options.MaxRetries)
-			m.permanentFailure(o, err)
-			return true
-		}
-
-		glog.V(2).Infof("Retrying operation %s with retry attempt %d", ID(o.ctx), o.retries)
-		states = NewStates(NewAfterState(time.Now().UTC().Add(5*time.Second), o.state))
-	}
-
-	if states.Empty() {
-		glog.V(6).Info("states is empty: cancelling context and initializing new")
-		o.cancel()
-		go m.newOp()
-		return true
-	}
-
-	var ops []*op
-	for _, st := range states.States {
-		ops = append(ops, o.new(st, states.OnFailure))
-	}
-	m.scheduleOps(ops...)
-
-	return true
-}
-
-func (m *Machine) permanentFailure(o *op, err error) {
-	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
-
-	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
-		o.failureFuncs[i].Fail(o.ctx, err)
-	}
-
-	o.cancel()
-	go m.newOp()
-}
-
 func (m *Machine) newOp() {
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
-	ctx = context.WithValue(ctx, ctxStartTime, time.Now().UTC())
 	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout)
 
 	o := &op{
+		group:  &group{},
 		ctx:    ctx,
 		cancel: cancel,
 		state:  NewAfterState(time.Now().UTC().Add(m.options.StartWaitTime), m.start),
@@ -286,7 +322,6 @@ type ctxKey int
 
 const (
 	ctxID ctxKey = iota
-	ctxStartTime
 )
 
 // ID returns the unique identifier of an operation from its context.
@@ -297,16 +332,6 @@ func ID(ctx context.Context) string {
 		return "UNKNOWN"
 	}
 	return id
-}
-
-// StartTime returns the time the operation started.
-func StartTime(ctx context.Context) time.Time {
-	stVal := ctx.Value(ctxStartTime)
-	st, ok := stVal.(time.Time)
-	if !ok {
-		return time.Time{}
-	}
-	return st
 }
 
 // Stop stops the state machine, returning any errors encountered.

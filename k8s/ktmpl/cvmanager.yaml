@@ -69,15 +69,11 @@ objects:
                     image:
                       type: string
                       pattern: '^[^:]*$'
-                    timeoutSeconds:
-                      type: integer
                   required:
                     - name
                 pollIntervalSeconds:
                   type: integer
                 livenessSeconds:
-                  type: integer
-                maxAttempts:
                   type: integer
                 config:
                   name:
@@ -98,16 +94,13 @@ objects:
                         type: string
                     scaleDown:
                       type: boolean
-                    timeoutSeconds:
-                      type: integer
                   verify:
+                    type: array
                     kind:
                       type: string
                     image:
                       type: string
                       pattern: '^[^:]*$'
-                    timeoutSeconds:
-                      type: integer
 
   - kind: Deployment
     apiVersion: apps/v1
@@ -151,7 +144,7 @@ objects:
                 - "--history=$(USE_HISTORY)"
                 - "--rollback=$(USE_ROLLBACK)"
                 - "--cv-img-repo=$(REPOSITORY)"
-                - "--v=8"
+                - "--v=4"
                 - "--logtostderr=true"
               env:
               - name: NAME
