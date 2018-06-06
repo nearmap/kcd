@@ -105,13 +105,13 @@ func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 	// on the non-live workload.
 
 	return state.Single(
-		bgd.updateVersion(
-			bgd.updateVerificationServiceSelector(
-				bgd.ensureHasPods(
+		bgd.updateVersion(secondary,
+			bgd.updateVerificationServiceSelector(secondary,
+				bgd.ensureHasPods(secondary,
 					verify.NewVerifiers(bgd.cs, bgd.namespace, bgd.version, bgd.cv.Spec.Strategy.Verify,
 						bgd.scaleUpSecondary(primary, secondary,
-							bgd.updateServiceSelector(bgd.blueGreen.ServiceName,
-								bgd.scaleDown(bgd.next))))))))
+							bgd.updateServiceSelector(bgd.blueGreen.ServiceName, secondary,
+								bgd.scaleDown(primary, bgd.next))))))))
 }
 
 // getService returns the service with the given name.
@@ -156,16 +156,16 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (prim
 }
 
 // updateVersion patches the container version of the given rollout target.
-func (bgd *BlueGreenDeployer) updateVersion(next state.State) state.StateFunc {
+func (bgd *BlueGreenDeployer) updateVersion(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		podSpec := bgd.target.PodSpec()
+		podSpec := target.PodSpec()
 
 		retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			for _, c := range podSpec.Containers {
 				if c.Name == bgd.cv.Spec.Container.Name {
-					if updateErr := bgd.target.PatchPodSpec(bgd.cv, c, bgd.version); updateErr != nil {
+					if updateErr := target.PatchPodSpec(bgd.cv, c, bgd.version); updateErr != nil {
 						glog.V(2).Infof("Failed to update container version (will retry): version=%v, target=%v, error=%v",
-							bgd.version, bgd.target.Name(), updateErr)
+							bgd.version, target.Name(), updateErr)
 						return updateErr
 					}
 				}
@@ -173,7 +173,55 @@ func (bgd *BlueGreenDeployer) updateVersion(next state.State) state.StateFunc {
 			return nil
 		})
 		if retryErr != nil {
-			return state.Error(errors.Wrapf(retryErr, "failed to patch pod spec for target %s", bgd.target.Name()))
+			return state.Error(errors.Wrapf(retryErr, "failed to patch pod spec for target %s", target.Name()))
+		}
+
+		return state.Single(next)
+	}
+}
+
+// updateVerificationServiceSelector updates the verification service defined in the ContainerVersion
+// to point to the given rollout target.
+func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(target TemplateRolloutTarget, next state.State) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		if bgd.cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
+			glog.V(1).Infof("No test service defined for cv spec %s", bgd.cv.Name)
+			return state.Single(next)
+		}
+
+		return state.Single(bgd.updateServiceSelector(bgd.blueGreen.VerificationServiceName, target, next))
+	}
+}
+
+// updateServiceSelector updates the selector of the service with the given name to point to
+// the current rollout target, based on the label names defined in the ContainerVersion.
+func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, target TemplateRolloutTarget,
+	next state.State) state.StateFunc {
+
+	return func(ctx context.Context) (state.States, error) {
+		labelNames := bgd.cv.Spec.Strategy.BlueGreen.LabelNames
+
+		service, err := bgd.getService(serviceName)
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to find test service for cv spec %s", bgd.cv.Name))
+		}
+
+		for _, labelName := range labelNames {
+			targetLabel, has := target.PodTemplateSpec().Labels[labelName]
+			if !has {
+				return state.Error(errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
+					target.Name(), labelName, bgd.cv.Name))
+			}
+
+			service.Spec.Selector[labelName] = targetLabel
+		}
+
+		glog.V(2).Infof("Updating service %s with selectors %v", serviceName, service.Spec.Selector)
+
+		// TODO: is update appropriate?
+		if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(service); err != nil {
+			return state.Error(errors.Wrapf(err, "failed to update test service %s while processing blue-green deployment for %s",
+				service.Name, bgd.cv.Name))
 		}
 
 		return state.Single(next)
@@ -182,54 +230,51 @@ func (bgd *BlueGreenDeployer) updateVersion(next state.State) state.StateFunc {
 
 // ensureHasPods will set the target's number of replicas to a positive value
 // if it currently has none.
-func (bgd *BlueGreenDeployer) ensureHasPods(next state.State) state.StateFunc {
+func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		// ensure at least 1 pod
-		numReplicas := bgd.target.NumReplicas()
+		numReplicas := target.NumReplicas()
 		if numReplicas > 0 {
-			glog.V(2).Infof("Target %s has %d replicas", bgd.target.Name(), numReplicas)
+			glog.V(2).Infof("Target %s has %d replicas", target.Name(), numReplicas)
 			return state.Single(next)
 		}
 
-		if err := bgd.target.PatchNumReplicas(1); err != nil {
-			return state.Error(errors.Wrapf(err, "failed to patch number of replicas for target %s", bgd.target.Name()))
+		if err := target.PatchNumReplicas(1); err != nil {
+			return state.Error(errors.Wrapf(err, "failed to patch number of replicas for target %s", target.Name()))
 		}
-		return state.Single(bgd.waitForAllPods(next))
+		return state.Single(bgd.waitForAllPods(target, next))
 	}
 }
 
 // waitForAllPods checks that all pods tied to the given TemplateDeploySpec are at the specified
 // version, and starts polling if not the case.
 // Returns an error if a timeout value is reached.
-func (bgd *BlueGreenDeployer) waitForAllPods(next state.State) state.StateFunc {
+func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		pods, err := PodsForTarget(bgd.cs, bgd.namespace, bgd.target)
+		pods, err := PodsForTarget(bgd.cs, bgd.namespace, target)
 		if err != nil {
-			glog.V(2).Infof("ERROR: failed to get pods for target %s: %v", bgd.target.Name(), err)
-			// TODO: handle?
-			return state.After(15*time.Second, bgd.waitForAllPods(next))
+			glog.Errorf("Failed to get pods for target %s: %v", target.Name(), err)
+			return state.Error(errors.Wrapf(err, "failed to get pods for target %s", target.Name()))
 		}
 		if len(pods) == 0 {
-			// TODO: handle?
-			glog.V(2).Infof("ERROR: no pods found for target %s", bgd.target.Name())
-			return state.After(15*time.Second, bgd.waitForAllPods(next))
+			glog.V(2).Infof("no pods found for target %s", target.Name())
+			return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 		}
 
 		for _, pod := range pods {
 			if pod.Status.Phase != corev1.PodRunning {
 				glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
-				return state.After(15*time.Second, bgd.waitForAllPods(next))
+				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 			}
 
 			ok, err := CheckContainerVersions(bgd.cv, bgd.version, pod.Spec)
 			if err != nil {
-				// TODO: handle?
-				glog.V(2).Infof("ERROR: failed to check container version for target %s: %v", bgd.target.Name(), err)
-				return state.After(15*time.Second, bgd.waitForAllPods(next))
+				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
+				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))
 			}
 			if !ok {
 				glog.V(2).Infof("Still waiting for rollout: pod %s is wrong version", pod.Name)
-				return state.After(15*time.Second, bgd.waitForAllPods(next))
+				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 			}
 		}
 
@@ -255,67 +300,21 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(current, secondary TemplateRollou
 			return state.Error(errors.Wrapf(err, "failed to patch number of replicas for secondary spec %s", secondary.Name()))
 		}
 
-		return state.Single(bgd.waitForAllPods(next))
-	}
-}
-
-// updateServiceSelector updates the selector of the service with the given name to point to
-// the current rollout target, based on the label names defined in the ContainerVersion.
-func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, next state.State) state.StateFunc {
-	return func(ctx context.Context) (state.States, error) {
-		labelNames := bgd.cv.Spec.Strategy.BlueGreen.LabelNames
-
-		service, err := bgd.getService(serviceName)
-		if err != nil {
-			return state.Error(errors.Wrapf(err, "failed to find test service for cv spec %s", bgd.cv.Name))
-		}
-
-		for _, labelName := range labelNames {
-			targetLabel, has := bgd.target.PodTemplateSpec().Labels[labelName]
-			if !has {
-				return state.Error(errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
-					bgd.target.Name(), labelName, bgd.cv.Name))
-			}
-
-			service.Spec.Selector[labelName] = targetLabel
-		}
-
-		glog.V(2).Infof("Updating service %s with selectors %v", serviceName, service.Spec.Selector)
-
-		// TODO: is update appropriate?
-		if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(service); err != nil {
-			return state.Error(errors.Wrapf(err, "failed to update test service %s while processing blue-green deployment for %s",
-				service.Name, bgd.cv.Name))
-		}
-
-		return state.Single(next)
+		return state.Single(bgd.waitForAllPods(secondary, next))
 	}
 }
 
 // scaleDown scales the rollout target down to zero replicas.
-func (bgd *BlueGreenDeployer) scaleDown(next state.State) state.StateFunc {
+func (bgd *BlueGreenDeployer) scaleDown(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if !bgd.cv.Spec.Strategy.BlueGreen.ScaleDown {
 			return state.Single(next)
 		}
 
-		if err := bgd.target.PatchNumReplicas(0); err != nil {
+		if err := target.PatchNumReplicas(0); err != nil {
 			return state.Error(errors.WithStack(err))
 		}
 		return state.Single(next)
-	}
-}
-
-// updateVerificationServiceSelector updates the verification service defined in the ContainerVersion
-// to point to the given rollout target.
-func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(next state.State) state.StateFunc {
-	return func(ctx context.Context) (state.States, error) {
-		if bgd.cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
-			glog.V(2).Infof("No test service defined for cv spec %s", bgd.cv.Name)
-			return state.Single(next)
-		}
-
-		return state.Single(bgd.updateServiceSelector(bgd.blueGreen.VerificationServiceName, next))
 	}
 }
 

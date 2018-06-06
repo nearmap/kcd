@@ -44,7 +44,7 @@ func NewImageVerifier(cs kubernetes.Interface, namespace string, spec cv1.Verify
 
 // Do implements the State interface.
 func (iv *ImageVerifier) Do(ctx context.Context) (state.States, error) {
-	glog.V(2).Info("ImageVerifier with spec %+v", iv.spec)
+	glog.V(2).Infof("ImageVerifier with spec %+v", iv.spec)
 
 	pod, err := iv.createPod()
 	if err != nil {
@@ -65,7 +65,7 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 	id := uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical)
 	name := fmt.Sprintf("cv-verifier-%s", uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
 
-	glog.V(2).Info("Creating verifier pod with name %s", name)
+	glog.V(2).Infof("Creating verifier pod with name %s", name)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -97,13 +97,13 @@ func (iv *ImageVerifier) waitForPodState(name string) state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to get pod with name %s", name))
 		}
 
-		glog.V(4).Info("Pod %s status: %v", name, pod.Status.Phase)
+		glog.V(4).Infof("Pod %s status: %v", name, pod.Status.Phase)
 		switch pod.Status.Phase {
 		case corev1.PodSucceeded:
-			glog.V(4).Info("verification pod %s succeeded", name)
+			glog.V(4).Infof("verification pod %s succeeded", name)
 			return state.Single(iv.next)
 		case corev1.PodFailed:
-			glog.V(4).Info("verification pod %s failed", name)
+			glog.V(4).Infof("verification pod %s failed", name)
 			return state.Error(ErrFailed)
 		}
 
