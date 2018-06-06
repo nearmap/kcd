@@ -13,7 +13,7 @@ import (
 // The controller is not responsible for managing the config resource it reference but only for updating
 // and ensuring its present. If the reference to config was removed from CV resource its not the responsibility
 // of controller to remove it .. it assumes the configMap is external resource and not owned by cv resource
-func (k *K8sProvider) SyncVersionConfig(cv *cv1.ContainerVersion, version string) error {
+func (k *Provider) SyncVersionConfig(cv *cv1.ContainerVersion, version string) error {
 	if cv.Spec.Config == nil {
 		return nil
 	}
@@ -23,7 +23,7 @@ func (k *K8sProvider) SyncVersionConfig(cv *cv1.ContainerVersion, version string
 			_, err = k.cs.CoreV1().ConfigMaps(k.namespace).Create(
 				newVersionConfig(k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key, version))
 			if err != nil {
-				k.Recorder.Event(events.Warning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
+				k.options.Recorder.Event(events.Warning, "FailedCreateVersionConfigMap", "Failed to create version configmap")
 				return errors.Wrapf(err, "failed to create version configmap from %s/%s:%s",
 					k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key)
 			}
@@ -47,7 +47,7 @@ func (k *K8sProvider) SyncVersionConfig(cv *cv1.ContainerVersion, version string
 	// }`, s.Config.ConfigMap.Key, version)))
 	_, err = k.cs.CoreV1().ConfigMaps(k.namespace).Update(cm)
 	if err != nil {
-		k.Recorder.Event(events.Warning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
+		k.options.Recorder.Event(events.Warning, "FailedUpdateVersionConfigMao", "Failed to update version configmap")
 		return errors.Wrapf(err, "failed to update version configmap from %s/%s:%s",
 			k.namespace, cv.Spec.Config.Name, cv.Spec.Config.Key)
 	}

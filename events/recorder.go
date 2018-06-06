@@ -1,8 +1,7 @@
 package events
 
 import (
-	"log"
-
+	"github.com/golang/glog"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +38,7 @@ type SimpleRecorder struct {
 // NewRecorder returns an event recorder that encapsulates the current namespace and runtime object.
 func NewRecorder(cs kubernetes.Interface, namespace string, object runtime.Object) *SimpleRecorder {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Printf)
+	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: cs.CoreV1().Events("")})
 
 	recorder := eventBroadcaster.NewRecorder(k8sscheme.Scheme, corev1.EventSource{Component: "container-version-controller"})

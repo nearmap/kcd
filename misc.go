@@ -1,11 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/golang/glog"
 	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/cv"
 	"github.com/nearmap/cvmanager/events"
@@ -15,7 +16,9 @@ import (
 	dh "github.com/nearmap/cvmanager/registry/dockerhub"
 	"github.com/nearmap/cvmanager/registry/ecr"
 	"github.com/nearmap/cvmanager/signals"
+	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/sync"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,6 +69,8 @@ func newCRRootCommand() *crRoot {
 	(&params.stats).addFlags(root.Command)
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		// prevent glog complaining about flags not being parsed
+		flag.CommandLine.Parse([]string{})
 
 		root.stats, err = root.params.stats.stats("crsync")
 		if err != nil {
@@ -107,18 +112,18 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {
-			return errors.New("CV  and namespace to watch on must be provided.")
+			return errors.New("cv and namespace to watch on must be provided")
 		}
 
 		return nil
 	}
 
 	cmd.PostRun = func(cmd *cobra.Command, args []string) {
-		registry.CleanupSyncStart()
+		state.CleanupHealthStatus()
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		log.Print("Starting cr Sync")
+		glog.V(1).Info("Starting cr Sync")
 
 		stats, err := root.params.stats.stats(fmt.Sprintf("crsync.%s", params.cvName), params.namespace)
 		if err != nil {
@@ -136,31 +141,33 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		}
 		if err != nil {
 			scStatus = 2
-			log.Printf("Failed to get k8s config: %v", err)
-			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
+			glog.Errorf("Failed to get k8s config: %v", err)
+			return errors.Wrap(err, "error building k8s config: either run in cluster or provide config file")
 		}
 
 		k8sClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s clientset: %v", err)
+			glog.Errorf("Error building k8s clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
 		customCS, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s container version clientset: %v", err)
+			glog.Errorf("Error building k8s container version clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName,
-			metav1.GetOptions{
-				ResourceVersion: params.version,
-			})
+		recorder := events.PodEventRecorder(k8sClient, params.namespace)
+
+		k8sProvider := k8s.NewProvider(k8sClient, customCS, params.namespace,
+			conf.WithRecorder(recorder), conf.WithStats(stats), conf.WithHistory(params.history))
+
+		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName, metav1.GetOptions{})
 		if err != nil {
 			scStatus = 2
-			log.Printf("Failed to find CV resource in namespace=%s, name=%s, error=%v", params.namespace, params.cvName, err)
+			glog.Errorf("Failed to find CV resource in namespace=%s, name=%s, error=%v", params.namespace, params.cvName, err)
 			return errors.Wrap(err, "Failed to find CV resource")
 		}
 
@@ -183,49 +190,53 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			crProvider, err = dh.NewDH(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
 		}
 		if err != nil {
-			log.Printf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
+			glog.Errorf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
 				params.namespace, params.cvName, err)
 			return errors.Wrap(err, "Failed to create syncer")
 		}
 
-		crSyncer := registry.NewSyncer(k8sClient, cv, params.namespace, crProvider,
-			conf.WithStats(stats), conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
+		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider,
+			conf.WithRecorder(recorder), conf.WithStats(stats),
+			conf.WithUseRollback(params.rollback), conf.WithHistory(params.history))
 
-		log.Printf("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
+		glog.V(1).Info("Starting cr syncer with snamespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)
 
 		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
+
 		go func() {
-			err := registry.SetSyncStatus()
-			if err == nil {
-				err = crSyncer.Sync()
-			}
-			if err != nil {
-				scStatus = 2
-				log.Printf("Server error during cr sync: %v", err)
-				root.stopChan <- os.Interrupt
-			}
+			crSyncer.Start()
 		}()
 
 		<-root.stopChan
-		log.Printf("crsync Server gracefully stopped")
+		if err = crSyncer.Stop(); err != nil {
+			glog.Errorf("error received while stopping state machine: %v", err)
+		}
+		glog.V(1).Info("crsync Server gracefully stopped")
 
 		return nil
 	}
 
-	state := &cobra.Command{
+	status := &cobra.Command{
 		Use:   "status",
 		Short: "Checks whether sync was run recently",
 		Long:  "Checks whether sync was run recently",
 	}
 
 	var by time.Duration
-	state.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
-	state.RunE = func(cmd *cobra.Command, args []string) error {
-		return registry.SyncCheck(by)
+	status.Flags().DurationVar(&by, "by", time.Duration(int64(time.Minute*5)), "Duration to check sync for ")
+	status.RunE = func(cmd *cobra.Command, args []string) error {
+		glog.V(4).Info("Performing health status check")
+
+		if err := state.CheckHealth(by); err != nil {
+			glog.Errorf("health status returned error: %v", err)
+			return err
+		}
+		glog.V(4).Info("health status check was successful")
+		return nil
 	}
 
-	cmd.AddCommand(state)
+	cmd.AddCommand(status)
 
 	return cmd
 }
@@ -285,7 +296,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	}
 	addTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if root.params.cr == "" || params.tags == nil || len(params.tags) == 0 || params.version == "" {
-			return errors.New("cr repository name/URI and cr image version is required.")
+			return errors.New("cr repository name/URI and cr image version is required")
 		}
 
 		return nil
@@ -301,7 +312,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	}
 	rmTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if root.params.cr == "" || params.tags == nil || len(params.tags) == 0 {
-			return errors.New("cr repository name/URI and tags are required.")
+			return errors.New("cr repository name/URI and tags are required")
 		}
 
 		return nil
@@ -317,7 +328,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	}
 	getTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if root.params.cr == "" || params.version == "" {
-			return errors.New("cr repository name/URI and version is required.")
+			return errors.New("cr repository name/URI and version is required")
 		}
 
 		return nil
@@ -364,25 +375,25 @@ func newCVCommand() *cobra.Command {
 			cfg, err = rest.InClusterConfig()
 		}
 		if err != nil {
-			log.Printf("Failed to get k8s config: %v", err)
+			glog.Errorf("Failed to get k8s config: %v", err)
 			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file via k8s-config arg")
 		}
 
 		k8sClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
-			log.Printf("Error building k8s clientset: %v", err)
+			glog.Errorf("Error building k8s clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
 		customClient, err := clientset.NewForConfig(cfg)
 		if err != nil {
-			log.Printf("Error building k8s container version clientset: %v", err)
+			glog.Errorf("Error building k8s container version clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewK8sProvider(k8sClient, "", &events.FakeRecorder{}, conf.WithStats(stats.NewFake()))
+		k8sProvider := k8s.NewProvider(k8sClient, customClient, "")
 
-		return cv.GetAllContainerVersion(os.Stdout, "json", k8sProvider, customClient)
+		return cv.AllContainerVersions(os.Stdout, "json", k8sProvider)
 	}
 
 	cmd.AddCommand(listCmd)
