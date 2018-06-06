@@ -1,6 +1,5 @@
 FROM golang:alpine
 
-
 ADD . /go/src/github.com/nearmap/cvmanager
 RUN go install github.com/nearmap/cvmanager
 

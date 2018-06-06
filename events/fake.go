@@ -13,19 +13,29 @@ type FakeRecorder struct {
 	Events chan string
 }
 
+// Event implements the Recorder interface.
 func (f *FakeRecorder) Event(eventtype, reason, message string) {
 	if f.Events != nil {
-		f.Events <- fmt.Sprintf("%s %s %s", eventtype, reason, message)
+		select {
+		case f.Events <- fmt.Sprintf("%s %s %s", eventtype, reason, message):
+		default:
+		}
 	}
 }
 
+// Eventf implements the Recorder interface.
 func (f *FakeRecorder) Eventf(eventtype, reason, messageFmt string, args ...interface{}) {
 	if f.Events != nil {
-		f.Events <- fmt.Sprintf(eventtype+" "+reason+" "+messageFmt, args...)
+		select {
+		case f.Events <- fmt.Sprintf(eventtype+" "+reason+" "+messageFmt, args...):
+		default:
+		}
 	}
 }
 
+// PastEventf implements the Recorder interface.
 func (f *FakeRecorder) PastEventf(timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
+	// TODO: ??
 }
 
 // NewFakeRecorder creates new fake event recorder with event channel with

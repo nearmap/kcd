@@ -2,9 +2,9 @@ package k8s
 
 import (
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
@@ -71,19 +71,39 @@ func (d *Deployment) PodSpec() corev1.PodSpec {
 
 // RollbackAfter implements the Workload interface.
 func (d *Deployment) RollbackAfter() *time.Duration {
-	var dur time.Duration
-	dur = time.Duration(int32(*d.deployment.Spec.ProgressDeadlineSeconds)) * time.Second
+	if d.deployment.Spec.ProgressDeadlineSeconds == nil {
+		return nil
+	}
+	dur := time.Duration(*d.deployment.Spec.ProgressDeadlineSeconds) * time.Second
 	return &dur
 }
 
-//ProgressHealth implements the Workload interface.
-func (d *Deployment) ProgressHealth() bool {
-	ok := true
+// ProgressHealth implements the Workload interface.
+func (d *Deployment) ProgressHealth(startTime time.Time) *bool {
+	var ok *bool
 	for _, c := range d.deployment.Status.Conditions {
-		if c.Type == appsv1.DeploymentReplicaFailure {
-			ok = !(c.Status == corev1.ConditionTrue)
+		glog.V(4).Infof("deployment condition: %+v", c)
+
+		if c.LastUpdateTime.Time.Before(startTime) {
+			continue
+		}
+		if c.Type != appsv1.DeploymentProgressing {
+			continue
+		}
+
+		if c.Status == corev1.ConditionFalse {
+			if c.Reason == "ProgressDeadlineExceeded" {
+				result := false
+				return &result
+			}
+		} else {
+			if c.Reason == "NewReplicaSetAvailable" {
+				result := true
+				ok = &result
+			}
 		}
 	}
+
 	return ok
 }
 
@@ -94,6 +114,7 @@ func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 
 // PatchPodSpec implements the Workload interface.
 func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	// TODO: should we update the deployment with the returned patch version?
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
 	if err != nil {
@@ -139,16 +160,16 @@ func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 							result = append(result, pod)
 						}
 					default:
-						log.Printf("Ignoring unknown replicaset owner kind: %v", rsOwner.Kind)
+						glog.V(4).Infof("Ignoring unknown replicaset owner kind: %v", rsOwner.Kind)
 					}
 				}
 			default:
-				log.Printf("Ignoring unknown pod owner kind: %v", podOwner.Kind)
+				glog.V(4).Infof("Ignoring unknown pod owner kind: %v", podOwner.Kind)
 			}
 		}
 	}
 
-	log.Printf("SelectOwnPods returning %d pods", len(result))
+	glog.V(4).Info("SelectOwnPods returning %d pods", len(result))
 	return result, nil
 }
 

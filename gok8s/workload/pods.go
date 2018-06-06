@@ -2,10 +2,10 @@ package k8s
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/nearmap/cvmanager/registry/errs"
@@ -88,8 +88,9 @@ func (p *Pod) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (p *Pod) ProgressHealth() bool {
-	return true
+func (p *Pod) ProgressHealth(startTime time.Time) *bool {
+	result := true
+	return &result
 }
 
 // PatchPodSpec implements the Workload interface.
@@ -152,10 +153,10 @@ func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSp
 }
 
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
-func (k *K8sProvider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
-	log.Printf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
-	k.opts.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
+func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
+	glog.Errorf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
+	k.options.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
-	k.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
+	k.options.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
 }

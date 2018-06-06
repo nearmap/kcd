@@ -65,8 +65,9 @@ func (rs *ReplicaSet) RollbackAfter() *time.Duration {
 }
 
 //ProgressHealth implements the Workload interface.
-func (rs *ReplicaSet) ProgressHealth() bool {
-	return true
+func (rs *ReplicaSet) ProgressHealth(startTime time.Time) *bool {
+	result := true
+	return &result
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.

@@ -27,6 +27,7 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
+	MaxAttempts         int `json:"maxAttempts"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
@@ -38,15 +39,15 @@ type ContainerVersionSpec struct {
 
 // ContainerSpec defines a name of container and option container level verification step
 type ContainerSpec struct {
-	Name   string        `json:"name"`
-	Verify []*VerifySpec `json:"verify"`
+	Name   string       `json:"name"`
+	Verify []VerifySpec `json:"verify"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
 type StrategySpec struct {
 	Kind      string         `json:"kind"`
 	BlueGreen *BlueGreenSpec `json:"blueGreen"`
-	Verify    *VerifySpec    `json:"verify"`
+	Verify    []VerifySpec   `json:"verify"`
 }
 
 // BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.
@@ -74,6 +75,12 @@ type ConfigSpec struct {
 // ContainerVersionStatus is status  for Deployment resources
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
+
+	// CurrVersion is the most recent version of a rollout, which has a status.
+	// CurrStatusTime is the time of the last status change.
+	CurrVersion    string      `json:"currVersion"`
+	CurrStatus     string      `json:"currStatus"`
+	CurrStatusTime metav1.Time `json:"currStatusTime"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
