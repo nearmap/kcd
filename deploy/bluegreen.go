@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
@@ -36,11 +35,6 @@ type BlueGreenDeployer struct {
 	version string
 	target  TemplateRolloutTarget
 	next    state.State
-
-	hp            history.Provider
-	recordHistory bool
-
-	//opts *conf.Options
 }
 
 // NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.

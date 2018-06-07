@@ -11,7 +11,12 @@ type ErrorFailed struct {
 
 // Error implements the error interface.
 func (ef *ErrorFailed) Error() string {
-	return fmt.Sprintf("%s: %s", ef.message, ef.cause.Error())
+	cause := ""
+	if ef.cause != nil {
+		cause = fmt.Sprintf(": %s", ef.cause.Error())
+	}
+
+	return fmt.Sprintf("%s%s", ef.message, cause)
 }
 
 // Cause implements the errors.Cause interface

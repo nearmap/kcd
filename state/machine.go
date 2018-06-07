@@ -149,7 +149,7 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 func (m *Machine) Start() {
 	defer func() {
 		if r := recover(); r != nil {
-			glog.Errorf("Recovering from panic in machine: %v", r)
+			glog.Errorf("Recovering from panic in machine: %v\n%s", r, debug.Stack())
 		}
 	}()
 
