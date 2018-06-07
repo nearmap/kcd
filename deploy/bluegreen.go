@@ -152,6 +152,8 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (prim
 // updateVersion patches the container version of the given rollout target.
 func (bgd *BlueGreenDeployer) updateVersion(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
+		glog.V(1).Infof("Updating version of %s to %s", target.Name(), bgd.version)
+
 		podSpec := target.PodSpec()
 
 		retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -169,6 +171,8 @@ func (bgd *BlueGreenDeployer) updateVersion(target TemplateRolloutTarget, next s
 		if retryErr != nil {
 			return state.Error(errors.Wrapf(retryErr, "failed to patch pod spec for target %s", target.Name()))
 		}
+
+		glog.V(4).Infof("Successfully updated version of %s to %s", target.Name(), bgd.version)
 
 		return state.Single(next)
 	}
@@ -228,14 +232,18 @@ func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget, next s
 	return func(ctx context.Context) (state.States, error) {
 		// ensure at least 1 pod
 		numReplicas := target.NumReplicas()
-		if numReplicas > 0 {
-			glog.V(2).Infof("Target %s has %d replicas", target.Name(), numReplicas)
-			return state.Single(next)
+
+		glog.V(2).Infof("Target %s has %d replicas", target.Name(), numReplicas)
+
+		if numReplicas == 0 {
+			glog.V(1).Infof("Increasing replicas of %s to 1", target.Name())
+
+			err := target.PatchNumReplicas(1)
+			if err != nil {
+				return state.Error(errors.Wrapf(err, "failed to patch number of replicas for target %s", target.Name()))
+			}
 		}
 
-		if err := target.PatchNumReplicas(1); err != nil {
-			return state.Error(errors.Wrapf(err, "failed to patch number of replicas for target %s", target.Name()))
-		}
 		return state.Single(bgd.waitForAllPods(target, next))
 	}
 }
