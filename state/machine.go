@@ -9,7 +9,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/events"
 	"github.com/nearmap/cvmanager/stats"
-	"github.com/nearmap/gocore/log"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 )
@@ -206,7 +205,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			finished = true
-			log.Errorf("Caught panic while processing operation %s: %v\n%s", ID(o.ctx), r, debug.Stack())
+			glog.Errorf("Caught panic while processing operation %s: %v\n%s", ID(o.ctx), r, debug.Stack())
 			m.permanentFailure(o, errors.Errorf("Panic: %v", r))
 		}
 	}()
@@ -268,7 +267,7 @@ func (m *Machine) completeOp(o *op) {
 func (m *Machine) permanentFailure(o *op, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("Caught panic while processing permanent failure for %s: %v\n%s", ID(o.ctx), r, debug.Stack())
+			glog.Errorf("Caught panic while processing permanent failure for %s: %v\n%s", ID(o.ctx), r, debug.Stack())
 		}
 	}()
 
