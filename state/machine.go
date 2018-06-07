@@ -3,11 +3,13 @@ package state
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/events"
 	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/gocore/log"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 )
@@ -158,7 +160,7 @@ func (m *Machine) Start() {
 		select {
 		case o := <-m.ops:
 			if err := UpdateHealthStatus(); err != nil {
-				glog.V(4).Infof("Failed to update health status: %v", err)
+				glog.Errorf("Failed to update health status: %v", err)
 			}
 			if m.executeOp(o) {
 				i = 0
@@ -204,6 +206,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			finished = true
+			log.Errorf("Caught panic while processing operation %s: %v\n%s", ID(o.ctx), r, debug.Stack())
 			m.permanentFailure(o, errors.Errorf("Panic: %v", r))
 		}
 	}()
@@ -211,7 +214,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	glog.V(6).Infof("Executing operation: %v", o)
 
 	if err := o.ctx.Err(); err != nil {
-		glog.V(2).Infof("Operation %s context error: %+v", ID(o.ctx), err)
+		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
 		m.completeOp(o)
 		return true
 	}
@@ -263,6 +266,12 @@ func (m *Machine) completeOp(o *op) {
 // permanentFailure runs all failure funcs registered with the operation
 // and cancels the ops context, which will be propagated to the entire group.
 func (m *Machine) permanentFailure(o *op, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Caught panic while processing permanent failure for %s: %v\n%s", ID(o.ctx), r, debug.Stack())
+		}
+	}()
+
 	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
 
 	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
