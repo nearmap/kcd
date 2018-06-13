@@ -136,7 +136,6 @@ spec:
           args:
             - run
             - "--configmap-key=kube-system/cvmanager"
-            - "--history=false"
             - "--rollback=false"
             - "--cv-img-repo=nearmap/cvmanager"
             - "--v=1"

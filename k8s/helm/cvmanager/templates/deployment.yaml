@@ -30,7 +30,6 @@ spec:
             - "--configmap-key={{ .Release.Namespace }}/{{ template "cvmanager.fullname" . }}"
             - "--cv-img-repo={{ .Values.image.repository }}"
             - "--port={{ .Values.service.port }}"
-            - "--history={{ .Values.useHistory }}"
           env:
           - name: STATS_HOST
             valueFrom:

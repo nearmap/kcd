@@ -141,7 +141,6 @@ objects:
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
-                - "--history=$(USE_HISTORY)"
                 - "--rollback=$(USE_ROLLBACK)"
                 - "--cv-img-repo=$(REPOSITORY)"
                 - "--v=4"
@@ -213,11 +212,6 @@ parameters:
     required: true
     parameterType: "string"
     value: "nearmap/cvmanager"
-  - name: "USE_HISTORY"
-    description: "Flag to indicate whether cvmanager should record history in configmap"
-    required: true
-    value: true
-    parameterType: "bool"
   - name: "USE_ROLLBACK"
     description: "Flag to indicate whether cvmanager should rollback if a deployment fails"
     required: true
