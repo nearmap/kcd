@@ -153,14 +153,14 @@ func (s *Syncer) verify(version string, next state.State) state.StateFunc {
 }
 
 // updateRolloutStatus updates the ContainerVersion resource status with the given version and status
-// value and sests the current cv instance in the syncer with the updated values.
+// value and sets the current cv instance in the syncer with the updated values.
 func (s *Syncer) updateRolloutStatus(version, status string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if version == s.cv.Status.CurrVersion && s.cv.Status.CurrStatus == deploy.RolloutStatusProgressing {
+		if version == s.cv.Status.CurrVersion && status == s.cv.Status.CurrStatus {
 			return state.Single(next)
 		}
 
-		glog.V(2).Info("updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
+		glog.V(2).Info("Updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
 
 		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
 		if err != nil {
@@ -264,11 +264,19 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 
 func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if !s.options.UseHistory {
+		if s.cv.Spec.History == nil || !s.cv.Spec.History.Enabled {
+			glog.V(4).Infof("Not adding version history for cv=%s, version=%s", s.cv.Name, version)
 			return state.Single(next)
 		}
 
-		err := s.historyProvider.Add(s.k8sProvider.Namespace(), target.Name(), &history.Record{
+		name := s.cv.Spec.History.Name
+		if name == "" {
+			name = target.Name()
+		}
+
+		glog.V(4).Infof("Adding version history for cv=%s, name=%s, version=%s", s.cv.Name, name, version)
+
+		err := s.historyProvider.Add(s.k8sProvider.Namespace(), name, &history.Record{
 			Type:    target.Type(),
 			Name:    target.Name(),
 			Version: version,

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestErrorFailed(t *testing.T) {
+func TestFailedWithError(t *testing.T) {
 	existingErr := errors.New("test error")
 	failedErr := NewFailedError(existingErr, "test message %s", "and values")
 
@@ -15,6 +15,22 @@ func TestErrorFailed(t *testing.T) {
 
 	if failedErr.Error() != "test message and values: test error" {
 		t.Errorf("unexpected failed error message: '%v'", failedErr.Error())
+	}
+
+	if !IsPermanent(failedErr) {
+		t.Error("expected FailedError to be a permanent error")
+	}
+}
+
+func TestFailedWithoutError(t *testing.T) {
+	failedErr := NewFailed("msg: %s", "test")
+
+	if failedErr.Cause() != nil {
+		t.Error("expected cause to be nil")
+	}
+
+	if failedErr.Error() != "msg: test" {
+		t.Errorf("unexpected failed error message: %v", failedErr.Error())
 	}
 
 	if !IsPermanent(failedErr) {

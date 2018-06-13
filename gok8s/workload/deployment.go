@@ -187,7 +187,7 @@ func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 		}
 	}
 
-	glog.V(4).Info("SelectOwnPods returning %d pods", len(result))
+	glog.V(6).Infof("SelectOwnPods returning %d pods", len(result))
 	return result, nil
 }
 

@@ -10,7 +10,6 @@ type Options struct {
 	Stats    stats.Stats
 	Recorder events.Recorder
 
-	UseHistory  bool
 	UseRollback bool
 }
 
@@ -35,19 +34,11 @@ func WithUseRollback(r bool) func(*Options) {
 	}
 }
 
-// WithHistory applies the history config to controller
-func WithHistory(r bool) func(*Options) {
-	return func(opts *Options) {
-		opts.UseHistory = r
-	}
-}
-
 // NewOptions returns an Options intance with defaults.
 func NewOptions() *Options {
 	return &Options{
 		Stats:       stats.NewFake(),
 		Recorder:    events.NewFakeRecorder(100),
-		UseHistory:  false,
 		UseRollback: false,
 	}
 }
@@ -57,7 +48,6 @@ func WithOptions(options *Options) func(*Options) {
 	return func(opts *Options) {
 		opts.Stats = options.Stats
 		opts.Recorder = options.Recorder
-		opts.UseHistory = options.UseHistory
 		opts.UseRollback = options.UseRollback
 	}
 }

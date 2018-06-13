@@ -33,6 +33,8 @@ type ContainerVersionSpec struct {
 
 	Strategy *StrategySpec `json:"strategy"`
 
+	History *HistorySpec `json:"history"`
+
 	Config *ConfigSpec `json:"config"`
 }
 
@@ -61,6 +63,12 @@ type BlueGreenSpec struct {
 type VerifySpec struct {
 	Kind  string `json:"kind"`
 	Image string `json:"image"`
+}
+
+// HistorySpec contains configuration for saving rollout history.
+type HistorySpec struct {
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
 }
 
 // ConfigSpec is spec for Config resources
