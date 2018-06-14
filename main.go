@@ -107,6 +107,7 @@ type runParams struct {
 
 	port int
 
+	history  bool // unused
 	rollback bool
 
 	stats statsParams
@@ -123,6 +124,7 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
 	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
+	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
