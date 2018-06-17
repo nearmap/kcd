@@ -108,7 +108,7 @@ objects:
       name: cvmanagerapp
       namespace: kube-system
       labels:
-        app: cvmanager
+        cvapp: cvmanagercv
     spec:
       replicas: 1
       selector:

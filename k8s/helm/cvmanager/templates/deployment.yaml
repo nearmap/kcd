@@ -4,7 +4,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   name: {{ template "cvmanager.fullname" . }}
   labels:
-    app: {{ template "cvmanager.name" . }}
+    cvapp: {{ template "cvmanager.name" . }}
 {{ toYaml .Values.cvCD.selector | indent 4 }}
     chart: {{ template "cvmanager.chart" . }}
     release: {{ .Release.Name }}
