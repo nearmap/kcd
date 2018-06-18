@@ -75,7 +75,7 @@ type Deployer interface {
 // NewDeployState returns a state that performs a deployment operation according to the
 // ContainerVersion spec.
 func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
-	target RolloutTarget, withRollback bool, next state.State) state.State {
+	target RolloutTarget, next state.State) state.State {
 
 	glog.V(2).Infof("Creating deployment for cv=%+v, version=%s, rolloutTarget=%s", cv, version, target.Name())
 
@@ -88,6 +88,6 @@ func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.Container
 	case KindServieBlueGreen:
 		return NewBlueGreenDeployer(cs, namespace, cv, version, target, next)
 	default:
-		return NewSimpleDeployer(cv, version, target, withRollback, next)
+		return NewSimpleDeployer(cv, version, target, next)
 	}
 }

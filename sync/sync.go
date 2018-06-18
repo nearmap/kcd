@@ -45,6 +45,11 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 	dur := time.Duration(cv.Spec.PollIntervalSeconds) * time.Second
 	glog.V(1).Infof("Syncing every %s", dur)
 
+	opTimeout := time.Minute * 15
+	if cv.Spec.TimeoutSeconds > 0 {
+		opTimeout = time.Second * time.Duration(cv.Spec.TimeoutSeconds)
+	}
+
 	s := &Syncer{
 		k8sProvider:     k8sProvider,
 		cv:              cv,
@@ -52,7 +57,7 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 		historyProvider: hp,
 		options:         opts,
 	}
-	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur))
+	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur), state.WithTimeout(opTimeout))
 	return s
 }
 
@@ -180,7 +185,7 @@ func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.
 		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
-			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, s.options.UseRollback, next))
+			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, next))
 	}
 }
 
@@ -264,7 +269,7 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 
 func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if s.cv.Spec.History == nil || !s.cv.Spec.History.Enabled {
+		if !s.cv.Spec.History.Enabled {
 			glog.V(4).Infof("Not adding version history for cv=%s, version=%s", s.cv.Name, version)
 			return state.Single(next)
 		}

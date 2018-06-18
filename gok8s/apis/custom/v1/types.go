@@ -27,13 +27,15 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
+	TimeoutSeconds      int `json:"timeoutSeconds"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
-	History *HistorySpec `json:"history"`
+	History  HistorySpec  `json:"history"`
+	Rollback RollbackSpec `json:"rollback"`
 
 	Config *ConfigSpec `json:"config"`
 }
@@ -69,6 +71,11 @@ type VerifySpec struct {
 type HistorySpec struct {
 	Enabled bool   `json:"enabled"`
 	Name    string `json:"name"`
+}
+
+// RollbackSpec contains configuration for checking and rolling back failed deployments.
+type RollbackSpec struct {
+	Enabled bool `json:"enabled"`
 }
 
 // ConfigSpec is spec for Config resources

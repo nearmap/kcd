@@ -30,7 +30,7 @@ func TestSimpleDeploy(t *testing.T) {
 	target := fake.NewRolloutTarget()
 
 	target.FakePodSpec.Containers = []corev1.Container{}
-	_, err := deploy.NewSimpleDeployer(cv, version, target, false, nil).Do(context.Background())
+	_, err := deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when podspec does not contain any containers")
 	}
@@ -43,7 +43,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps := fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
 
-	_, err = deploy.NewSimpleDeployer(cv, version, target, false, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
@@ -70,7 +70,7 @@ func TestSimpleDeploy(t *testing.T) {
 	}
 	pps = fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(cv, version, target, false, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps = fake.NewInvocationPatchPodSpec()
 	pps.Error = errors.New("an error occurred")
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(cv, version, target, false, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when PatchPodSpec returns an error that is not a conflict")
 	}
@@ -96,7 +96,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps.Error = apimacherrors.NewConflict(schema.GroupResource{}, "", errors.New(""))
 	target.Invocations <- pps
 	target.Invocations <- fake.NewInvocationPatchPodSpec()
-	_, err = deploy.NewSimpleDeployer(cv, version, target, false, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PatchPodSpec returns an error that IS conflict")
 	}

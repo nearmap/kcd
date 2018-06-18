@@ -108,7 +108,7 @@ type runParams struct {
 	port int
 
 	history  bool // unused
-	rollback bool
+	rollback bool // unused
 
 	stats statsParams
 }
@@ -125,7 +125,7 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
 	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
-	rc.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
+	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
@@ -182,7 +182,7 @@ func newRunCommand() *cobra.Command {
 		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo,
 			k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory,
-			conf.WithStats(stats), conf.WithUseRollback(params.rollback))
+			conf.WithStats(stats))
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")
 		}

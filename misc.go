@@ -92,8 +92,6 @@ type crSyncParams struct {
 	namespace string
 	cvName    string
 	version   string
-
-	rollback bool
 }
 
 func newCRSyncCommand(root *crRoot) *cobra.Command {
@@ -108,7 +106,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace of container version resource that the syncer is based on.")
 	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
 	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of cv resources to use in CR Syncer")
-	cmd.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		if params.cvName == "" || params.namespace == "" {
@@ -198,8 +195,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		historyProvider := history.NewProvider(k8sClient, stats)
 
 		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider, historyProvider,
-			conf.WithRecorder(recorder), conf.WithStats(stats),
-			conf.WithUseRollback(params.rollback))
+			conf.WithRecorder(recorder), conf.WithStats(stats))
 
 		glog.V(1).Infof("Starting cr syncer with namespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)

@@ -36,6 +36,13 @@ func WithStartWaitTime(dur time.Duration) func(*Options) {
 	}
 }
 
+// WithTimeout sets an operation timeout duration as options.
+func WithTimeout(dur time.Duration) func(*Options) {
+	return func(op *Options) {
+		op.OperationTimeout = dur
+	}
+}
+
 // WithStats sets a stats instance for options.
 func WithStats(st stats.Stats) func(*Options) {
 	return func(op *Options) {
