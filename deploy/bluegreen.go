@@ -2,11 +2,11 @@ package deploy
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	k8s "github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
@@ -269,7 +269,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 			}
 
-			ok, err := CheckContainerVersions(bgd.cv, bgd.version, pod.Spec)
+			ok, err := k8s.CheckPodSpecContainerVersions(bgd.cv, bgd.version, pod.Spec)
 			if err != nil {
 				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
 				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))
@@ -336,34 +336,4 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRol
 	}
 
 	return result, nil
-}
-
-// CheckContainerVersions tests whether all containers in the pod spec with container
-// names that match the cv spec have the given version.
-// Returns false if at least one container's version does not match.
-// TODO: put this somewhere more general
-func CheckContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
-	match := false
-	for _, c := range podSpec.Containers {
-		if c.Name == cv.Spec.Container.Name {
-			match = true
-			parts := strings.SplitN(c.Image, ":", 2)
-			if len(parts) > 2 {
-				return false, errors.New("invalid image on container")
-			}
-			if parts[0] != cv.Spec.ImageRepo {
-				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
-					cv.Spec.Container.Name, parts[0], cv.Spec.ImageRepo)
-			}
-			if version != parts[1] {
-				return false, nil
-			}
-		}
-	}
-
-	if !match {
-		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
-	}
-
-	return true, nil
 }

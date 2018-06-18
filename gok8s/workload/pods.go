@@ -8,7 +8,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/events"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/registry/errs"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -122,36 +121,6 @@ func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
 	return nil
 }
 
-// checkPodSpec checks whether the current version tag of the container
-// in the given pod spec with the given container name has the given
-// version. Return a nil error if the versions match. If not matching,
-// an errs.ErrorVersionMismatch is returned.
-func checkPodSpec(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) error {
-	match := false
-	for _, c := range podSpec.Containers {
-		if c.Name == cv.Spec.Container.Name {
-			match = true
-			parts := strings.SplitN(c.Image, ":", 2)
-			if len(parts) > 2 {
-				return errors.New("invalid image on container")
-			}
-			if parts[0] != cv.Spec.ImageRepo {
-				return errors.Errorf("ECR repo mismatch present %s and requested  %s don't match",
-					parts[0], cv.Spec.ImageRepo)
-			}
-			if version != parts[1] {
-				return errs.ErrVersionMismatch
-			}
-		}
-	}
-
-	if !match {
-		return errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
-	}
-
-	return nil
-}
-
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
 func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
 	glog.Errorf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
@@ -159,4 +128,33 @@ func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version stri
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
 	k.options.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
+}
+
+// CheckPodSpecContainerVersions tests whether all containers in the pod spec with container
+// names that match the cv spec have the given version.
+// Returns false if at least one container's version does not match.
+func CheckPodSpecContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
+	match := false
+	for _, c := range podSpec.Containers {
+		if c.Name == cv.Spec.Container.Name {
+			match = true
+			parts := strings.SplitN(c.Image, ":", 2)
+			if len(parts) > 2 {
+				return false, errors.New("invalid image on container")
+			}
+			if parts[0] != cv.Spec.ImageRepo {
+				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
+					cv.Spec.Container.Name, parts[0], cv.Spec.ImageRepo)
+			}
+			if version != parts[1] {
+				return false, nil
+			}
+		}
+	}
+
+	if !match {
+		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
+	}
+
+	return true, nil
 }

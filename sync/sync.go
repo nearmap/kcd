@@ -88,12 +88,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
-		glog.V(4).Infof("Current version: %v", version)
-
-		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusProgressing {
-			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
-			return state.None()
-		}
+		glog.V(4).Infof("Current registry version: %v", version)
 
 		workloads, err := s.k8sProvider.Workloads(cv)
 		if err != nil {
@@ -101,9 +96,20 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
 
+		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusFailed {
+			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
+			return state.None()
+		}
+
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
-			toUpdate = append(toUpdate, wl)
+			eq, err := k8s.CheckPodSpecContainerVersions(cv, version, wl.PodSpec())
+			if err != nil {
+				return state.Error(errors.Wrapf(err, "failed to check podspec versions for cv resource %s", cv.Name))
+			}
+			if !eq {
+				toUpdate = append(toUpdate, wl)
+			}
 		}
 
 		glog.V(4).Infof("Found %d workloads to update", len(toUpdate))

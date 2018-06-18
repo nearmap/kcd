@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/nearmap/cvmanager/gok8s/workload"
+
 	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -66,6 +68,10 @@ func (rt *RolloutTarget) Type() string {
 // PodSpec implements the RolloutTarget interface.
 func (rt *RolloutTarget) PodSpec() corev1.PodSpec {
 	return rt.FakePodSpec
+}
+
+func (rt *RolloutTarget) AsResource(cv *cv1.ContainerVersion) *k8s.Resource {
+	return nil
 }
 
 // ReceivedPatchPodSpec represents the received parameters of an invocation of the
