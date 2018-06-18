@@ -96,13 +96,20 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
 
-		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusFailed {
+		if version == cv.Status.CurrVersion && cv.Status.CurrStatus == deploy.RolloutStatusFailed {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
 			return state.None()
 		}
 
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
+			// if we're still progressing the rollout then add all workloads
+			if version == cv.Status.CurrVersion && cv.Status.CurrStatus == deploy.RolloutStatusProgressing {
+				toUpdate = append(toUpdate, wl)
+				continue
+			}
+
+			// otherwise check current version vs expected version
 			eq, err := k8s.CheckPodSpecContainerVersions(cv, version, wl.PodSpec())
 			if err != nil {
 				return state.Error(errors.Wrapf(err, "failed to check podspec versions for cv resource %s", cv.Name))
