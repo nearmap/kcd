@@ -141,6 +141,8 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 		opt(opts)
 	}
 
+	glog.V(1).Infof("Starting state machine with options %+v", opts)
+
 	ctx := stats.NewContext(context.Background(), opts.Stats)
 	ctx = events.NewContext(ctx, opts.Recorder)
 
