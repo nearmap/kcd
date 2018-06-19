@@ -319,7 +319,7 @@ func (m *Machine) scheduleOps(ops ...*op) {
 func (m *Machine) newOp() {
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
-	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout)
+	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout+m.options.StartWaitTime)
 
 	o := &op{
 		group:  &group{},
