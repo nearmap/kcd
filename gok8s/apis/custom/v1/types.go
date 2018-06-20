@@ -93,6 +93,9 @@ type ContainerVersionStatus struct {
 	CurrVersion    string      `json:"currVersion"`
 	CurrStatus     string      `json:"currStatus"`
 	CurrStatusTime metav1.Time `json:"currStatusTime"`
+
+	// SuccessVersion is the last version that was successfully deployed.
+	SuccessVersion string `json:"successVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

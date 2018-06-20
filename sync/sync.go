@@ -96,7 +96,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
 
-		if version == cv.Status.CurrVersion && cv.Status.CurrStatus == deploy.RolloutStatusFailed {
+		if version == cv.Status.CurrVersion && cv.Status.CurrStatus == k8s.StatusFailed {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
 			return state.None()
 		}
@@ -104,7 +104,7 @@ func (s *Syncer) initialState() state.StateFunc {
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
 			// if we're still progressing the rollout then add all workloads
-			if version == cv.Status.CurrVersion && cv.Status.CurrStatus == deploy.RolloutStatusProgressing {
+			if version == cv.Status.CurrVersion && cv.Status.CurrStatus == k8s.StatusProgressing {
 				toUpdate = append(toUpdate, wl)
 				continue
 			}
@@ -124,12 +124,12 @@ func (s *Syncer) initialState() state.StateFunc {
 		var states []state.State
 		for _, wl := range toUpdate {
 			st := s.verify(version,
-				s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
+				s.updateRolloutStatus(version, k8s.StatusProgressing,
 					s.deploy(version, wl,
 						s.successfulDeploymentStats(wl,
 							s.syncVersionConfig(version,
 								s.addHistory(version, wl,
-									s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil)))))))
+									s.updateRolloutStatus(version, k8s.StatusSuccess, nil)))))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
 		}
@@ -150,7 +150,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 			time.Now().UTC())
 		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 
-		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, deploy.RolloutStatusFailed, time.Now().UTC())
+		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, k8s.StatusFailed, time.Now().UTC())
 		if uErr != nil {
 			glog.Errorf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
 			// TODO: something else?
@@ -160,7 +160,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 
 func (s *Syncer) verify(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if version == s.cv.Status.CurrVersion && s.cv.Status.CurrStatus == deploy.RolloutStatusProgressing {
+		if version == s.cv.Status.CurrVersion && s.cv.Status.CurrStatus == k8s.StatusProgressing {
 			// we've already run the verify step
 			return state.Single(next)
 		}
@@ -178,7 +178,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 			return state.Single(next)
 		}
 
-		glog.V(2).Info("Updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
+		glog.V(2).Infof("Updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
 
 		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
 		if err != nil {

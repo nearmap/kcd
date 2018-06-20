@@ -8,12 +8,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const (
-	RolloutStatusFailed      = "Failed"
-	RolloutStatusSuccess     = "Success"
-	RolloutStatusProgressing = "Progressing"
-)
-
 // RolloutTarget defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
 type RolloutTarget = k8s.Workload
 

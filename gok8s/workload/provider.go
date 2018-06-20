@@ -15,6 +15,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	StatusFailed      = "Failed"
+	StatusSuccess     = "Success"
+	StatusProgressing = "Progressing"
+)
+
 // Workload defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
 type Workload interface {
 	// Name is the name of the workload (without the namespace).
@@ -150,16 +156,17 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 	cv.Status.CurrStatus = status
 	cv.Status.CurrStatusTime = metav1.NewTime(tm)
 
+	if status == StatusSuccess {
+		cv.Status.SuccessVersion = version
+	}
+
 	result, err := client.Update(cv)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
 	glog.V(2).Info("Successfully updated rollout status: %+v", result)
-	//return result, nil
-
-	// TODO:
-	return cv, nil
+	return result, nil
 }
 
 // AllResources returns all resources managed by container versions in the current namespace.
