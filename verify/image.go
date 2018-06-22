@@ -77,6 +77,16 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 				corev1.Container{
 					Name:  fmt.Sprintf("cv-verifier-container-%s", id),
 					Image: iv.spec.Image,
+					Env: []corev1.EnvVar{
+						corev1.EnvVar{
+							Name: "NAMESPACE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.namespace",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
