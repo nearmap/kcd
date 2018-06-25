@@ -127,7 +127,7 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (prim
 		return nil, nil, errors.Wrapf(err, "failed to get all workloads for cv spec %v", bgd.cv.Name)
 	}
 	if len(workloads) != 2 {
-		return nil, nil, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec")
+		return nil, nil, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec, found %d", len(workloads))
 	}
 
 	selector := labels.Set(service.Spec.Selector).AsSelector()
