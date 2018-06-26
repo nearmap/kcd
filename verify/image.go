@@ -3,10 +3,12 @@ package verify
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
@@ -24,21 +26,25 @@ const (
 // ImageVerifier is a Verifier implementation that runs a container image that
 // tests the verification of a deployment or other image.
 type ImageVerifier struct {
-	client gocorev1.PodInterface
-	spec   cv1.VerifySpec
-	next   state.State
+	client           gocorev1.PodInterface
+	spec             cv1.VerifySpec
+	registryProvider registry.Provider
+	next             state.State
 }
 
 // NewImageVerifier runs a verification action by initializing a pod
 // with the given container immage and checking its exit code.
 // The Verify action passes if the image has a zero exit code.
-func NewImageVerifier(cs kubernetes.Interface, namespace string, spec cv1.VerifySpec, next state.State) *ImageVerifier {
+func NewImageVerifier(cs kubernetes.Interface, registryProvider registry.Provider, namespace string,
+	spec cv1.VerifySpec, next state.State) *ImageVerifier {
+
 	client := cs.CoreV1().Pods(namespace)
 
 	return &ImageVerifier{
-		client: client,
-		spec:   spec,
-		next:   next,
+		client:           client,
+		spec:             spec,
+		registryProvider: registryProvider,
+		next:             next,
 	}
 }
 
@@ -46,7 +52,7 @@ func NewImageVerifier(cs kubernetes.Interface, namespace string, spec cv1.Verify
 func (iv *ImageVerifier) Do(ctx context.Context) (state.States, error) {
 	glog.V(2).Infof("ImageVerifier with spec %+v", iv.spec)
 
-	pod, err := iv.createPod()
+	pod, err := iv.createPod(ctx)
 	if err != nil {
 		return state.Error(errors.WithStack(err))
 	}
@@ -57,15 +63,16 @@ func (iv *ImageVerifier) Do(ctx context.Context) (state.States, error) {
 // createPod creates a pod with the spec's container image and waits
 // for it to complete. Returns a Failed error if the pod does completes
 // with a non-zero status.
-func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
-	if iv.spec.Image == "" {
-		return nil, errors.New("verify spec does not have a valid container image")
+func (iv *ImageVerifier) createPod(ctx context.Context) (*corev1.Pod, error) {
+	image, err := iv.getImage(ctx, iv.spec)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get image for spec %v", iv.spec)
 	}
 
 	id := uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical)
 	name := fmt.Sprintf("cv-verifier-%s", uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
 
-	glog.V(2).Infof("Creating verifier pod with name %s", name)
+	glog.V(2).Infof("Creating verifier pod with name=%s, image=%s", name, image)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -76,7 +83,7 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 			Containers: []corev1.Container{
 				corev1.Container{
 					Name:  fmt.Sprintf("cv-verifier-container-%s", id),
-					Image: iv.spec.Image,
+					Image: image,
 					Env: []corev1.EnvVar{
 						corev1.EnvVar{
 							Name: "NAMESPACE",
@@ -94,10 +101,33 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 
 	p, err := iv.client.Create(pod)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create pod with name %s", name)
+		return nil, errors.Wrapf(err, "failed to create pod with name=%s, image=%s", name, image)
 	}
 
 	return p, nil
+}
+
+func (iv *ImageVerifier) getImage(ctx context.Context, spec cv1.VerifySpec) (string, error) {
+	if spec.Image == "" {
+		return "", errors.New("verify spec does not have a valid container image")
+	}
+
+	if spec.Tag == "" {
+		return spec.Image, nil
+	}
+
+	registry, err := iv.registryProvider.RegistryFor(spec.Image)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get registry for %s", spec.Image)
+	}
+
+	version, err := registry.Version(ctx, spec.Tag)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get version from registry for %+v", spec)
+	}
+
+	parts := strings.SplitN(spec.Image, ":", 2)
+	return fmt.Sprintf("%s:%s", parts[0], version), nil
 }
 
 func (iv *ImageVerifier) waitForPodState(name string) state.StateFunc {

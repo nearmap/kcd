@@ -28,14 +28,17 @@ type Syncer struct {
 	cv *cv1.ContainerVersion
 
 	k8sProvider     *k8s.Provider
-	registry        registry.Registry
 	historyProvider history.Provider
-	options         *config.Options
+
+	registry         registry.Registry // provides version information for the current cv resource
+	registryProvider registry.Provider // used to obtain version information for other registry resoures
+
+	options *config.Options
 }
 
 // NewSyncer creates a Syncer instance for handling the main sync loop.
-func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry.Registry, hp history.Provider,
-	options ...func(*config.Options)) *Syncer {
+func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, registryProvider registry.Provider,
+	hp history.Provider, options ...func(*config.Options)) (*Syncer, error) {
 
 	opts := config.NewOptions()
 	for _, opt := range options {
@@ -50,15 +53,21 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 		opTimeout = time.Second * time.Duration(cv.Spec.TimeoutSeconds)
 	}
 
+	registry, err := registryProvider.RegistryFor(cv.Spec.ImageRepo)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	s := &Syncer{
-		k8sProvider:     k8sProvider,
-		cv:              cv,
-		registry:        reg,
-		historyProvider: hp,
-		options:         opts,
+		k8sProvider:      k8sProvider,
+		cv:               cv,
+		registryProvider: registryProvider,
+		registry:         registry,
+		historyProvider:  hp,
+		options:          opts,
 	}
 	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur), state.WithTimeout(opTimeout))
-	return s
+	return s, nil
 }
 
 // Start begins the sync process.
@@ -166,7 +175,8 @@ func (s *Syncer) verify(version string, next state.State) state.StateFunc {
 		}
 
 		return state.Single(
-			verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify, next))
+			verify.NewVerifiers(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(),
+				version, s.cv.Spec.Container.Verify, next))
 	}
 }
 
@@ -198,7 +208,7 @@ func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.
 		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
-			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, next))
+			deploy.NewDeployState(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(), s.cv, version, target, next))
 	}
 }
 

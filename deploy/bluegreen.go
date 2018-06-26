@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/state"
 	"github.com/nearmap/cvmanager/verify"
 	"github.com/pkg/errors"
@@ -32,14 +33,16 @@ type BlueGreenDeployer struct {
 	cv        *cv1.ContainerVersion
 	blueGreen *cv1.BlueGreenSpec
 
+	registryProvider registry.Provider
+
 	version string
 	target  TemplateRolloutTarget
 	next    state.State
 }
 
 // NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.
-func NewBlueGreenDeployer(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
-	target RolloutTarget, next state.State) *BlueGreenDeployer {
+func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, cv *cv1.ContainerVersion,
+	version string, target RolloutTarget, next state.State) *BlueGreenDeployer {
 
 	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, cv=%s, version=%s, target=%s",
 		namespace, cv.Name, version, target.Name())
@@ -51,13 +54,14 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, namespace string, cv *cv1.Con
 	}
 
 	return &BlueGreenDeployer{
-		namespace: namespace,
-		cs:        cs,
-		cv:        cv,
-		blueGreen: cv.Spec.Strategy.BlueGreen,
-		version:   version,
-		target:    tTarget,
-		next:      next,
+		namespace:        namespace,
+		cs:               cs,
+		cv:               cv,
+		blueGreen:        cv.Spec.Strategy.BlueGreen,
+		registryProvider: registryProvider,
+		version:          version,
+		target:           tTarget,
+		next:             next,
 	}
 }
 
@@ -102,7 +106,7 @@ func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 		bgd.updateVersion(secondary,
 			bgd.updateVerificationServiceSelector(secondary,
 				bgd.ensureHasPods(secondary,
-					verify.NewVerifiers(bgd.cs, bgd.namespace, bgd.version, bgd.cv.Spec.Strategy.Verify,
+					verify.NewVerifiers(bgd.cs, bgd.registryProvider, bgd.namespace, bgd.version, bgd.cv.Spec.Strategy.Verify,
 						bgd.scaleUpSecondary(primary, secondary,
 							bgd.updateServiceSelector(bgd.blueGreen.ServiceName, secondary,
 								bgd.scaleDown(primary, bgd.next))))))))

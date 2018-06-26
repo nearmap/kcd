@@ -4,6 +4,7 @@ import (
 	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/state"
 	"k8s.io/client-go/kubernetes"
 )
@@ -24,8 +25,8 @@ type Deployer interface {
 
 // NewDeployState returns a state that performs a deployment operation according to the
 // ContainerVersion spec.
-func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.ContainerVersion, version string,
-	target RolloutTarget, next state.State) state.State {
+func NewDeployState(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, cv *cv1.ContainerVersion,
+	version string, target RolloutTarget, next state.State) state.State {
 
 	glog.V(2).Infof("Creating deployment for cv=%+v, version=%s, rolloutTarget=%s", cv, version, target.Name())
 
@@ -36,7 +37,7 @@ func NewDeployState(cs kubernetes.Interface, namespace string, cv *cv1.Container
 
 	switch kind {
 	case KindServieBlueGreen:
-		return NewBlueGreenDeployer(cs, namespace, cv, version, target, next)
+		return NewBlueGreenDeployer(cs, registryProvider, namespace, cv, version, target, next)
 	default:
 		return NewSimpleDeployer(cv, version, target, next)
 	}

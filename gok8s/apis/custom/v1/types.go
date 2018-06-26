@@ -65,6 +65,7 @@ type BlueGreenSpec struct {
 type VerifySpec struct {
 	Kind  string `json:"kind"`
 	Image string `json:"image"`
+	Tag   string `json:"tag"`
 }
 
 // HistorySpec contains configuration for saving rollout history.
