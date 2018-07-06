@@ -141,9 +141,8 @@ objects:
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
-                - "--rollback=$(USE_ROLLBACK)"
                 - "--cv-img-repo=$(REPOSITORY)"
-                - "--v=4"
+                - "--v=1"
                 - "--logtostderr=true"
               env:
               - name: NAME
@@ -185,7 +184,7 @@ objects:
       namespace: kube-system
     spec:
       imageRepo: $(REPOSITORY)
-      tag: $(VERSION)
+      tag: $(TAG)
       pollIntervalSeconds: 300
       selector:
         cvapp: cvmanagercv
@@ -212,9 +211,8 @@ parameters:
     required: true
     parameterType: "string"
     value: "nearmap/cvmanager"
-  - name: "USE_ROLLBACK"
-    description: "Flag to indicate whether cvmanager should rollback if a deployment fails"
+  - name: "TAG"
+    description: "container image tag representing the current version"
     required: true
-    value: true
-    parameterType: "bool"
-
+    parameterType: "string"
+    value: "latest"
