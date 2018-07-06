@@ -2,10 +2,9 @@ package k8s
 
 import (
 	"fmt"
-	"log"
 	"time"
 
-	"github.com/nearmap/cvmanager/deploy"
+	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -45,6 +44,15 @@ func newDeployment(deployment *appsv1.Deployment, client goappsv1.DeploymentInte
 	}
 }
 
+// curr returns the current state of the deployment.
+func (d *Deployment) curr() (*appsv1.Deployment, error) {
+	dep, err := d.client.Get(d.deployment.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get deployment state")
+	}
+	return dep, nil
+}
+
 func (d *Deployment) String() string {
 	return fmt.Sprintf("%+v", d.deployment)
 }
@@ -71,29 +79,59 @@ func (d *Deployment) PodSpec() corev1.PodSpec {
 
 // RollbackAfter implements the Workload interface.
 func (d *Deployment) RollbackAfter() *time.Duration {
-	var dur time.Duration
-	dur = time.Duration(int32(*d.deployment.Spec.ProgressDeadlineSeconds)) * time.Second
+	if d.deployment.Spec.ProgressDeadlineSeconds == nil {
+		return nil
+	}
+	dur := time.Duration(*d.deployment.Spec.ProgressDeadlineSeconds) * time.Second
 	return &dur
 }
 
-//ProgressHealth implements the Workload interface.
-func (d *Deployment) ProgressHealth() bool {
-	ok := true
-	for _, c := range d.deployment.Status.Conditions {
-		if c.Type == appsv1.DeploymentReplicaFailure {
-			ok = !(c.Status == corev1.ConditionTrue)
+// ProgressHealth implements the Workload interface.
+func (d *Deployment) ProgressHealth(startTime time.Time) (*bool, error) {
+	glog.V(4).Infof("checking progress health at: %v", startTime)
+
+	dep, err := d.curr()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to obtain progress health")
+	}
+
+	var ok *bool
+	for _, c := range dep.Status.Conditions {
+		if glog.V(4) {
+			glog.V(4).Infof("deployment condition: %+v", c)
+		}
+
+		if c.LastUpdateTime.Time.Before(startTime) {
+			continue
+		}
+		if c.Type != appsv1.DeploymentProgressing {
+			continue
+		}
+
+		if c.Status == corev1.ConditionFalse {
+			if c.Reason == "ProgressDeadlineExceeded" {
+				result := false
+				return &result, nil
+			}
+		} else {
+			if c.Reason == "NewReplicaSetAvailable" {
+				result := true
+				ok = &result
+			}
 		}
 	}
-	return ok
+
+	return ok, nil
 }
 
-// PodTemplateSpec implements the TemplateRolloutTarget interface.
+// PodTemplateSpec implements the TemplateWorkload interface.
 func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 	return d.deployment.Spec.Template
 }
 
 // PatchPodSpec implements the Workload interface.
 func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+	// TODO: should we update the deployment with the returned patch version?
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
 	if err != nil {
@@ -102,12 +140,12 @@ func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 	return nil
 }
 
-// Select implements the TemplateRolloutTarget interface.
-func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateRolloutTarget, error) {
+// Select implements the TemplateWorkload interface.
+func (d *Deployment) Select(selector map[string]string) ([]TemplateWorkload, error) {
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
-	var result []deploy.TemplateRolloutTarget
+	var result []TemplateWorkload
 
 	wls, err := d.client.List(listOpts)
 	if err != nil {
@@ -121,7 +159,7 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateRollou
 	return result, nil
 }
 
-// SelectOwnPods implements the TemplateRolloutTarget interface.
+// SelectOwnPods implements the TemplateWorkload interface.
 func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 	var result []corev1.Pod
 	for _, pod := range pods {
@@ -139,16 +177,16 @@ func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 							result = append(result, pod)
 						}
 					default:
-						log.Printf("Ignoring unknown replicaset owner kind: %v", rsOwner.Kind)
+						glog.V(4).Infof("Ignoring unknown replicaset owner kind: %v", rsOwner.Kind)
 					}
 				}
 			default:
-				log.Printf("Ignoring unknown pod owner kind: %v", podOwner.Kind)
+				glog.V(4).Infof("Ignoring unknown pod owner kind: %v", podOwner.Kind)
 			}
 		}
 	}
 
-	log.Printf("SelectOwnPods returning %d pods", len(result))
+	glog.V(6).Infof("SelectOwnPods returning %d pods", len(result))
 	return result, nil
 }
 
@@ -161,7 +199,7 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 	return rs, nil
 }
 
-// NumReplicas implements the TemplateRolloutTarget interface.
+// NumReplicas implements the TemplateWorkload interface.
 func (d *Deployment) NumReplicas() int32 {
 	return d.deployment.Status.Replicas
 }
@@ -173,7 +211,7 @@ const deploymentReplicaSetPatchJSON = `
 		}
 	}`
 
-// PatchNumReplicas implements the TemplateRolloutTarget interface.
+// PatchNumReplicas implements the TemplateWorkload interface.
 func (d *Deployment) PatchNumReplicas(num int32) error {
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(deploymentReplicaSetPatchJSON, num)))

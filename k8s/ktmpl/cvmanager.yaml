@@ -69,8 +69,6 @@ objects:
                     image:
                       type: string
                       pattern: '^[^:]*$'
-                    timeoutSeconds:
-                      type: integer
                   required:
                     - name
                 pollIntervalSeconds:
@@ -96,16 +94,13 @@ objects:
                         type: string
                     scaleDown:
                       type: boolean
-                    timeoutSeconds:
-                      type: integer
                   verify:
+                    type: array
                     kind:
                       type: string
                     image:
                       type: string
                       pattern: '^[^:]*$'
-                    timeoutSeconds:
-                      type: integer
 
   - kind: Deployment
     apiVersion: apps/v1
@@ -113,7 +108,7 @@ objects:
       name: cvmanagerapp
       namespace: kube-system
       labels:
-        app: cvmanager
+        cvapp: cvmanagercv
     spec:
       replicas: 1
       selector:
@@ -146,9 +141,9 @@ objects:
               args:
                 - "run"
                 - "--configmap-key=kube-system/cvmanager"
-                - "--history=$(USE_HISTORY)"
-                - "--rollback=$(USE_ROLLBACK)"
                 - "--cv-img-repo=$(REPOSITORY)"
+                - "--v=1"
+                - "--logtostderr=true"
               env:
               - name: NAME
                 valueFrom:
@@ -189,7 +184,7 @@ objects:
       namespace: kube-system
     spec:
       imageRepo: $(REPOSITORY)
-      tag: $(VERSION)
+      tag: $(TAG)
       pollIntervalSeconds: 300
       selector:
         cvapp: cvmanagercv
@@ -216,14 +211,8 @@ parameters:
     required: true
     parameterType: "string"
     value: "nearmap/cvmanager"
-  - name: "USE_HISTORY"
-    description: "Flag to indicate whether cvmanager should record history in configmap"
+  - name: "TAG"
+    description: "container image tag representing the current version"
     required: true
-    value: true
-    parameterType: "bool"
-  - name: "USE_ROLLBACK"
-    description: "Flag to indicate whether cvmanager should rollback if a deployment fails"
-    required: true
-    value: true
-    parameterType: "bool"
-
+    parameterType: "string"
+    value: "latest"

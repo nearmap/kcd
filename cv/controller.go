@@ -1,11 +1,14 @@
 package cv
 
 import (
+	"crypto/md5"
+	"encoding/json"
 	"fmt"
-	"log"
+	"os"
 	"reflect"
 	"time"
 
+	"github.com/golang/glog"
 	conf "github.com/nearmap/cvmanager/config"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
@@ -13,6 +16,7 @@ import (
 	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
 	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
 	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -88,7 +92,7 @@ func NewCVController(configMapKey, cvImgRepo string,
 	scheme.AddToScheme(k8sscheme.Scheme)
 
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Printf)
+	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: k8sCS.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(k8sscheme.Scheme, corev1.EventSource{Component: "container-version-controller"})
 
@@ -114,7 +118,7 @@ func NewCVController(configMapKey, cvImgRepo string,
 		opts:     opts,
 	}
 
-	log.Printf("Setting up event handlers in container version controller")
+	glog.V(1).Info("Setting up event handlers in container version controller")
 
 	cvcInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: cvc.enqueue,
@@ -154,26 +158,26 @@ func (c *CVController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	log.Printf("Starting Container version controller")
+	glog.V(1).Info("Starting Container version controller")
 
 	if !cache.WaitForCacheSync(stopCh, c.deploySynced, c.cvcSynced) {
 		return errors.New("Fail to wait for (secondary) cache sync")
 	}
 
-	log.Printf("Cache sync completed")
+	glog.V(2).Info("Cache sync completed")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
-	log.Printf("Started Container version controller")
+	glog.V(2).Info("Started Container version controller")
 
 	<-stopCh
-	log.Printf("Shutting down container version controller")
+	glog.V(1).Info("Shutting down container version controller")
 	return nil
 }
 
 func (c *CVController) runWorker() {
-	log.Printf("Running worker")
+	glog.V(2).Info("Running worker")
 	for c.processNextWorkItem() {
 	}
 }
@@ -196,15 +200,19 @@ func (c *CVController) processNextWorkItem() bool {
 			runtime.HandleError(fmt.Errorf("expected string in queue but got %#v", obj))
 			return nil
 		}
-		log.Printf("Processing CRD in sync handler: name=%v, crd=%v", key, obj)
+
+		if glog.V(2) {
+			glog.V(2).Infof("Processing CRD in sync handler: name=%v, crd=%v", key, obj)
+		}
 
 		// Run the syncHandler, passing it the namespace/name string of the
 		// ContainerVersion resource to be synced.
 		if err := c.syncHandler(key); err != nil {
 			return errors.Wrapf(err, "error syncing '%s'", key)
 		}
+
 		c.queue.Forget(obj)
-		log.Printf("Successfully synced '%s'", key)
+		glog.V(1).Infof("Successfully synced '%s'", key)
 		c.opts.Stats.IncCount(fmt.Sprintf("cvc.%s.sync.success", key))
 		return nil
 	}(obj)
@@ -220,12 +228,12 @@ func (c *CVController) processNextWorkItem() bool {
 // syncHandler processes the container version resource and creates/updates the deployment
 // depending on whether the resource is already present or not
 func (c *CVController) syncHandler(key string) error {
-	log.Printf("Processing container version resource with name %s", key)
+	glog.V(2).Infof("Processing container version resource with name %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		log.Printf("Failed to get namespacekey from cv spec: %v", err)
+		glog.Errorf("Failed to get namespacekey from cv spec: %v", err)
 		return nil
 	}
 
@@ -248,7 +256,9 @@ func (c *CVController) syncHandler(key string) error {
 		return errors.Wrap(err, "Failed to sync deployment")
 	}
 
-	log.Printf("In sync handler of CVC for key=%s, namespace=%v, cv=%v, name=%v", key, namespace, cv, name)
+	if glog.V(2) {
+		glog.V(2).Infof("In sync handler of CVC for key=%s, namespace=%v, cv=%v, name=%v", key, namespace, cv, name)
+	}
 
 	c.recorder.Event(cv, corev1.EventTypeNormal, "Synced", "Sync of CV resource was successful")
 	return nil
@@ -261,11 +271,11 @@ func (c *CVController) enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("error obtaining key for object being enqueue: %s", err.Error()))
-		log.Printf("Failed to obtain key for object being enqueue: %v", err)
+		glog.Errorf("Failed to obtain key for object being enqueue: %v", err)
 		return
 	}
 
-	log.Printf("Queued cv for processing: name=%s", key)
+	glog.V(4).Infof("Queued cv for processing: name=%s", key)
 
 	c.queue.AddRateLimited(key)
 }
@@ -287,10 +297,14 @@ func (c *CVController) dequeueCV(obj interface{}) {
 			runtime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		log.Printf("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(2).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
+
 	// All resources owned by CV will automatically be deleted so nothing needs to be done
-	log.Printf("Successfully dequeued object cv'%s/%s'", object.GetNamespace(), object.GetName())
+
+	if glog.V(2) {
+		glog.V(2).Infof("Successfully dequeued object cv'%s/%s'", object.GetNamespace(), object.GetName())
+	}
 }
 
 // handleCVOwnedObj will take any resource implementing metav1.Object and attempt
@@ -312,13 +326,16 @@ func (c *CVController) handleCVOwnedObj(obj interface{}) {
 			runtime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		log.Printf("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(2).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
 
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		key := fmt.Sprintf("%s/%s", object.GetNamespace(), object.GetName())
-		log.Printf("Container version controller owned object info: key=%s, owner=%v, obj=%v",
-			key, metav1.GetControllerOf(object), object)
+
+		if glog.V(2) {
+			glog.V(2).Infof("Container version controller owned object info: key=%s, owner=%v, obj=%v",
+				key, metav1.GetControllerOf(object), object)
+		}
 
 		if ownerRef.Kind != "ContainerVersion" {
 			return
@@ -326,7 +343,7 @@ func (c *CVController) handleCVOwnedObj(obj interface{}) {
 
 		cv, err := c.cvcLister.ContainerVersions(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			log.Printf("ignoring orphaned object '%s' of CV'%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(2).Infof("ignoring orphaned object '%s' of CV'%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 		c.enqueue(cv)
@@ -366,9 +383,9 @@ func (c *CVController) syncDeployNames(namespace, key, version string, cv *cv1.C
 func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version string) *appsv1.Deployment {
 	nr := int32(1)
 	dName := syncDeployName(cv.Name)
-	livenessFrequency := cv.Spec.LivenessSeconds
-	if livenessFrequency <= 0 {
-		livenessFrequency = cv.Spec.PollIntervalSeconds
+	livenessSeconds := cv.Spec.LivenessSeconds
+	if livenessSeconds <= 0 {
+		livenessSeconds = 5 * 60
 	}
 
 	labels := map[string]string{
@@ -409,18 +426,20 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								"sync",
 								fmt.Sprintf("--namespace=%s", cv.Namespace),
 								fmt.Sprintf("--cv=%s", cv.Name),
-								fmt.Sprintf("--version=%s", cv.ResourceVersion),
-								fmt.Sprintf("--history=%t", c.opts.UseHistory),
-								fmt.Sprintf("--rollback=%t", c.opts.UseRollback),
+								fmt.Sprintf("--version=%s", specVersion(cv)),
+								fmt.Sprintf("--logtostderr=true"),
+								fmt.Sprintf("--v=%d", glogVerbosity),
+								fmt.Sprintf("--vmodule=%s", glogVmodule),
 							},
-							Env: []corev1.EnvVar{{
-								Name: "NAME",
-								ValueFrom: &corev1.EnvVarSource{
-									FieldRef: &corev1.ObjectFieldSelector{
-										FieldPath: "metadata.name",
+							Env: []corev1.EnvVar{
+								{
+									Name: "NAME",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "metadata.name",
+										},
 									},
 								},
-							},
 								{
 									Name: "STATS_HOST",
 									ValueFrom: &corev1.EnvVarSource{
@@ -431,12 +450,18 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								},
 							},
 							LivenessProbe: &corev1.Probe{
-								PeriodSeconds: int32(cv.Spec.PollIntervalSeconds * 60),
+								PeriodSeconds:       int32(livenessSeconds),
+								InitialDelaySeconds: int32(10),
+								TimeoutSeconds:      int32(5),
+								FailureThreshold:    int32(2),
 								Handler: corev1.Handler{
 									Exec: &corev1.ExecAction{
 										Command: []string{
-											"cvmanager", "cr", "sync",
-											"status", "--by", fmt.Sprintf("%dm", livenessFrequency),
+											"cvmanager", "cr", "sync", "status",
+											"--by", fmt.Sprintf("%ds", livenessSeconds),
+											fmt.Sprintf("--logtostderr=true"),
+											fmt.Sprintf("--v=%d", glogVerbosity),
+											fmt.Sprintf("--vmodule=%s", glogVmodule),
 										},
 									},
 								},
@@ -446,6 +471,23 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 				},
 			},
 		},
+	}
+}
+
+// propagate glog flags
+var (
+	glogVerbosity int
+	glogVmodule   string
+)
+
+func init() {
+	glogFlags := pflag.NewFlagSet("glog-propagation", pflag.ContinueOnError)
+	glogFlags.ParseErrorsWhitelist.UnknownFlags = true
+	glogFlags.IntVar(&glogVerbosity, "v", 1, "log level for V logs")
+	glogFlags.StringVar(&glogVmodule, "vmodule", "", "comma-separated list of pattern=N settings for file-filtered logging")
+	err := glogFlags.Parse(os.Args)
+	if err != nil {
+		fmt.Printf("Error parsing glog propagation flags: %v\n", err)
 	}
 }
 
@@ -464,4 +506,14 @@ func (c *CVController) fetchVersion() (string, error) {
 		return "", errors.Wrap(err, "Missing config map cvmanager in kube-system")
 	}
 	return version, nil
+}
+
+func specVersion(cv *cv1.ContainerVersion) string {
+	byt, err := json.Marshal(cv.Spec)
+	if err != nil {
+		glog.Errorf("Failed to marshal ContainerVersion: %v", err)
+		panic(fmt.Sprintf("failed to marshal ContainerVersion: %v", err))
+	}
+	result := md5.Sum(byt)
+	return fmt.Sprintf("%x", result)
 }

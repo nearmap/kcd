@@ -101,8 +101,8 @@ docker run -ti  nearmap/cvmanager <command>
 
 CVManager can be deployed using:
 
-1. Kubectl: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
-2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager/cvmanager-0.1.0.tgz)
+1. Kubectl: yaml specs for Kubenetes configuration is [here](k8s/kubectl/README.md)
+2. Helm: Helm chart spec is [here](k8s/helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager-0.1.0.tgz)
 
 Please [see](k8s/README.md) for more info.
 

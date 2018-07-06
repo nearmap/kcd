@@ -1,22 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
 
+	"github.com/golang/glog"
 	conf "github.com/nearmap/cvmanager/config"
 	"github.com/nearmap/cvmanager/cv"
+	"github.com/nearmap/cvmanager/events"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	informer "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
+	"github.com/nearmap/cvmanager/gok8s/workload"
 	"github.com/nearmap/cvmanager/handler"
+	"github.com/nearmap/cvmanager/history"
 	"github.com/nearmap/cvmanager/signals"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/nearmap/cvmanager/stats/datadog"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextCS "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -36,20 +41,35 @@ func main() {
 // withExitCode executes as the main method but returns the status code
 // that will be returned to the operating system. This is done to ensure
 // all deferred functions are completed before calling os.Exit().
-func withExitCode() int {
-	root := &cobra.Command{
+func withExitCode() (code int) {
+	defer func() {
+		if r := recover(); r != nil {
+			glog.Errorf("Panic: %v", r)
+			code = 2
+		}
+		glog.Flush()
+	}()
+
+	// add glog flags
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	rootCmd := &cobra.Command{
 		Short: "cvmanager",
 		Long:  "Container Version Manager (cvmanager): a custom controller and tooling to manage CI/CD on kubernetes clusters",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// prevent glog complaining about flags not being parsed
+			flag.CommandLine.Parse([]string{})
+		},
 	}
+	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
-	root.AddCommand(newRunCommand())
-	root.AddCommand(newCRCommands())
-	root.AddCommand(newCVCommand())
+	rootCmd.AddCommand(newRunCommand())
+	rootCmd.AddCommand(newCRCommands())
+	rootCmd.AddCommand(newCVCommand())
 
-	// TODO: recover
-	err := root.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
-		log.Printf("Error executing command: %v", err)
+		glog.Errorf("Error executing command: %v", err)
 		return 1
 	}
 
@@ -87,7 +107,8 @@ type runParams struct {
 
 	port int
 
-	history, rollback bool
+	history  bool // unused
+	rollback bool // unused
 
 	stats statsParams
 }
@@ -103,8 +124,8 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
 	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
-	rc.Flags().BoolVar(&params.history, "history", false, "If true, stores the release history in configmap <cv_resource_name>_history")
-	rc.Flags().BoolVar(&params.rollback, "rollback", false, "If true, on failed deployment, the version update is automatically rolled back")
+	rc.Flags().BoolVar(&params.history, "history", false, "unused")
+	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
@@ -127,21 +148,21 @@ func newRunCommand() *cobra.Command {
 		}
 		if err != nil {
 			scStatus = 2
-			log.Printf("Failed to get k8s config: %v", err)
+			glog.Errorf("Failed to get k8s config: %v", err)
 			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
 		}
 
 		k8sClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s clientset: %v", err)
+			glog.Errorf("Error building k8s clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s clientset")
 		}
 
 		customClient, err := clientset.NewForConfig(cfg)
 		if err != nil {
 			scStatus = 2
-			log.Printf("Error building k8s container version clientset: %v", err)
+			glog.Errorf("Error building k8s container version clientset: %v", err)
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
@@ -150,35 +171,39 @@ func newRunCommand() *cobra.Command {
 		// There is also problem in how its updated .. it corrupts the definition
 		// err = updateCVCRDSpec(cfg)
 		// if err != nil {
-		// 	log.Printf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
+		// 	glog.Errorf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
 		// 	//return errors.Wrap(err, "Failed to read CV CRD specification")
 		// }
 
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
-		//Controllers here
+		// Controllers here
 		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo,
 			k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory,
-			conf.WithStats(stats), conf.WithHistory(params.history), conf.WithUseRollback(params.rollback))
+			conf.WithStats(stats))
 		if err != nil {
 			return errors.Wrap(err, "Failed to create controller")
 		}
 
 		k8sInformerFactory.Start(stopCh)
 		customInformerFactory.Start(stopCh)
-		log.Printf("Started informer factory")
+		glog.V(1).Info("Started informer factory")
 
 		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
 
+		recorder := events.PodEventRecorder(k8sClient, "")
+		k8sProvider := k8s.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
+		historyProvider := history.NewProvider(k8sClient, stats)
+
 		go func() {
 			if err = cvc.Run(2, stopCh); err != nil {
-				log.Printf("Shutting down container version controller: %v", err)
+				glog.V(1).Infof("Shutting down container version controller: %v", err)
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(params.port, Version, k8sClient, customClient, stopCh)
+		handler.NewServer(params.port, Version, k8sProvider, historyProvider, stopCh)
 
 		return nil
 	}

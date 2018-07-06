@@ -1,29 +1,50 @@
 package verify
 
 import (
-	"github.com/nearmap/cvmanager/events"
+	"context"
+
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
-	"github.com/pkg/errors"
+	"github.com/nearmap/cvmanager/registry"
+	"github.com/nearmap/cvmanager/state"
 	"k8s.io/client-go/kubernetes"
 )
 
 var (
-	Failed = errors.New("Verification failed")
+	// ErrFailed is an error indicating that the verification process failed.
+	ErrFailed = state.NewFailed("Verification failed")
 )
 
-type Verifier interface {
-	Verify() error
-}
+// NewVerifier returns a state instance that implements a verifier, as defined in the verify spec.
+func NewVerifier(cs kubernetes.Interface, registryProvider registry.Provider, namespace, version string,
+	spec cv1.VerifySpec, next state.State) (state.States, error) {
 
-func NewVerifier(cs kubernetes.Interface, recorder events.Recorder, stats stats.Stats, ns string,
-	spec *cv1.VerifySpec) (Verifier, error) {
-	var verifier Verifier
+	var verifier state.State
 	switch spec.Kind {
 	case KindImage:
-		verifier = NewImageVerifier(cs, recorder, stats, ns, spec)
+		verifier = NewImageVerifier(cs, registryProvider, namespace, spec, next)
 	default:
-		return nil, errors.Errorf("unknown verify type: %v", spec.Kind)
+		return state.Error(state.NewFailed("unknown verify type: %v", spec.Kind))
 	}
-	return verifier, nil
+
+	return state.Single(verifier)
+}
+
+// NewVerifiers returns a state function that invokes verify operations for the given verify specs.
+func NewVerifiers(cs kubernetes.Interface, registryProvider registry.Provider, namespace, version string,
+	cvvs []cv1.VerifySpec, next state.State) state.StateFunc {
+
+	return newVerifiers(cs, registryProvider, namespace, version, cvvs, next, 0)
+}
+
+func newVerifiers(cs kubernetes.Interface, registryProvider registry.Provider, namespace, version string,
+	cvvs []cv1.VerifySpec, next state.State, idx int) state.StateFunc {
+
+	return func(ctx context.Context) (state.States, error) {
+		if idx >= len(cvvs) {
+			return state.Single(next)
+		}
+
+		return NewVerifier(cs, registryProvider, namespace, version, cvvs[idx],
+			newVerifiers(cs, registryProvider, namespace, version, cvvs, next, idx+1))
+	}
 }

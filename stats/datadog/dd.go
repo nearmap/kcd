@@ -3,12 +3,12 @@ package datadog
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/golang/glog"
 )
 
 // DataDogStats is statsd client wrapper
@@ -25,7 +25,7 @@ func New(address, namespace string, tags ...string) (*DataDogStats, error) {
 		return &DataDogStats{}, fmt.Errorf("no address provided for stats")
 	}
 	address = addDefaultPort(address)
-	log.Printf("Sending stats to %s with namespace %s", address, namespace)
+	glog.V(1).Infof("Sending stats to %s with namespace %s", address, namespace)
 
 	client, err := statsd.NewBuffered(address, 1432)
 	if err != nil {
@@ -46,10 +46,10 @@ func (stats *DataDogStats) Close() error {
 
 // IncCount is used to capture stats are are continuous and increment it by 1
 func (stats *DataDogStats) IncCount(name string, tags ...string) {
-	log.Printf("sending %s metric of tag %s", name, tags)
+	glog.V(4).Infof("sending %s metric of tag %s", name, tags)
 	err := stats.client.Incr(name, tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending %s metric: %+v", name, err)
+		glog.Errorf("Error sending %s metric: %+v", name, err)
 	}
 }
 
@@ -57,7 +57,7 @@ func (stats *DataDogStats) IncCount(name string, tags ...string) {
 func (stats *DataDogStats) IncCountBy(name string, value int64, tags ...string) {
 	err := stats.client.Count(name, value, tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending %s metric: %+v", name, err)
+		glog.Errorf("Error sending %s metric: %+v", name, err)
 	}
 }
 
@@ -65,7 +65,7 @@ func (stats *DataDogStats) IncCountBy(name string, value int64, tags ...string) 
 func (stats *DataDogStats) DecCount(name string, tags ...string) {
 	err := stats.client.Decr(name, tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending %s metric: %+v", name, err)
+		glog.Errorf("Error sending %s metric: %+v", name, err)
 	}
 }
 
@@ -73,13 +73,13 @@ func (stats *DataDogStats) DecCount(name string, tags ...string) {
 func (stats *DataDogStats) DecCountBy(name string, value int64, tags ...string) {
 	err := stats.client.Count(name, -1*value, tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending %s metric: %+v", name, err)
+		glog.Errorf("Error sending %s metric: %+v", name, err)
 	}
 }
 
 // ElapsedTime captures the timing based on start time and current time
 func (stats *DataDogStats) ElapsedTime(start time.Time, name string, tags ...string) {
-	log.Printf("sending %s metric of tag %s", name, tags)
+	glog.V(4).Infof("sending %s metric of tag %s", name, tags)
 	elapsed := time.Since(start)
 	stats.Duration(elapsed, name, tags...)
 }
@@ -91,7 +91,7 @@ func (stats *DataDogStats) Duration(duration time.Duration, name string, tags ..
 	// duration in nanoseconds to convert to duration in miliseconds.
 	err := stats.client.Timing(name+".timing", duration, tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending timing metric %s: %+v", name, err)
+		glog.Errorf("Error sending timing metric %s: %+v", name, err)
 	}
 }
 
@@ -99,7 +99,7 @@ func (stats *DataDogStats) Duration(duration time.Duration, name string, tags ..
 func (stats *DataDogStats) Gauge(name string, value int64, tags ...string) {
 	err := stats.client.Gauge(name, float64(value), tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending %s gauge: %+v", name, err)
+		glog.Errorf("Error sending %s gauge: %+v", name, err)
 	}
 }
 
@@ -107,14 +107,14 @@ func (stats *DataDogStats) Gauge(name string, value int64, tags ...string) {
 func (stats *DataDogStats) Histogram(name string, value int64, tags ...string) {
 	err := stats.client.Histogram(name, float64(value), tags, 1.0)
 	if err != nil {
-		log.Printf("Error sending histogram %s: %+v", name, err)
+		glog.Errorf("Error sending histogram %s: %+v", name, err)
 	}
 }
 
 // Event contains details of an activity that was captured and
 // notifies it to stats backend
 func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time.Time, tags ...string) {
-	log.Printf("sending %s event metric of value %s and tag %s", title, mesg, tags)
+	glog.V(4).Infof("sending %s event metric of value %s and tag %s", title, mesg, tags)
 	event := &statsd.Event{
 		Title:          fmt.Sprintf("%s.event", title),
 		Text:           mesg,
@@ -136,19 +136,19 @@ func (stats *DataDogStats) Event(title, mesg, aggKey, typ string, timestamp time
 		event.AlertType = statsd.Success
 		break
 	default:
-		log.Printf("Event type %s is unrecognized. Failed to send event %s \n", typ, title)
+		glog.Errorf("Event type %s is unrecognized. Failed to send event %s \n", typ, title)
 		return
 	}
 	err := stats.client.Event(event)
 	if err != nil {
-		log.Printf("Error sending event %s: %+v", title, err)
+		glog.Errorf("Error sending event %s: %+v", title, err)
 	}
 }
 
 // ServiceCheck notifies monitoring backend about the status of
 // service (Ok/Warning/Critical/Unknow).
 func (stats *DataDogStats) ServiceCheck(name, mesg string, status int, timestamp time.Time, tags ...string) {
-	log.Printf("sending %s service check status %d and tag %s", name, status, tags)
+	glog.V(4).Infof("sending %s service check status %d and tag %s", name, status, tags)
 	sc := &statsd.ServiceCheck{
 		Name:      fmt.Sprintf("%s.sc", name),
 		Message:   mesg,
@@ -169,12 +169,12 @@ func (stats *DataDogStats) ServiceCheck(name, mesg string, status int, timestamp
 		sc.Status = statsd.Unknown
 		break
 	default:
-		log.Printf("Service check status %v is unrecognized. Failed to send service check status %s \n", status, name)
+		glog.Errorf("Service check status %v is unrecognized. Failed to send service check status %s \n", status, name)
 		return
 	}
 	err := stats.client.ServiceCheck(sc)
 	if err != nil {
-		log.Printf("Error sending event %s: %+v", name, err)
+		glog.Errorf("Error sending event %s: %+v", name, err)
 	}
 }
 

@@ -5,7 +5,7 @@ CVManager can be deployed using:
 
 1. Kubect: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
 2. ktmpl: [ktmpl](https://github.com/jimmycuadra/ktmpl) is another simple yaml templating engine. The Kubenetes yaml specs for  CVManager configuration is [here](ktmpl/README.md)
-2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager/cvmanager-0.1.0.tgz)
+2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager-0.1.0.tgz)
 
 
 # ContainerVersion: a Custom Kubernetes Resource 

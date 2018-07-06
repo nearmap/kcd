@@ -27,26 +27,30 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
+	TimeoutSeconds      int `json:"timeoutSeconds"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
+	History  HistorySpec  `json:"history"`
+	Rollback RollbackSpec `json:"rollback"`
+
 	Config *ConfigSpec `json:"config"`
 }
 
 // ContainerSpec defines a name of container and option container level verification step
 type ContainerSpec struct {
-	Name   string        `json:"name"`
-	Verify []*VerifySpec `json:"verify"`
+	Name   string       `json:"name"`
+	Verify []VerifySpec `json:"verify"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
 type StrategySpec struct {
 	Kind      string         `json:"kind"`
 	BlueGreen *BlueGreenSpec `json:"blueGreen"`
-	Verify    *VerifySpec    `json:"verify"`
+	Verify    []VerifySpec   `json:"verify"`
 }
 
 // BlueGreenSpec defines a strategy for rolling out a workload via a blue-green deployment.
@@ -55,14 +59,24 @@ type BlueGreenSpec struct {
 	VerificationServiceName string   `json:"verificationServiceName"`
 	LabelNames              []string `json:"labelNames"`
 	ScaleDown               bool     `json:"scaleDown"`
-	TimeoutSeconds          int      `json:"timeoutSeconds"`
 }
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	Kind           string `json:"kind"`
-	Image          string `json:"image"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
+	Kind  string `json:"kind"`
+	Image string `json:"image"`
+	Tag   string `json:"tag"`
+}
+
+// HistorySpec contains configuration for saving rollout history.
+type HistorySpec struct {
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+}
+
+// RollbackSpec contains configuration for checking and rolling back failed deployments.
+type RollbackSpec struct {
+	Enabled bool `json:"enabled"`
 }
 
 // ConfigSpec is spec for Config resources
@@ -74,6 +88,15 @@ type ConfigSpec struct {
 // ContainerVersionStatus is status  for Deployment resources
 type ContainerVersionStatus struct {
 	Created bool `json:"deployed"`
+
+	// CurrVersion is the most recent version of a rollout, which has a status.
+	// CurrStatusTime is the time of the last status change.
+	CurrVersion    string      `json:"currVersion"`
+	CurrStatus     string      `json:"currStatus"`
+	CurrStatusTime metav1.Time `json:"currStatusTime"`
+
+	// SuccessVersion is the last version that was successfully deployed.
+	SuccessVersion string `json:"successVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

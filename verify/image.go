@@ -1,13 +1,15 @@
 package verify
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
-	"github.com/nearmap/cvmanager/events"
+	"github.com/golang/glog"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/cvmanager/registry"
+	"github.com/nearmap/cvmanager/state"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 	corev1 "k8s.io/api/core/v1"
@@ -17,67 +19,81 @@ import (
 )
 
 const (
+	// KindImage represents the Image Verifier kind.
 	KindImage = "Image"
 )
 
+// ImageVerifier is a Verifier implementation that runs a container image that
+// tests the verification of a deployment or other image.
 type ImageVerifier struct {
-	client gocorev1.PodInterface
-
-	eventRecorder events.Recorder
-	stats         stats.Stats
-
-	spec *cv1.VerifySpec
+	client           gocorev1.PodInterface
+	spec             cv1.VerifySpec
+	registryProvider registry.Provider
+	next             state.State
 }
 
 // NewImageVerifier runs a verification action by initializing a pod
 // with the given container immage and checking its exit code.
 // The Verify action passes if the image has a zero exit code.
-func NewImageVerifier(cs kubernetes.Interface, eventRecorder events.Recorder, stats stats.Stats, namespace string,
-	spec *cv1.VerifySpec) *ImageVerifier {
+func NewImageVerifier(cs kubernetes.Interface, registryProvider registry.Provider, namespace string,
+	spec cv1.VerifySpec, next state.State) *ImageVerifier {
 
 	client := cs.CoreV1().Pods(namespace)
 
 	return &ImageVerifier{
-		client:        client,
-		eventRecorder: eventRecorder,
-		stats:         stats,
-		spec:          spec,
+		client:           client,
+		spec:             spec,
+		registryProvider: registryProvider,
+		next:             next,
 	}
 }
 
-// Verify implements the Verifier interface.
-func (iv *ImageVerifier) Verify() error {
-	pod, err := iv.createPod()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer iv.client.Delete(pod.Name, &metav1.DeleteOptions{})
+// Do implements the State interface.
+func (iv *ImageVerifier) Do(ctx context.Context) (state.States, error) {
+	glog.V(2).Infof("ImageVerifier with spec %+v", iv.spec)
 
-	return iv.waitForPod(pod.Name)
+	pod, err := iv.createPod(ctx)
+	if err != nil {
+		return state.Error(errors.WithStack(err))
+	}
+
+	return state.After(15*time.Second, iv.waitForPodState(pod.Name))
 }
 
 // createPod creates a pod with the spec's container image and waits
 // for it to complete. Returns a Failed error if the pod does completes
 // with a non-zero status.
-func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
-	if iv.spec.Image == "" {
-		return nil, errors.New("verify spec does not have a valid container image")
+func (iv *ImageVerifier) createPod(ctx context.Context) (*corev1.Pod, error) {
+	image, err := iv.getImage(ctx, iv.spec)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get image for spec %v", iv.spec)
 	}
 
 	id := uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical)
 	name := fmt.Sprintf("cv-verifier-%s", uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
 
-	log.Printf("Creating verifier pod with name %s", name)
+	glog.V(2).Infof("Creating verifier pod with name=%s, image=%s", name, image)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				corev1.Container{
 					Name:  fmt.Sprintf("cv-verifier-container-%s", id),
-					Image: iv.spec.Image,
+					Image: image,
+					Env: []corev1.EnvVar{
+						corev1.EnvVar{
+							Name: "NAMESPACE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.namespace",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -85,48 +101,52 @@ func (iv *ImageVerifier) createPod() (*corev1.Pod, error) {
 
 	p, err := iv.client.Create(pod)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create pod with name %s", name)
+		return nil, errors.Wrapf(err, "failed to create pod with name=%s, image=%s", name, image)
 	}
 
 	return p, nil
 }
 
-func (iv *ImageVerifier) waitForPod(name string) error {
-	defer timeTrack(time.Now(), "verification waitForPod")
-	timeout := time.Minute * 5
-	if iv.spec.TimeoutSeconds > 0 {
-		timeout = time.Second * time.Duration(iv.spec.TimeoutSeconds)
-	}
-	start := time.Now()
-
-	for {
-		if time.Now().After(start.Add(timeout)) {
-			break
-		}
-		time.Sleep(15 * time.Second)
-
-		pod, err := iv.client.Get(name, metav1.GetOptions{})
-		if err != nil {
-			log.Printf("failed to get pod with name=%s: %v", name, err)
-			continue
-		}
-
-		log.Printf("Pod %s status: %v", name, pod.Status.Phase)
-		switch pod.Status.Phase {
-		case corev1.PodSucceeded:
-			log.Printf("verification pod %s succeeded", name)
-			return nil
-		case corev1.PodFailed:
-			log.Printf("verification pod %s failed", name)
-			return Failed
-		}
+func (iv *ImageVerifier) getImage(ctx context.Context, spec cv1.VerifySpec) (string, error) {
+	if spec.Image == "" {
+		return "", errors.New("verify spec does not have a valid container image")
 	}
 
-	log.Printf("Verification timed out")
-	return Failed
+	if spec.Tag == "" {
+		return spec.Image, nil
+	}
+
+	registry, err := iv.registryProvider.RegistryFor(spec.Image)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get registry for %s", spec.Image)
+	}
+
+	version, err := registry.Version(ctx, spec.Tag)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get version from registry for %+v", spec)
+	}
+
+	parts := strings.SplitN(spec.Image, ":", 2)
+	return fmt.Sprintf("%s:%s", parts[0], version), nil
 }
 
-func timeTrack(start time.Time, name string) {
-	elapsed := time.Since(start)
-	log.Printf("%s took %s", name, elapsed)
+func (iv *ImageVerifier) waitForPodState(name string) state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		pod, err := iv.client.Get(name, metav1.GetOptions{})
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to get pod with name %s", name))
+		}
+
+		glog.V(4).Infof("Pod %s status: %v", name, pod.Status.Phase)
+		switch pod.Status.Phase {
+		case corev1.PodSucceeded:
+			glog.V(4).Infof("verification pod %s succeeded", name)
+			return state.Single(iv.next)
+		case corev1.PodFailed:
+			glog.V(4).Infof("verification pod %s failed", name)
+			return state.Error(ErrFailed)
+		}
+
+		return state.After(15*time.Second, iv.waitForPodState(name))
+	}
 }

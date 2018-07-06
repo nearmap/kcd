@@ -90,13 +90,12 @@ spec:
                 timeoutSeconds:
                   type: integer
               verify:
+                type: array
                 kind:
                   type: string
                 image:
                   type: string
                   pattern: '^[^:]*$'
-                timeoutSeconds:
-                  type: integer
 ---
 kind: Deployment
 apiVersion: apps/v1
@@ -104,7 +103,7 @@ metadata:
   name: cvmanagerapp
   namespace: "kube-system"
   labels:
-    app: cvmanager
+    cvapp: cvmanagercv
 spec:
   replicas: 1
   selector:
@@ -137,9 +136,10 @@ spec:
           args:
             - run
             - "--configmap-key=kube-system/cvmanager"
-            - "--history=false"
             - "--rollback=false"
             - "--cv-img-repo=nearmap/cvmanager"
+            - "--v=1"
+            - "--logtostderr"
           env:
             - name: NAME
               valueFrom:
