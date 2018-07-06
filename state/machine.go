@@ -36,6 +36,13 @@ func WithStartWaitTime(dur time.Duration) func(*Options) {
 	}
 }
 
+// WithTimeout sets an operation timeout duration as options.
+func WithTimeout(dur time.Duration) func(*Options) {
+	return func(op *Options) {
+		op.OperationTimeout = dur
+	}
+}
+
 // WithStats sets a stats instance for options.
 func WithStats(st stats.Stats) func(*Options) {
 	return func(op *Options) {
@@ -133,6 +140,8 @@ func NewMachine(start State, options ...func(*Options)) *Machine {
 	for _, opt := range options {
 		opt(opts)
 	}
+
+	glog.V(1).Infof("Starting state machine with options %+v", opts)
 
 	ctx := stats.NewContext(context.Background(), opts.Stats)
 	ctx = events.NewContext(ctx, opts.Recorder)
@@ -310,7 +319,7 @@ func (m *Machine) scheduleOps(ops ...*op) {
 func (m *Machine) newOp() {
 	var cancel context.CancelFunc
 	ctx := context.WithValue(m.ctx, ctxID, uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
-	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout)
+	ctx, cancel = context.WithTimeout(ctx, m.options.OperationTimeout+m.options.StartWaitTime)
 
 	o := &op{
 		group:  &group{},

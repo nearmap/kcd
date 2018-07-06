@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -125,7 +124,7 @@ func (d *Deployment) ProgressHealth(startTime time.Time) (*bool, error) {
 	return ok, nil
 }
 
-// PodTemplateSpec implements the TemplateRolloutTarget interface.
+// PodTemplateSpec implements the TemplateWorkload interface.
 func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 	return d.deployment.Spec.Template
 }
@@ -141,12 +140,12 @@ func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 	return nil
 }
 
-// Select implements the TemplateRolloutTarget interface.
-func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateRolloutTarget, error) {
+// Select implements the TemplateWorkload interface.
+func (d *Deployment) Select(selector map[string]string) ([]TemplateWorkload, error) {
 	set := labels.Set(selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
-	var result []deploy.TemplateRolloutTarget
+	var result []TemplateWorkload
 
 	wls, err := d.client.List(listOpts)
 	if err != nil {
@@ -160,7 +159,7 @@ func (d *Deployment) Select(selector map[string]string) ([]deploy.TemplateRollou
 	return result, nil
 }
 
-// SelectOwnPods implements the TemplateRolloutTarget interface.
+// SelectOwnPods implements the TemplateWorkload interface.
 func (d *Deployment) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
 	var result []corev1.Pod
 	for _, pod := range pods {
@@ -200,7 +199,7 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 	return rs, nil
 }
 
-// NumReplicas implements the TemplateRolloutTarget interface.
+// NumReplicas implements the TemplateWorkload interface.
 func (d *Deployment) NumReplicas() int32 {
 	return d.deployment.Status.Replicas
 }
@@ -212,7 +211,7 @@ const deploymentReplicaSetPatchJSON = `
 		}
 	}`
 
-// PatchNumReplicas implements the TemplateRolloutTarget interface.
+// PatchNumReplicas implements the TemplateWorkload interface.
 func (d *Deployment) PatchNumReplicas(num int32) error {
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(deploymentReplicaSetPatchJSON, num)))

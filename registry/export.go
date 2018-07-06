@@ -13,10 +13,15 @@ func ProviderByRepo(repoARN string) string {
 	return "dockerhub"
 }
 
-// Syncer offers capability to periodically sync with docker registry
-//type Syncer interface {
-//	Sync() error
-//}
+// Provider returns Registry instances for specific image repository names.
+type Provider interface {
+	RegistryFor(imageRepo string) (Registry, error)
+}
+
+// Registry contains methods for obtaining image information from a registry.
+type Registry interface {
+	Version(ctx context.Context, tag string) (string, error)
+}
 
 // Tagger provides capability of adding/removing environment tags on ECR
 // This interface is purely designed for CI/CD purposes such that the version
@@ -25,13 +30,11 @@ func ProviderByRepo(repoARN string) string {
 type Tagger interface {
 	// Add adds list of tags to the image identified with version
 	Add(version string, tags ...string) error
+
 	// Remove removes the list of tags from ECR repository such that no image contains these
 	// tags
 	Remove(tags ...string) error
+
 	// Get gets the list of tags to the image identified with version
 	Get(version string) ([]string, error)
-}
-
-type Registry interface {
-	Version(ctx context.Context, tag string) (string, error)
 }

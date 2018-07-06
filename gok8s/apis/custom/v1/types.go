@@ -27,13 +27,15 @@ type ContainerVersionSpec struct {
 
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
+	TimeoutSeconds      int `json:"timeoutSeconds"`
 
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
 
 	Strategy *StrategySpec `json:"strategy"`
 
-	History *HistorySpec `json:"history"`
+	History  HistorySpec  `json:"history"`
+	Rollback RollbackSpec `json:"rollback"`
 
 	Config *ConfigSpec `json:"config"`
 }
@@ -63,12 +65,18 @@ type BlueGreenSpec struct {
 type VerifySpec struct {
 	Kind  string `json:"kind"`
 	Image string `json:"image"`
+	Tag   string `json:"tag"`
 }
 
 // HistorySpec contains configuration for saving rollout history.
 type HistorySpec struct {
 	Enabled bool   `json:"enabled"`
 	Name    string `json:"name"`
+}
+
+// RollbackSpec contains configuration for checking and rolling back failed deployments.
+type RollbackSpec struct {
+	Enabled bool `json:"enabled"`
 }
 
 // ConfigSpec is spec for Config resources
@@ -86,6 +94,9 @@ type ContainerVersionStatus struct {
 	CurrVersion    string      `json:"currVersion"`
 	CurrStatus     string      `json:"currStatus"`
 	CurrStatusTime metav1.Time `json:"currStatusTime"`
+
+	// SuccessVersion is the last version that was successfully deployed.
+	SuccessVersion string `json:"successVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -75,6 +75,15 @@ type AfterState struct {
 // NewAfterState returns a State instance that invokes the given state operation at or after
 // the given time.
 func NewAfterState(t time.Time, state State) *AfterState {
+	// skip any nested AfterState instances.
+	for {
+		if as, ok := state.(*AfterState); ok {
+			state = as.state
+		} else {
+			break
+		}
+	}
+
 	return &AfterState{
 		t:     t,
 		state: state,

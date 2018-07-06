@@ -6,21 +6,71 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/nearmap/cvmanager/config"
-	"github.com/nearmap/cvmanager/deploy"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	StatusFailed      = "Failed"
+	StatusSuccess     = "Success"
+	StatusProgressing = "Progressing"
+)
+
 // Workload defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
 type Workload interface {
-	deploy.RolloutTarget
+	// Name is the name of the workload (without the namespace).
+	Name() string
+
+	// Namespace returns the namespace the workload belongs to.
+	Namespace() string
+
+	// Type returns the type of the spec.
+	Type() string
+
+	// PodSpec returns the PodSpec for the workload.
+	PodSpec() corev1.PodSpec
+
+	// PatchPodSpec receives a pod spec and container which is to be patched
+	// according to an appropriate strategy for the type.
+	PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error
+
+	// RollbackAfter indicates duration after which a failed rollout
+	// should attempt rollback
+	RollbackAfter() *time.Duration
+
+	// ProgressHealth indicates weather the current status of progress healthy or not.
+	// The start time of the deployment operation is provided.
+	ProgressHealth(startTime time.Time) (*bool, error)
 
 	// AsResource returns a Resource struct defining the current state of the workload.
 	AsResource(cv *cv1.ContainerVersion) *Resource
+}
+
+// TemplateWorkload defines methods for deployable resources that manage a collection
+// of pods via a pod template. More deployment options are available for such resources.
+type TemplateWorkload interface {
+	Workload
+
+	// PodTemplateSpec returns the PodTemplateSpec for this workload.
+	PodTemplateSpec() corev1.PodTemplateSpec
+
+	// Select all Workloads of this type with the given selector. May return
+	// the current spec if it matches the selector.
+	Select(selector map[string]string) ([]TemplateWorkload, error)
+
+	// SelectOwnPods returns a list of pods that are managed by this workload.
+	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
+
+	// NumReplicas returns the current number of running replicas for this workload.
+	NumReplicas() int32
+
+	// PatchNumReplicas modifies the number of replicas for this workload.
+	PatchNumReplicas(num int32) error
 }
 
 // Resource maintains a high level status of deployments managed by
@@ -106,16 +156,17 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 	cv.Status.CurrStatus = status
 	cv.Status.CurrStatusTime = metav1.NewTime(tm)
 
+	if status == StatusSuccess {
+		cv.Status.SuccessVersion = version
+	}
+
 	result, err := client.Update(cv)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
 	}
 
 	glog.V(2).Info("Successfully updated rollout status: %+v", result)
-	//return result, nil
-
-	// TODO:
-	return cv, nil
+	return result, nil
 }
 
 // AllResources returns all resources managed by container versions in the current namespace.

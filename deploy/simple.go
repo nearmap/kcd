@@ -19,25 +19,20 @@ type SimpleDeployer struct {
 	version string
 	target  RolloutTarget
 
-	checkRollback bool
-
 	next state.State
 }
 
 // NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
 // by patching the target's pod spec with a new version and using the default
 // Kubernetes deployment strategy for the workload.
-func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutTarget, checkRollback bool,
-	next state.State) *SimpleDeployer {
-
+func NewSimpleDeployer(cv *cv1.ContainerVersion, version string, target RolloutTarget, next state.State) *SimpleDeployer {
 	glog.V(2).Infof("Creating SimpleDeployer: cv=%s, version=%s, target=%s", cv.Name, version, target.Name())
 
 	return &SimpleDeployer{
-		cv:            cv,
-		version:       version,
-		target:        target,
-		checkRollback: checkRollback,
-		next:          next,
+		cv:      cv,
+		version: version,
+		target:  target,
+		next:    next,
 	}
 }
 
@@ -70,7 +65,7 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 		return state.Error(err)
 	}
 
-	if sd.checkRollback {
+	if sd.cv.Spec.Rollback.Enabled {
 		return state.Single(sd.checkRollbackState(container, sd.next))
 	}
 

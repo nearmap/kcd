@@ -7,6 +7,7 @@ import (
 	"github.com/nearmap/cvmanager/deploy"
 	"github.com/nearmap/cvmanager/deploy/fake"
 	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/cvmanager/registry"
 	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -27,8 +28,11 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 
 	cs := gofake.NewSimpleClientset()
 
+	// TODO:
+	var registryProvider registry.Provider
+
 	// SUT
-	deployer := deploy.NewBlueGreenDeployer(cs, namespace, cv, version, target, nil)
+	deployer := deploy.NewBlueGreenDeployer(cs, registryProvider, namespace, cv, version, target, nil)
 
 	_, err := deployer.Do(context.Background())
 	if err == nil {

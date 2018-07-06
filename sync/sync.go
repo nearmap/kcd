@@ -28,14 +28,17 @@ type Syncer struct {
 	cv *cv1.ContainerVersion
 
 	k8sProvider     *k8s.Provider
-	registry        registry.Registry
 	historyProvider history.Provider
-	options         *config.Options
+
+	registry         registry.Registry // provides version information for the current cv resource
+	registryProvider registry.Provider // used to obtain version information for other registry resoures
+
+	options *config.Options
 }
 
 // NewSyncer creates a Syncer instance for handling the main sync loop.
-func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry.Registry, hp history.Provider,
-	options ...func(*config.Options)) *Syncer {
+func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, registryProvider registry.Provider,
+	hp history.Provider, options ...func(*config.Options)) (*Syncer, error) {
 
 	opts := config.NewOptions()
 	for _, opt := range options {
@@ -45,15 +48,26 @@ func NewSyncer(k8sProvider *k8s.Provider, cv *cv1.ContainerVersion, reg registry
 	dur := time.Duration(cv.Spec.PollIntervalSeconds) * time.Second
 	glog.V(1).Infof("Syncing every %s", dur)
 
-	s := &Syncer{
-		k8sProvider:     k8sProvider,
-		cv:              cv,
-		registry:        reg,
-		historyProvider: hp,
-		options:         opts,
+	opTimeout := time.Minute * 15
+	if cv.Spec.TimeoutSeconds > 0 {
+		opTimeout = time.Second * time.Duration(cv.Spec.TimeoutSeconds)
 	}
-	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur))
-	return s
+
+	registry, err := registryProvider.RegistryFor(cv.Spec.ImageRepo)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	s := &Syncer{
+		k8sProvider:      k8sProvider,
+		cv:               cv,
+		registryProvider: registryProvider,
+		registry:         registry,
+		historyProvider:  hp,
+		options:          opts,
+	}
+	s.machine = state.NewMachine(s.initialState(), state.WithStartWaitTime(dur), state.WithTimeout(opTimeout))
+	return s, nil
 }
 
 // Start begins the sync process.
@@ -83,12 +97,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
-		glog.V(4).Infof("Current version: %v", version)
-
-		if version == cv.Status.CurrVersion && cv.Status.CurrStatus != deploy.RolloutStatusProgressing {
-			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
-			return state.None()
-		}
+		glog.V(4).Infof("Current registry version: %v", version)
 
 		workloads, err := s.k8sProvider.Workloads(cv)
 		if err != nil {
@@ -96,9 +105,27 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for cv resource %s", cv.Name))
 		}
 
+		if version == cv.Status.CurrVersion && cv.Status.CurrStatus == k8s.StatusFailed {
+			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", cv.Name, version, cv.Status)
+			return state.None()
+		}
+
 		var toUpdate []k8s.Workload
 		for _, wl := range workloads {
-			toUpdate = append(toUpdate, wl)
+			// if we're still progressing the rollout then add all workloads
+			if version == cv.Status.CurrVersion && cv.Status.CurrStatus == k8s.StatusProgressing {
+				toUpdate = append(toUpdate, wl)
+				continue
+			}
+
+			// otherwise check current version vs expected version
+			eq, err := k8s.CheckPodSpecContainerVersions(cv, version, wl.PodSpec())
+			if err != nil {
+				return state.Error(errors.Wrapf(err, "failed to check podspec versions for cv resource %s", cv.Name))
+			}
+			if !eq {
+				toUpdate = append(toUpdate, wl)
+			}
 		}
 
 		glog.V(4).Infof("Found %d workloads to update", len(toUpdate))
@@ -106,12 +133,12 @@ func (s *Syncer) initialState() state.StateFunc {
 		var states []state.State
 		for _, wl := range toUpdate {
 			st := s.verify(version,
-				s.updateRolloutStatus(version, deploy.RolloutStatusProgressing,
+				s.updateRolloutStatus(version, k8s.StatusProgressing,
 					s.deploy(version, wl,
 						s.successfulDeploymentStats(wl,
 							s.syncVersionConfig(version,
 								s.addHistory(version, wl,
-									s.updateRolloutStatus(version, deploy.RolloutStatusSuccess, nil)))))))
+									s.updateRolloutStatus(version, k8s.StatusSuccess, nil)))))))
 
 			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
 		}
@@ -132,7 +159,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 			time.Now().UTC())
 		s.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to deploy the target")
 
-		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, deploy.RolloutStatusFailed, time.Now().UTC())
+		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, k8s.StatusFailed, time.Now().UTC())
 		if uErr != nil {
 			glog.Errorf("Failed to update cv %s status as failed rollout for version %s: %v", s.cv.Name, version, uErr)
 			// TODO: something else?
@@ -142,13 +169,14 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 
 func (s *Syncer) verify(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if version == s.cv.Status.CurrVersion && s.cv.Status.CurrStatus == deploy.RolloutStatusProgressing {
+		if version == s.cv.Status.CurrVersion && s.cv.Status.CurrStatus == k8s.StatusProgressing {
 			// we've already run the verify step
 			return state.Single(next)
 		}
 
 		return state.Single(
-			verify.NewVerifiers(s.k8sProvider.Client(), s.k8sProvider.Namespace(), version, s.cv.Spec.Container.Verify, next))
+			verify.NewVerifiers(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(),
+				version, s.cv.Spec.Container.Verify, next))
 	}
 }
 
@@ -160,7 +188,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 			return state.Single(next)
 		}
 
-		glog.V(2).Info("Updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
+		glog.V(2).Infof("Updating rollout status: cv=%s, version=%s, status=%s", s.cv.Name, version, status)
 
 		cv, err := s.k8sProvider.UpdateRolloutStatus(s.cv.Name, version, status, time.Now().UTC())
 		if err != nil {
@@ -175,12 +203,14 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 	}
 }
 
+// deploy the rollout target to the given version according to the deployment strategy
+// defined in the cv definition.
 func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
-			deploy.NewDeployState(s.k8sProvider.Client(), s.k8sProvider.Namespace(), s.cv, version, target, s.options.UseRollback, next))
+			deploy.NewDeployState(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(), s.cv, version, target, next))
 	}
 }
 
@@ -262,9 +292,11 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 	}
 }
 
+// addHistory adds the successful rollout of the target to the given version to the
+// history provider.
 func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if s.cv.Spec.History == nil || !s.cv.Spec.History.Enabled {
+		if !s.cv.Spec.History.Enabled {
 			glog.V(4).Infof("Not adding version history for cv=%s, version=%s", s.cv.Name, version)
 			return state.Single(next)
 		}
