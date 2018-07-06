@@ -39,9 +39,9 @@ type crRoot struct {
 }
 
 type crParams struct {
-	tag      string
-	cr       string
-	provider string
+	tag            string
+	cr             string
+	providerUnused string
 
 	stats statsParams
 }
@@ -66,7 +66,7 @@ func newCRRootCommand() *crRoot {
 	}
 	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
 	root.PersistentFlags().StringVar(&params.cr, "repo", "", "Container repository ARN of Docker or cr  ex. nearmap/cvmanager")
-	root.PersistentFlags().StringVar(&params.provider, "provider", "ecr", "Identifier for docker registry provider. Supported values are ecr/dockerhub")
+	root.PersistentFlags().StringVar(&params.providerUnused, "provider", "ecr", "unused")
 	(&params.stats).addFlags(root.Command)
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -168,11 +168,6 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "Failed to find CV resource")
 		}
 
-		if root.params.provider != registry.ProviderByRepo(cv.Spec.ImageRepo) {
-			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
-				root.params.provider, registry.ProviderByRepo(cv.Spec.ImageRepo))
-		}
-
 		// CRD does not allow us to specify default type on OpenAPISpec
 		// TODO: this needs a better strategy but hacking it for now
 		//
@@ -180,7 +175,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 			cv.Spec.VersionSyntax = "[0-9a-f]{5,40}"
 		}
 		var registryProvider registry.Provider
-		switch root.params.provider {
+		switch registry.ProviderByRepo(cv.Spec.ImageRepo) {
 		case "ecr":
 			registryProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
 		case "dockerhub":
@@ -274,11 +269,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
-		if root.params.provider != registry.ProviderByRepo(root.params.cr) {
-			return errors.Errorf("Container registry provider:%s do not match provided image repository: %s",
-				root.params.provider, registry.ProviderByRepo(root.params.cr))
-		}
-		switch root.params.provider {
+		switch registry.ProviderByRepo(root.params.cr) {
 		case "ecr":
 			crProvider, err = ecr.NewECR(root.params.cr, params.verPat, root.stats)
 		case "dockerhub":
