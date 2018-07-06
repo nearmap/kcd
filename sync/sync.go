@@ -203,6 +203,8 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 	}
 }
 
+// deploy the rollout target to the given version according to the deployment strategy
+// defined in the cv definition.
 func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("creating new deployer state")
@@ -290,6 +292,8 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 	}
 }
 
+// addHistory adds the successful rollout of the target to the given version to the
+// history provider.
 func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if !s.cv.Spec.History.Enabled {
