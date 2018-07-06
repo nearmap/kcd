@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/heroku/docker-registry-client/registry"
+	cvregistry "github.com/nearmap/cvmanager/registry"
 	"github.com/nearmap/cvmanager/stats"
 	"github.com/pkg/errors"
 )
@@ -33,7 +34,7 @@ func WithCreds(user, password string) func(*Options) {
 	}
 }
 
-// syncer is responsible to syncing with the docker registry (dr) repository and
+// V2Provider is responsible to syncing with the docker registry (dr) repository and
 // ensuring that the deployment it is monitoring is up to date. If it finds
 // the deployment outdated from what Tag is indicating the deployment version should be.
 // it performs an update in deployment which then based on update strategy of deployment
@@ -43,15 +44,14 @@ func WithCreds(user, password string) func(*Options) {
 // - Need to work on storing credentials in secret or similar more secure approach
 // for user/password. For now uses anonymous access
 // - Need to define auth mechanism
-type dhV2Provider struct {
+type V2Provider struct {
 	repository string
 	client     *registry.Registry
 	opts       *Options
 }
 
-// NewSyncer provides new reference of syncer
-// to manage Dockerhub repository and sync deployments periodically
-func NewDH(repository, versionExp string, options ...func(*Options)) (*dhV2Provider, error) {
+// NewDHV2 returns a DockerHub V2 registry provider.
+func NewDHV2(repository, versionExp string, options ...func(*Options)) (*V2Provider, error) {
 	opts := &Options{
 		Stats:    stats.NewFake(),
 		User:     "",
@@ -67,39 +67,48 @@ func NewDH(repository, versionExp string, options ...func(*Options)) (*dhV2Provi
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to connect to dockerhub")
 	}
-	dhV2Provider := &dhV2Provider{
+
+	return &V2Provider{
 		client:     client,
 		repository: repository,
 		opts:       opts,
-	}
-
-	return dhV2Provider, nil
+	}, nil
 }
 
-func (s *dhV2Provider) Version(ctx context.Context, tag string) (string, error) {
-	newVersion, err := s.getDigest(tag)
+// RegistryFor implements the registry.Provider interface.
+func (vp *V2Provider) RegistryFor(imageRepo string) (cvregistry.Registry, error) {
+	return &V2Provider{
+		client:     vp.client,
+		repository: imageRepo,
+		opts:       vp.opts,
+	}, nil
+}
+
+// Version implements the Registry interface.
+func (vp *V2Provider) Version(ctx context.Context, tag string) (string, error) {
+	newVersion, err := vp.getDigest(tag)
 	if err != nil {
-		s.opts.Stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", s.repository), "badsha")
+		vp.opts.Stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", vp.repository), "badsha")
 		return "", errors.Errorf("No version found for tag %s", tag)
 	}
 	return newVersion, nil
 }
 
 // Add adds list of tags to the image identified with version
-func (s *dhV2Provider) Add(version string, tags ...string) error {
-	return s.addTagsOnImg(version, tags...)
+func (vp *V2Provider) Add(version string, tags ...string) error {
+	return vp.addTagsOnImg(version, tags...)
 }
 
 // Remove removes the list of tags from dockerhub repository such that no image contains these
 // tags
-func (s *dhV2Provider) Remove(tags ...string) error {
+func (vp *V2Provider) Remove(tags ...string) error {
 	return errors.New(`Dockerhub does not support multiple tags an image and
 		thus removing a subset from it is not supported`)
 }
 
 // Get gets the list of tags to the image identified with version
-func (s *dhV2Provider) Get(version string) ([]string, error) {
-	digest, err := s.getDigest(version)
+func (vp *V2Provider) Get(version string) ([]string, error) {
+	digest, err := vp.getDigest(version)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to connect to dockerhub")
 	}
@@ -110,26 +119,26 @@ func (s *dhV2Provider) Get(version string) ([]string, error) {
 // and tag additional tags to the same manifest
 // TODO:  allow using credentials to support private dockerhub repos too
 // for now uses anonymous access
-func (s *dhV2Provider) addTagsOnImg(version string, tags ...string) error {
-	manifest, err := s.client.Manifest(s.repository, version)
+func (vp *V2Provider) addTagsOnImg(version string, tags ...string) error {
+	manifest, err := vp.client.Manifest(vp.repository, version)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to find manifest for image version %s on repository %s", version, s.repository)
+		return errors.Wrapf(err, "Failed to find manifest for image version %s on repository %s", version, vp.repository)
 	}
 
 	for _, tag := range tags {
-		err := s.client.PutManifest(s.repository, tag, manifest)
+		err := vp.client.PutManifest(vp.repository, tag, manifest)
 		if err != nil {
-			return errors.Wrapf(err, "Failed to add tags %s on image version %s on repository %s", tag, version, s.repository)
+			return errors.Wrapf(err, "Failed to add tags %s on image version %s on repository %s", tag, version, vp.repository)
 		}
 	}
 	return nil
 }
 
 // getDigest fetches the digest of dockerhub image of requested repository and tag
-func (s *dhV2Provider) getDigest(tag string) (string, error) {
-	digest, err := s.client.ManifestDigest(s.repository, tag)
+func (vp *V2Provider) getDigest(tag string) (string, error) {
+	digest, err := vp.client.ManifestDigest(vp.repository, tag)
 	if err != nil {
-		return "", errors.Wrapf(err, "Failed to get tag %s on repository %s", tag, s.repository)
+		return "", errors.Wrapf(err, "Failed to get tag %s on repository %s", tag, vp.repository)
 	}
 	return digest.String(), nil
 }

@@ -91,6 +91,7 @@ jobs:
             docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}
             docker tag nearmap/cvmanager:latest nearmap/cvmanager:${CIRCLE_SHA1}
             docker push nearmap/cvmanager:${CIRCLE_SHA1}
+            docker push nearmap/cvmanager:latest
 
   regression-check-qa: &regression-check
     <<: *defaults

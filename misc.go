@@ -179,23 +179,28 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		if cv.Spec.VersionSyntax == "" {
 			cv.Spec.VersionSyntax = "[0-9a-f]{5,40}"
 		}
-		var crProvider registry.Registry
+		var registryProvider registry.Provider
 		switch root.params.provider {
 		case "ecr":
-			crProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
+			registryProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
 		case "dockerhub":
-			crProvider, err = dh.NewDH(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
+			registryProvider, err = dh.NewDHV2(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
 		}
+		if err != nil {
+			glog.Errorf("Failed to create registry provider in namespace=%s for cv name=%s, error=%v",
+				params.namespace, params.cvName, err)
+			return errors.Wrap(err, "Failed to create registry provider")
+		}
+
+		historyProvider := history.NewProvider(k8sClient, stats)
+
+		crSyncer, err := sync.NewSyncer(k8sProvider, cv, registryProvider, historyProvider,
+			conf.WithRecorder(recorder), conf.WithStats(stats))
 		if err != nil {
 			glog.Errorf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
 				params.namespace, params.cvName, err)
 			return errors.Wrap(err, "Failed to create syncer")
 		}
-
-		historyProvider := history.NewProvider(k8sClient, stats)
-
-		crSyncer := sync.NewSyncer(k8sProvider, cv, crProvider, historyProvider,
-			conf.WithRecorder(recorder), conf.WithStats(stats))
 
 		glog.V(1).Infof("Starting cr syncer with namespace=%s for cv name=%s, error=%v",
 			params.namespace, params.cvName, err)
@@ -264,7 +269,6 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
 	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
-
 		root.stats, err = root.params.stats.stats("crtagger")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
@@ -278,7 +282,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		case "ecr":
 			crProvider, err = ecr.NewECR(root.params.cr, params.verPat, root.stats)
 		case "dockerhub":
-			crProvider, err = dh.NewDH(root.params.cr, params.verPat, dh.WithStats(root.stats))
+			crProvider, err = dh.NewDHV2(root.params.cr, params.verPat, dh.WithStats(root.stats))
 		}
 		if err != nil {
 			return err
