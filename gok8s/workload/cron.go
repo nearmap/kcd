@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"

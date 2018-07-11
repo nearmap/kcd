@@ -1,0 +1,104 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: kcd
+  name: kcd
+rules:
+  - apiGroups:
+      - ""
+      - extensions
+    resources:
+      - configmaps
+      - deployments
+      - cronjobs
+      - daemonsets
+      - replicasets
+      - statefulsets
+      - services
+      - jobs
+      - cronjobs
+      - customresourcedefinition
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+    # For versions
+      - ""
+      - extensions
+    resources:
+      - configmaps
+      - deployments
+      - cronjobs
+      - daemonsets
+      - replicasets
+      - statefulsets
+      - services
+      - jobs
+      - cronjobs
+      - customresourcedefinition
+    verbs:
+      - patch
+  - apiGroups:
+    # for history and previous status
+      - ""
+      - extensions
+    resources:
+      - customresourcedefinition
+    verbs:
+      - update
+  - apiGroups:
+    # For syncer deploys
+      - ""
+      - extensions
+    resources:
+      - configmaps
+      - deployments
+    verbs:
+      - delete
+      - create
+  - apiGroups:
+    # To allow verifer pods
+      - ""
+      - extensions
+    resources:
+      - pods
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+    # For blue/green
+      - ""
+      - extensions
+    resources:
+      - pods
+      - services
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: kcd
+  name: kcd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kcd
+subjects:
+  - kind: ServiceAccount
+    name: kcd
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: kcd
+  name: kcd
+  namespace: kube-system

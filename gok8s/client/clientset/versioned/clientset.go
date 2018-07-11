@@ -20,7 +20,7 @@ package versioned
 
 import (
 	glog "github.com/golang/glog"
-	customv1 "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/typed/custom/v1"
+	customv1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

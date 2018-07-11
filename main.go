@@ -8,17 +8,18 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	conf "github.com/nearmap/cvmanager/config"
-	"github.com/nearmap/cvmanager/cv"
-	"github.com/nearmap/cvmanager/events"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	informer "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
-	"github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/handler"
-	"github.com/nearmap/cvmanager/history"
-	"github.com/nearmap/cvmanager/signals"
-	"github.com/nearmap/cvmanager/stats"
-	"github.com/nearmap/cvmanager/stats/datadog"
+	conf "github.com/nearmap/kcd/config"
+	"github.com/nearmap/kcd/cv"
+	"github.com/nearmap/kcd/events"
+	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
+	informer "github.com/nearmap/kcd/gok8s/client/informers/externalversions"
+	"github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/handler"
+	"github.com/nearmap/kcd/history"
+	"github.com/nearmap/kcd/signals"
+	"github.com/nearmap/kcd/stats"
+	"github.com/nearmap/kcd/stats/datadog"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -41,6 +42,7 @@ func main() {
 // withExitCode executes as the main method but returns the status code
 // that will be returned to the operating system. This is done to ensure
 // all deferred functions are completed before calling os.Exit().
+
 func withExitCode() (code int) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -54,8 +56,8 @@ func withExitCode() (code int) {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 
 	rootCmd := &cobra.Command{
-		Short: "cvmanager",
-		Long:  "Container Version Manager (cvmanager): a custom controller and tooling to manage CI/CD on kubernetes clusters",
+		Short: "kcd",
+		Long:  "Kubernetes Continuous Delivery (kcd): a custom controller and tooling to manage CI/CD on kubernetes clusters",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// prevent glog complaining about flags not being parsed
 			flag.CommandLine.Parse([]string{})
@@ -122,21 +124,22 @@ func newRunCommand() *cobra.Command {
 	}
 
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
-	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/cvmanager", "Namespaced key of configmap that container version and region config defined")
-	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/cvmanager", "Name of the docker registry to used be controller. defaults to nearmap/cvmanager")
+	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/kcd", "Namespaced key of configmap that container version and region config defined")
+	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/kcd", "Name of the docker registry to used be controller. defaults to nearmap/kcd")
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
+
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
 	rc.RunE = func(cmd *cobra.Command, args []string) (err error) {
-		stats, err := params.stats.stats("cvmanager")
+		stats, err := params.stats.stats("kcd")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
 		scStatus := 0
-		defer stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
+		defer stats.ServiceCheck("kcd.exec", "", scStatus, time.Now())
 
 		stopCh := signals.SetupSignalHandler()
 
@@ -191,7 +194,7 @@ func newRunCommand() *cobra.Command {
 		customInformerFactory.Start(stopCh)
 		glog.V(1).Info("Started informer factory")
 
-		stats.ServiceCheck("cvmanager.exec", "", scStatus, time.Now())
+		stats.ServiceCheck("kcd.exec", "", scStatus, time.Now())
 
 		recorder := events.PodEventRecorder(k8sClient, "")
 		k8sProvider := k8s.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/nearmap/cvmanager/deploy"
-	"github.com/nearmap/cvmanager/deploy/fake"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/registry"
+	"github.com/nearmap/kcd/deploy"
+	"github.com/nearmap/kcd/deploy/fake"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/registry"
 	gofake "k8s.io/client-go/kubernetes/fake"
 )
 

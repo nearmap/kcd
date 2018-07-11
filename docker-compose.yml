@@ -3,7 +3,7 @@ services:
   k8s:
     build:
       context: .
-    working_dir: /go/src/github.com/nearmap/cvmanager
+    working_dir: /go/src/github.com/nearmap/kcd
     entrypoint: go test ./...
     volumes:
-      - .:/go/src/github.com/nearmap/cvmanager
+      - .:/go/src/github.com/nearmap/kcd

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/heroku/docker-registry-client/registry"
-	cvregistry "github.com/nearmap/cvmanager/registry"
-	"github.com/nearmap/cvmanager/stats"
+	cvregistry "github.com/nearmap/kcd/registry"
+	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 )
 

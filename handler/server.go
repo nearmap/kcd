@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/cv"
-	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/history"
+	"github.com/nearmap/kcd/cv"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/history"
 	goji "goji.io"
 	"goji.io/pat"
 )

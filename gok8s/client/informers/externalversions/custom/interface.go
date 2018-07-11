@@ -19,8 +19,8 @@ limitations under the License.
 package custom
 
 import (
-	v1 "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/custom/v1"
-	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/nearmap/kcd/gok8s/client/informers/externalversions/custom/v1"
+	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

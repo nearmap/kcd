@@ -100,15 +100,15 @@ spec:
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: cvmanagerapp
+  name: kcd
   namespace: "kube-system"
   labels:
-    cvapp: cvmanagercv
+    cvapp: kcdcv
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cvmanager
+      app: kcd
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -117,27 +117,33 @@ spec:
   template:
     metadata:
       labels:
-        app: cvmanager
-        component: cvmanagerapp
+        app: kcd
+        component: kcd
     spec:
       nodeSelector:
         "node-role.kubernetes.io/master": ""
       tolerations:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
+      serviceAccountName: kcd
+      serviceAccount: kcd
       containers:
-        - name: "cvmanagerapp"
-          image: "nearmap/cvmanager:latest"
+        - name: "kcd"
+          image: "nearmap/kcd:latest"
           imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            privileged: false
           ports:
             - name: http
               protocol: TCP
               containerPort: 8081
           args:
             - run
-            - "--configmap-key=kube-system/cvmanager"
+            - "--configmap-key=kube-system/kcd"
             - "--rollback=false"
-            - "--cv-img-repo=nearmap/cvmanager"
+            - "--cv-img-repo=nearmap/kcd"
             - "--v=1"
             - "--logtostderr"
           env:
@@ -161,10 +167,10 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: cvmanagerapp
+  name: kcd
   namespace: "kube-system"
   labels:
-    app: cvmanager
+    app: kcd
 spec:
   type: NodePort
   ports:
@@ -173,23 +179,23 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: cvmanager
+    app: kcd
 ---
 kind: ContainerVersion
 apiVersion: custom.k8s.io/v1
 metadata:
-  name: "cvmanager-cv"
+  name: "kcdcv"
   namespace: "kube-system"
 spec:
-  imageRepo: nearmap/cvmanager
+  imageRepo: nearmap/kcd
   tag: latest
   pollIntervalSeconds: 300
   selector:
-    cvapp: cvmanagercv
+    cvapp: kcdcv
   container:
-    name: "cvmanagerapp"
+    name: "kcd"
   config:
-    name: cvmanager
+    name: kcd
     key: version
 ---
 kind: ConfigMap
@@ -197,5 +203,5 @@ apiVersion: v1
 data:
   version: latest
 metadata:
-  name: cvmanager
+  name: kcd
   namespace: "kube-system"

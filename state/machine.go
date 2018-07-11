@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/events"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/kcd/events"
+	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 )

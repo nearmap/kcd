@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/config"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	"github.com/nearmap/kcd/config"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -204,7 +204,7 @@ func (k *Provider) CVResources(cv *cv1.ContainerVersion) ([]*Resource, error) {
 	return resources, nil
 }
 
-// Workloads returns the workload instances that match the given container version resource.
+// Workloads returns the workload instances that match the given kcd.
 func (k *Provider) Workloads(cv *cv1.ContainerVersion) ([]Workload, error) {
 	var result []Workload
 

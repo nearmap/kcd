@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/nearmap/cvmanager/gok8s/workload"
+	"github.com/nearmap/kcd/gok8s/workload"
 
-	"github.com/nearmap/cvmanager/deploy"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/deploy"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 

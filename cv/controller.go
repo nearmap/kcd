@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	conf "github.com/nearmap/cvmanager/config"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	scheme "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
-	informers "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions"
-	customlister "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
+	conf "github.com/nearmap/kcd/config"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
+	scheme "github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
+	informers "github.com/nearmap/kcd/gok8s/client/informers/externalversions"
+	customlister "github.com/nearmap/kcd/gok8s/client/listers/custom/v1"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	appsv1 "k8s.io/api/apps/v1"
@@ -457,7 +457,7 @@ func (c *CVController) newCRSyncDeployment(cv *cv1.ContainerVersion, version str
 								Handler: corev1.Handler{
 									Exec: &corev1.ExecAction{
 										Command: []string{
-											"cvmanager", "cr", "sync", "status",
+											"kcd", "cr", "sync", "status",
 											"--by", fmt.Sprintf("%ds", livenessSeconds),
 											fmt.Sprintf("--logtostderr=true"),
 											fmt.Sprintf("--v=%d", glogVerbosity),
@@ -503,7 +503,7 @@ func (c *CVController) fetchVersion() (string, error) {
 	}
 	version := cm.Data["version"]
 	if version == "" {
-		return "", errors.Wrap(err, "Missing config map cvmanager in kube-system")
+		return "", errors.Wrap(err, "Missing config map kcd in kube-system")
 	}
 	return version, nil
 }

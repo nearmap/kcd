@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
-	k8s "github.com/nearmap/cvmanager/gok8s/workload"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
 	"github.com/pkg/errors"
 )
 

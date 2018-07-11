@@ -3,9 +3,9 @@ package verify
 import (
 	"context"
 
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/registry"
-	"github.com/nearmap/cvmanager/state"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/registry"
+	"github.com/nearmap/kcd/state"
 	"k8s.io/client-go/kubernetes"
 )
 

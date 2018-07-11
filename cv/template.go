@@ -5,7 +5,7 @@ const cvListHTML = `
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CVManager: Version list</title>
+    <title>kcd: Version list</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style id="intercom-stylesheet" type="text/css">
     body,h1{margin:0}body{padding:0}h1,p,table{font-size:13px;font-family:OpenSans,Lucida Grande,Lucida Sans Unicode,sans-serif;font-weight:100;width:100%;color:#555}h1{font-size:16px;width:100%;border-bottom:solid 1px #eee;color:#7d7d7d;padding:3px}td,th{text-align:left;padding-bottom:3px}table{margin:15px}

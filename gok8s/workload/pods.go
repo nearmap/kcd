@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/events"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/events"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"

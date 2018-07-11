@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

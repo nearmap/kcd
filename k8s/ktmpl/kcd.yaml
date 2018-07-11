@@ -1,11 +1,11 @@
 kind: "Template"
 apiVersion: "v1"
 metadata:
-  name: "cvmanager-template"
+  name: "kcd-template"
   annotations:
-    description: "Template for cvmanager service"
+    description: "Template for kcd service"
 labels:
-  template: "cvmanager-template"
+  template: "kcd-template"
 objects:
   - kind: CustomResourceDefinition
     # https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/
@@ -105,15 +105,15 @@ objects:
   - kind: Deployment
     apiVersion: apps/v1
     metadata:
-      name: cvmanagerapp
+      name: kcdapp
       namespace: kube-system
       labels:
-        cvapp: cvmanagercv
+        cvapp: kcdcv
     spec:
       replicas: 1
       selector:
         matchLabels:
-          app: cvmanager
+          app: kcd
       strategy:
         type: RollingUpdate
         rollingUpdate:
@@ -122,25 +122,31 @@ objects:
       template:
         metadata:
           labels:
-            app: cvmanager
-            component: cvmanagerapp
+            app: kcd
+            component: kcdapp
         spec:
           nodeSelector:
             node-role.kubernetes.io/master: ""
           tolerations:
             - key: "node-role.kubernetes.io/master"
               effect: NoSchedule
+          serviceAccountName: $(SVC_ACCOUNT)
+          serviceAccount: $(SVC_ACCOUNT)
           containers:
-            - name: cvmanagerapp
+            - name: kcdapp
               image: $(REPOSITORY):$(VERSION)
               imagePullPolicy: Always
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                privileged: false
               ports:
                 - name: http
                   protocol: TCP
                   containerPort: 8081
               args:
                 - "run"
-                - "--configmap-key=kube-system/cvmanager"
+                - "--configmap-key=kube-system/kcd"
                 - "--cv-img-repo=$(REPOSITORY)"
                 - "--v=1"
                 - "--logtostderr=true"
@@ -164,10 +170,10 @@ objects:
   - kind: Service
     apiVersion: v1
     metadata:
-      name: cvmanagerapp
+      name: kcdapp
       namespace: kube-system
       labels:
-        app: cvmanager
+        app: kcd
     spec:
       type: NodePort
       ports:
@@ -176,29 +182,29 @@ objects:
           protocol: TCP
           name: http
       selector:
-        app: cvmanager
+        app: kcd
   - kind: ContainerVersion
     apiVersion: custom.k8s.io/v1
     metadata:
-      name: cvmanager-cv
+      name: kcdcv
       namespace: kube-system
     spec:
       imageRepo: $(REPOSITORY)
       tag: $(TAG)
       pollIntervalSeconds: 300
       selector:
-        cvapp: cvmanagercv
+        cvapp: kcdcv
       container:
-        name: cvmanagerapp
+        name: kcdapp
       config:
-        name: cvmanager
+        name: kcd
         key: version
   - kind: ConfigMap
     apiVersion: v1
     data:
       version: $(VERSION)
     metadata:
-      name: cvmanager
+      name: kcd
       namespace: kube-system
 parameters:
   - name: "VERSION"
@@ -210,9 +216,15 @@ parameters:
     description: "repository to pull image from"
     required: true
     parameterType: "string"
-    value: "nearmap/cvmanager"
+    value: "nearmap/kcd"
   - name: "TAG"
     description: "container image tag representing the current version"
     required: true
     parameterType: "string"
     value: "latest"
+  - name: "SVC_ACCOUNT"
+    description: "Name of service account to use"
+    required: true
+    parameterType: "string"
+    value: "default"
+

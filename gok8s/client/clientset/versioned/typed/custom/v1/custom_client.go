@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
+	v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )

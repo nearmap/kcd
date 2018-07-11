@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/nearmap/cvmanager/deploy"
-	"github.com/nearmap/cvmanager/deploy/fake"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/deploy"
+	"github.com/nearmap/kcd/deploy/fake"
+	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"

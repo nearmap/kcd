@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -88,7 +88,7 @@ func configName(name string) string {
 	return fmt.Sprintf("%s.history", name)
 }
 
-// newRecordConfig creates a new configmap to capture update history performed by cvmanager
+// newRecordConfig creates a new configmap to capture update history performed by kcd
 // specifically syncers
 func newRecordConfig(namespace, name string, records ...*Record) *corev1.ConfigMap {
 	var strRecords []string
@@ -130,7 +130,7 @@ func updateRecordConfig(cm *corev1.ConfigMap, records ...*Record) *corev1.Config
 
 func labels() map[string]string {
 	return map[string]string{
-		"OWNED_BY":    "CVManager",
+		"OWNED_BY":    "kcd",
 		"MODIFIED_AT": time.Now().Format("Mon-2Jan2006-15.04"),
 	}
 }

@@ -1,15 +1,15 @@
 
-# Deployment of cvmanager
+# Deployment of kcd
 
-CVManager can be deployed using:
+kcd can be deployed using:
 
 1. Kubect: yaml specs for Kubenetes configuration is [here](kubectl/README.md)
-2. ktmpl: [ktmpl](https://github.com/jimmycuadra/ktmpl) is another simple yaml templating engine. The Kubenetes yaml specs for  CVManager configuration is [here](ktmpl/README.md)
-2. Helm: Helm chart spec is [here](helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager-0.1.0.tgz)
+2. ktmpl: [ktmpl](https://github.com/jimmycuadra/ktmpl) is another simple yaml templating engine. The Kubenetes yaml specs for  kcd configuration is [here](ktmpl/README.md)
+3. Helm: Helm chart spec is [here](helm/kcd) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/kcd/master/k8s/helm/kcd-0.1.0.tgz)
 
 
 # ContainerVersion: a Custom Kubernetes Resource 
-ContainerVersion is essentially a custom kubernetes resource definition (CRD) which is controller by the CVManager (a k8s controller). The spec of ContainerVersion is specified [here](kubectl/cv-crd.yaml). 
+ContainerVersion is essentially a custom kubernetes resource definition (CRD) which is controller by the kcd (a k8s controller). The spec of ContainerVersion is specified [here](kubectl/cv-crd.yaml). 
 
 An example of CV resource is:
 ```yaml

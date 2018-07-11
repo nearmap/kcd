@@ -1,32 +1,32 @@
-[![CircleCI](https://circleci.com/gh/nearmap/cvmanager.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/cvmanager)
-[![Go Report Card](https://goreportcard.com/badge/github.com/nearmap/cvmanager)](https://goreportcard.com/report/github.com/nearmap/cvmanager)
-[![GoDoc](https://godoc.org/github.com/nearmap/cvmanager?status.svg "GoDoc")](https://godoc.org/github.com/nearmap/cvmanager)
-![Docker Pulls](https://img.shields.io/docker/pulls/nearmap/cvmanager.svg)
-![GitHub (pre-)release](https://img.shields.io/github/release/nearmap/cvmanager/all.svg)
+[![CircleCI](https://circleci.com/gh/nearmap/kcd.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/kcd)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nearmap/kcd)](https://goreportcard.com/report/github.com/nearmap/kcd)
+[![GoDoc](https://godoc.org/github.com/nearmap/kcd?status.svg "GoDoc")](https://godoc.org/github.com/nearmap/kcd)
+![Docker Pulls](https://img.shields.io/docker/pulls/nearmap/kcd.svg)
+![GitHub (pre-)release](https://img.shields.io/github/release/nearmap/kcd/all.svg)
 
 
-# CVManager
-Container Version Manager (cvmanager) is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, cvmanager is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
+# kcd
+Kubernetes Continous Delivery (kcd), formally known as _Container_ _Version_ _Manager_ (_kcd_), is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, kcd is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
 
-Deployments that requires CI/CD, can declare [ContainerVersion](k8s/cv-crd.yaml) resource. [CVManager](k8s/cvmanager.yaml), ContainerVersion (CV) controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
+Deployments that requires CI/CD, can declare [ContainerVersion](k8s/cv-crd.yaml) resource. [kcd](k8s/kcd.yaml), ContainerVersion (CV) controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
 
-CVManager assumes ECR as the container registry. Supporting other registeries is T2D.
+kcd assumes ECR as the container registry. Supporting other registeries is T2D ([see](https://github.com/nearmap/kcd/issues/15)).
 
 The tool has 3 main parts:
-- CV Manager
+- Container Version Controller
 - Docker Registry Syncer (supports ECR and Dockerhub)
 - Docker Registry Tagger (supports ECR, with limited Dockerhub support)
 
-![architecture](cvm-architecture.png "CVM architecture")
+![architecture](kcd-architecture.png "kcd architecture")
 
-Docker images are on [docker.io](https://hub.docker.com/r/nearmap/cvmanager/)
+Docker images are on [docker.io](https://hub.docker.com/r/nearmap/kcd/)
 
-## CVManager: Controller service
-ContainerVersion controller that manages ContainerVersion resources.
+## kcd: Controller service
+Container version controller that manages ContainerVersion resources.
 
 ### Run locally
 ```sh
- cvmanager run --k8s-config ~/.kube/config --configmap-key=kube-system/cvmanager
+ kcd run --k8s-config ~/.kube/config --configmap-key=kube-system/kcd
 ```
 
 ## Docker registry sync service
@@ -42,7 +42,7 @@ When using dockerhub, regisrty syncer monitors a tag (example latest) and when t
 
 ### Run locally
 ```sh
-    cvmanager cr sync \
+    kcd cr sync \
     --namespace=usdev-api \
     --provider=ecr \
     --cv=photos-cv \
@@ -55,37 +55,37 @@ A tagging tool that integrates with CI side of things to manage tags on the ECR 
 
 #### Get Tag
 ```sh
-    cvmanager cr tags get \
-    --repo  nearmap/cvmanager  \
+    kcd cr tags get \
+    --repo  nearmap/kcd  \
     --version <SHA>
 ```
 
 #### Add Tag
 ```sh
-    cvmanager cr tags remove \
-    --repo  nearmap/cvmanager  \
+    kcd cr tags remove \
+    --repo  nearmap/kcd  \
     --tags env-audev-api,env-usdev-api \
     --version <SHA>
 ```
 
 #### Remove Tag
 ```sh
-    cvmanager cr tags remove \
-    --repo  nearmap/cvmanager  \
+    kcd cr tags remove \
+    --repo  nearmap/kcd  \
     --tags env-audev-api,env-usdev-api
 ```
 
 
 #### Supporting other docker registries
-We plan to support other docker registries as well in future via cvmanager. 
+We plan to support other docker registries as well in future via kcd. 
 
 
-## Building and running CVManager
+## Building and running kcd
 
 ### Build & Run
 ```sh
-docker build -t nearmap/cvmanager .
-docker run -ti  nearmap/cvmanager <command>
+docker build -t nearmap/kcd .
+docker run -ti  nearmap/kcd <command>
 ```
 
 ### Testing with docker-compose
@@ -96,13 +96,14 @@ docker run -ti  nearmap/cvmanager <command>
 ```
 
 
-## Deploying CVManager to Kubernetes cluster
-*CVManage is only supported on Kubernetes >= 1.9*
+## Deploying kcd to Kubernetes cluster
+*kcdanage is only supported on Kubernetes >= 1.9*
 
-CVManager can be deployed using:
+kcd can be deployed using:
 
 1. Kubectl: yaml specs for Kubenetes configuration is [here](k8s/kubectl/README.md)
-2. Helm: Helm chart spec is [here](k8s/helm/cvmanager) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/cvmanager/master/k8s/helm/cvmanager-0.1.0.tgz)
+2. Helm: Helm chart spec is [here](k8s/helm/kcd) and helm package is avaialble [here](https://raw.githubusercontent.com/nearmap/kcd/master/k8s/helm/kcd/kcd-0.1.0.tgz)
+
 
 Please [see](k8s/README.md) for more info.
 
@@ -130,19 +131,19 @@ eg.
 
 - Same can also be generated by (use ```--k8s-config``` only if running outside cluster:
 ```sh
-    cvmanager cv get --k8s-config ~/.kube/config
+    kcd cv get --k8s-config ~/.kube/config
 ```
 
 
 ## Rollout history
-Use ```--history``` CLI option on CVManager to capture release history in configmap. 
-- When history option is chosen, REST interface ```http://<host>:8081/v1/cv/workloads/cvmanagerapp?namespace=kube-system```, details the update/rollout history. 
+Use ```--history``` CLI option on kcd to capture release history in configmap. 
+- When history option is chosen, REST interface ```http://<host>:8081/v1/cv/workloads/kcdapp?namespace=kube-system```, details the update/rollout history. 
 ![see example](release_history.png "Example")
 
-- The history is stored in configmap under same namespace as workload resource with configmap name <workload_resource_name>.history eg cvmanagerapp.history
+- The history is stored in configmap under same namespace as workload resource with configmap name <workload_resource_name>.history eg kcdapp.history
 ![see example](history_configmap.png "Example")
 
 
 
 #### Reference links
-- https://kccnceu18.sched.com/event/DquY/continuous-delivery-meets-custom-kubernetes-controller-a-declarative-configuration-approach-to-cicd-suneeta-mall-simon-cochrane-nearmap-intermediate-skill-level?iframe=no&w=100%&sidebar=yes&bg=no
+- https://kccnceu18.sched.com/event/DquY/continuous-delivery-meets-custom-kubernetes-controller-a-declarative-configuration-approach-to-cicd-suneeta-mall-simon-cochrane-nearmap-intermediate-skill-level-slides-attached

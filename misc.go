@@ -7,19 +7,19 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	conf "github.com/nearmap/cvmanager/config"
-	"github.com/nearmap/cvmanager/cv"
-	"github.com/nearmap/cvmanager/events"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/history"
-	"github.com/nearmap/cvmanager/registry"
-	dh "github.com/nearmap/cvmanager/registry/dockerhub"
-	"github.com/nearmap/cvmanager/registry/ecr"
-	"github.com/nearmap/cvmanager/signals"
-	"github.com/nearmap/cvmanager/state"
-	"github.com/nearmap/cvmanager/stats"
-	"github.com/nearmap/cvmanager/sync"
+	conf "github.com/nearmap/kcd/config"
+	"github.com/nearmap/kcd/cv"
+	"github.com/nearmap/kcd/events"
+	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/history"
+	"github.com/nearmap/kcd/registry"
+	dh "github.com/nearmap/kcd/registry/dockerhub"
+	"github.com/nearmap/kcd/registry/ecr"
+	"github.com/nearmap/kcd/signals"
+	"github.com/nearmap/kcd/state"
+	"github.com/nearmap/kcd/stats"
+	"github.com/nearmap/kcd/sync"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,8 +65,9 @@ func newCRRootCommand() *crRoot {
 		},
 	}
 	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
-	root.PersistentFlags().StringVar(&params.cr, "repo", "", "Container repository ARN of Docker or cr  ex. nearmap/cvmanager")
+	root.PersistentFlags().StringVar(&params.cr, "repo", "", "Container repository ARN of Docker or cr  ex. nearmap/kcd")
 	root.PersistentFlags().StringVar(&params.providerUnused, "provider", "ecr", "unused")
+
 	(&params.stats).addFlags(root.Command)
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
