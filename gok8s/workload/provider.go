@@ -204,7 +204,7 @@ func (k *Provider) CVResources(cv *cv1.ContainerVersion) ([]*Resource, error) {
 	return resources, nil
 }
 
-// Workloads returns the workload instances that match the given kcd.
+// Workloads returns the workload instances that match the given container version resource.
 func (k *Provider) Workloads(cv *cv1.ContainerVersion) ([]Workload, error) {
 	var result []Workload
 
