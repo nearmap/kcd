@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/heroku/docker-registry-client/registry"
-	cvregistry "github.com/nearmap/kcd/registry"
+	kcdregistry "github.com/nearmap/kcd/registry"
 	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 )
@@ -76,7 +76,7 @@ func NewDHV2(repository, versionExp string, options ...func(*Options)) (*V2Provi
 }
 
 // RegistryFor implements the registry.Provider interface.
-func (vp *V2Provider) RegistryFor(imageRepo string) (cvregistry.Registry, error) {
+func (vp *V2Provider) RegistryFor(imageRepo string) (kcdregistry.Registry, error) {
 	return &V2Provider{
 		client:     vp.client,
 		repository: imageRepo,

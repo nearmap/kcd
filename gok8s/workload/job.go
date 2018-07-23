@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,9 +76,9 @@ func (j *Job) PodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (j *Job) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (j *Job) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := j.client.Patch(j.job.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for Job %s", j.job.Name)
 	}
@@ -86,17 +86,17 @@ func (j *Job) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container,
 }
 
 // AsResource implements the Workload interface.
-func (j *Job) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (j *Job) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range j.job.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      j.job.Name,
 				Type:      TypeJob,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}

@@ -9,13 +9,13 @@ import (
 
 	"github.com/golang/glog"
 	conf "github.com/nearmap/kcd/config"
-	"github.com/nearmap/kcd/cv"
 	"github.com/nearmap/kcd/events"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	informer "github.com/nearmap/kcd/gok8s/client/informers/externalversions"
-	"github.com/nearmap/kcd/gok8s/workload"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/handler"
 	"github.com/nearmap/kcd/history"
+	svc "github.com/nearmap/kcd/service"
 	"github.com/nearmap/kcd/signals"
 	"github.com/nearmap/kcd/stats"
 	"github.com/nearmap/kcd/stats/datadog"
@@ -105,7 +105,7 @@ type runParams struct {
 	k8sConfig    string
 	configMapKey string
 
-	cvImgRepo string
+	kcdImgRepo string
 
 	port int
 
@@ -119,13 +119,13 @@ func newRunCommand() *cobra.Command {
 	var params runParams
 	rc := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the cv controoler service",
+		Short: "Runs the kcd controoler service",
 		Long:  fmt.Sprintf(`Runs the service as a HTTP server`),
 	}
 
 	rc.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rc.Flags().StringVar(&params.configMapKey, "configmap-key", "kube-system/kcd", "Namespaced key of configmap that container version and region config defined")
-	rc.Flags().StringVar(&params.cvImgRepo, "cv-img-repo", "nearmap/kcd", "Name of the docker registry to used be controller. defaults to nearmap/kcd")
+	rc.Flags().StringVar(&params.kcdImgRepo, "kcd-img-repo", "nearmap/kcd", "Name of the docker registry to used be controller. defaults to nearmap/kcd")
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
 
@@ -174,7 +174,7 @@ func newRunCommand() *cobra.Command {
 		// There is also problem in how its updated .. it corrupts the definition
 		// err = updateCVCRDSpec(cfg)
 		// if err != nil {
-		// 	glog.Errorf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/cv-crd.yaml'", err)
+		// 	glog.Errorf("Failed to update CRD spec: %v. Apply manually using \n 'kubectl apply k8s/crd.yaml'", err)
 		// 	//return errors.Wrap(err, "Failed to read CV CRD specification")
 		// }
 
@@ -182,7 +182,7 @@ func newRunCommand() *cobra.Command {
 		customInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
 		// Controllers here
-		cvc, err := cv.NewCVController(params.configMapKey, params.cvImgRepo,
+		kcdc, err := svc.NewCVController(params.configMapKey, params.kcdImgRepo,
 			k8sClient, customClient,
 			k8sInformerFactory, customInformerFactory,
 			conf.WithStats(stats))
@@ -201,7 +201,7 @@ func newRunCommand() *cobra.Command {
 		historyProvider := history.NewProvider(k8sClient, stats)
 
 		go func() {
-			if err = cvc.Run(2, stopCh); err != nil {
+			if err = kcdc.Run(2, stopCh); err != nil {
 				glog.V(1).Infof("Shutting down container version controller: %v", err)
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
@@ -219,7 +219,7 @@ func updateCVCRDSpec(cfg *rest.Config) error {
 	if err != nil {
 		return errors.Wrap(err, "Error building api extension clientset")
 	}
-	v, err := ioutil.ReadFile("k8s/cv-crd.yaml")
+	v, err := ioutil.ReadFile("k8s/crd.yaml")
 	if err != nil {
 		return errors.Wrap(err, "Failed to read CV CRD specification")
 	}

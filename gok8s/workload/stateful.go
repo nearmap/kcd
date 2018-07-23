@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,9 +76,9 @@ func (ss *StatefulSet) PodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (ss *StatefulSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (ss *StatefulSet) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := ss.client.Patch(ss.statefulSet.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for StatefulSet %s", ss.statefulSet.Name)
 	}
@@ -86,17 +86,17 @@ func (ss *StatefulSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.C
 }
 
 // AsResource implements the Workload interface.
-func (ss *StatefulSet) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (ss *StatefulSet) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range ss.statefulSet.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      ss.statefulSet.Name,
 				Type:      TypeStatefulSet,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}

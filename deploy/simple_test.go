@@ -7,7 +7,7 @@ import (
 
 	"github.com/nearmap/kcd/deploy"
 	"github.com/nearmap/kcd/deploy/fake"
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,9 +19,9 @@ const (
 )
 
 func TestSimpleDeploy(t *testing.T) {
-	cv := &cv1.ContainerVersion{
-		Spec: cv1.ContainerVersionSpec{
-			Container: cv1.ContainerSpec{
+	kcd := &kcd1.KCD{
+		Spec: kcd1.KCDSpec{
+			Container: kcd1.ContainerSpec{
 				Name: containerName,
 			},
 		},
@@ -30,7 +30,7 @@ func TestSimpleDeploy(t *testing.T) {
 	target := fake.NewRolloutTarget()
 
 	target.FakePodSpec.Containers = []corev1.Container{}
-	_, err := deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
+	_, err := deploy.NewSimpleDeployer(kcd, version, target, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when podspec does not contain any containers")
 	}
@@ -43,11 +43,11 @@ func TestSimpleDeploy(t *testing.T) {
 	pps := fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
 
-	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(kcd, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
-	if !reflect.DeepEqual(pps.Received.CV, cv) {
+	if !reflect.DeepEqual(pps.Received.CV, kcd) {
 		t.Errorf("Expected received CV instance to equal the provided instance. Got %+v.", pps.Received.CV)
 	}
 	if !reflect.DeepEqual(pps.Received.Container, target.FakePodSpec.Containers[0]) {
@@ -70,11 +70,11 @@ func TestSimpleDeploy(t *testing.T) {
 	}
 	pps = fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(kcd, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
-	if !reflect.DeepEqual(pps.Received.CV, cv) {
+	if !reflect.DeepEqual(pps.Received.CV, kcd) {
 		t.Errorf("Expected received CV instance to equal the provided instance. Got %+v.", pps.Received.CV)
 	}
 	if !reflect.DeepEqual(pps.Received.Container, target.FakePodSpec.Containers[1]) {
@@ -87,7 +87,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps = fake.NewInvocationPatchPodSpec()
 	pps.Error = errors.New("an error occurred")
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(kcd, version, target, nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when PatchPodSpec returns an error that is not a conflict")
 	}
@@ -96,7 +96,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps.Error = apimacherrors.NewConflict(schema.GroupResource{}, "", errors.New(""))
 	target.Invocations <- pps
 	target.Invocations <- fake.NewInvocationPatchPodSpec()
-	_, err = deploy.NewSimpleDeployer(cv, version, target, nil).Do(context.Background())
+	_, err = deploy.NewSimpleDeployer(kcd, version, target, nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PatchPodSpec returns an error that IS conflict")
 	}

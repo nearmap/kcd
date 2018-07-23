@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	k8s "github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/registry"
 	"github.com/nearmap/kcd/state"
@@ -30,8 +30,8 @@ type BlueGreenDeployer struct {
 	cs        kubernetes.Interface
 	namespace string
 
-	cv        *cv1.ContainerVersion
-	blueGreen *cv1.BlueGreenSpec
+	kcd       *kcd1.KCD
+	blueGreen *kcd1.BlueGreenSpec
 
 	registryProvider registry.Provider
 
@@ -41,11 +41,11 @@ type BlueGreenDeployer struct {
 }
 
 // NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.
-func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, cv *cv1.ContainerVersion,
+func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, kcd *kcd1.KCD,
 	version string, target RolloutTarget, next state.State) *BlueGreenDeployer {
 
-	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, cv=%s, version=%s, target=%s",
-		namespace, cv.Name, version, target.Name())
+	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, kcd=%s, version=%s, target=%s",
+		namespace, kcd.Name, version, target.Name())
 
 	tTarget, ok := target.(TemplateRolloutTarget)
 	if !ok {
@@ -56,8 +56,8 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Pro
 	return &BlueGreenDeployer{
 		namespace:        namespace,
 		cs:               cs,
-		cv:               cv,
-		blueGreen:        cv.Spec.Strategy.BlueGreen,
+		kcd:              kcd,
+		blueGreen:        kcd.Spec.Strategy.BlueGreen,
 		registryProvider: registryProvider,
 		version:          version,
 		target:           tTarget,
@@ -70,22 +70,22 @@ func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 	if bgd.target == nil {
 		return state.Error(state.NewFailed("blue-green target not found: ensure workload supports TemplateRolloutTarget."))
 	}
-	if bgd.cv.Spec.Strategy.BlueGreen == nil {
-		return state.Error(state.NewFailed("no blue-green spec provided for cv resource %s", bgd.cv.Name))
+	if bgd.kcd.Spec.Strategy.BlueGreen == nil {
+		return state.Error(state.NewFailed("no blue-green spec provided for kcd resource %s", bgd.kcd.Name))
 	}
-	if bgd.cv.Spec.Strategy.BlueGreen.ServiceName == "" {
-		return state.Error(state.NewFailed("no service defined for blue-green strategy in cv resource %s", bgd.cv.Name))
+	if bgd.kcd.Spec.Strategy.BlueGreen.ServiceName == "" {
+		return state.Error(state.NewFailed("no service defined for blue-green strategy in kcd resource %s", bgd.kcd.Name))
 	}
-	if len(bgd.cv.Spec.Strategy.BlueGreen.LabelNames) == 0 {
-		return state.Error(state.NewFailed("no label names defined for blue-green strategy in cv resource %s", bgd.cv.Name))
+	if len(bgd.kcd.Spec.Strategy.BlueGreen.LabelNames) == 0 {
+		return state.Error(state.NewFailed("no label names defined for blue-green strategy in kcd resource %s", bgd.kcd.Name))
 	}
 
 	glog.V(2).Infof("Beginning blue-green deployment for target %s with version %s in namespace %s",
 		bgd.target.Name(), bgd.version, bgd.namespace)
 
-	service, err := bgd.getService(bgd.cv.Spec.Strategy.BlueGreen.ServiceName)
+	service, err := bgd.getService(bgd.kcd.Spec.Strategy.BlueGreen.ServiceName)
 	if err != nil {
-		return state.Error(errors.Wrapf(err, "failed to find service for cv spec %s", bgd.cv.Name))
+		return state.Error(errors.Wrapf(err, "failed to find service for kcd spec %s", bgd.kcd.Name))
 	}
 
 	primary, secondary, err := bgd.getBlueGreenTargets(service)
@@ -106,7 +106,7 @@ func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
 		bgd.updateVersion(secondary,
 			bgd.updateVerificationServiceSelector(secondary,
 				bgd.ensureHasPods(secondary,
-					verify.NewVerifiers(bgd.cs, bgd.registryProvider, bgd.namespace, bgd.version, bgd.cv.Spec.Strategy.Verify,
+					verify.NewVerifiers(bgd.cs, bgd.registryProvider, bgd.namespace, bgd.version, bgd.kcd.Spec.Strategy.Verify,
 						bgd.scaleUpSecondary(primary, secondary,
 							bgd.updateServiceSelector(bgd.blueGreen.ServiceName, secondary,
 								bgd.scaleDown(primary, bgd.next))))))))
@@ -125,13 +125,13 @@ func (bgd *BlueGreenDeployer) getService(serviceName string) (*corev1.Service, e
 // getBlueGreenTargets returns the primary and secondary rollout targets based on whether
 // the live service (as specified) is currently selecting them.
 func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (primary, secondary TemplateRolloutTarget, err error) {
-	// get all the workloads managed by this cv spec
-	workloads, err := bgd.target.Select(bgd.cv.Spec.Selector)
+	// get all the workloads managed by this kcd spec
+	workloads, err := bgd.target.Select(bgd.kcd.Spec.Selector)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to get all workloads for cv spec %v", bgd.cv.Name)
+		return nil, nil, errors.Wrapf(err, "failed to get all workloads for kcd spec %v", bgd.kcd.Name)
 	}
 	if len(workloads) != 2 {
-		return nil, nil, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a cv spec, found %d", len(workloads))
+		return nil, nil, errors.Errorf("blue-green strategy requires exactly 2 workloads to be managed by a kcd spec, found %d", len(workloads))
 	}
 
 	selector := labels.Set(service.Spec.Selector).AsSelector()
@@ -139,12 +139,12 @@ func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (prim
 		ptLabels := labels.Set(wl.PodTemplateSpec().Labels)
 		if selector.Matches(ptLabels) {
 			if primary != nil {
-				return nil, nil, errors.Errorf("unexpected state: found 2 primary blue-green workloads for cv spec %s", bgd.cv.Name)
+				return nil, nil, errors.Errorf("unexpected state: found 2 primary blue-green workloads for kcd spec %s", bgd.kcd.Name)
 			}
 			primary = wl
 		} else {
 			if secondary != nil {
-				return nil, nil, errors.Errorf("unexpected state: found 2 secondary blue-green workloads for cv spec %s", bgd.cv.Name)
+				return nil, nil, errors.Errorf("unexpected state: found 2 secondary blue-green workloads for kcd spec %s", bgd.kcd.Name)
 			}
 			secondary = wl
 		}
@@ -162,8 +162,8 @@ func (bgd *BlueGreenDeployer) updateVersion(target TemplateRolloutTarget, next s
 
 		retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			for _, c := range podSpec.Containers {
-				if c.Name == bgd.cv.Spec.Container.Name {
-					if updateErr := target.PatchPodSpec(bgd.cv, c, bgd.version); updateErr != nil {
+				if c.Name == bgd.kcd.Spec.Container.Name {
+					if updateErr := target.PatchPodSpec(bgd.kcd, c, bgd.version); updateErr != nil {
 						glog.V(2).Infof("Failed to update container version (will retry): version=%v, target=%v, error=%v",
 							bgd.version, target.Name(), updateErr)
 						return updateErr
@@ -182,12 +182,12 @@ func (bgd *BlueGreenDeployer) updateVersion(target TemplateRolloutTarget, next s
 	}
 }
 
-// updateVerificationServiceSelector updates the verification service defined in the ContainerVersion
+// updateVerificationServiceSelector updates the verification service defined in the KCD
 // to point to the given rollout target.
 func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if bgd.cv.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
-			glog.V(1).Infof("No test service defined for cv spec %s", bgd.cv.Name)
+		if bgd.kcd.Spec.Strategy.BlueGreen.VerificationServiceName == "" {
+			glog.V(1).Infof("No test service defined for kcd spec %s", bgd.kcd.Name)
 			return state.Single(next)
 		}
 
@@ -196,23 +196,23 @@ func (bgd *BlueGreenDeployer) updateVerificationServiceSelector(target TemplateR
 }
 
 // updateServiceSelector updates the selector of the service with the given name to point to
-// the current rollout target, based on the label names defined in the ContainerVersion.
+// the current rollout target, based on the label names defined in the KCD.
 func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, target TemplateRolloutTarget,
 	next state.State) state.StateFunc {
 
 	return func(ctx context.Context) (state.States, error) {
-		labelNames := bgd.cv.Spec.Strategy.BlueGreen.LabelNames
+		labelNames := bgd.kcd.Spec.Strategy.BlueGreen.LabelNames
 
 		service, err := bgd.getService(serviceName)
 		if err != nil {
-			return state.Error(errors.Wrapf(err, "failed to find test service for cv spec %s", bgd.cv.Name))
+			return state.Error(errors.Wrapf(err, "failed to find test service for kcd spec %s", bgd.kcd.Name))
 		}
 
 		for _, labelName := range labelNames {
 			targetLabel, has := target.PodTemplateSpec().Labels[labelName]
 			if !has {
-				return state.Error(errors.Errorf("pod template spec for target %s is missing label name %s in cv spec %s",
-					target.Name(), labelName, bgd.cv.Name))
+				return state.Error(errors.Errorf("pod template spec for target %s is missing label name %s in kcd spec %s",
+					target.Name(), labelName, bgd.kcd.Name))
 			}
 
 			service.Spec.Selector[labelName] = targetLabel
@@ -223,7 +223,7 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, target T
 		// TODO: is update appropriate?
 		if _, err := bgd.cs.CoreV1().Services(bgd.namespace).Update(service); err != nil {
 			return state.Error(errors.Wrapf(err, "failed to update test service %s while processing blue-green deployment for %s",
-				service.Name, bgd.cv.Name))
+				service.Name, bgd.kcd.Name))
 		}
 
 		return state.Single(next)
@@ -273,7 +273,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 			}
 
-			ok, err := k8s.CheckPodSpecContainerVersions(bgd.cv, bgd.version, pod.Spec)
+			ok, err := k8s.CheckPodSpecKCDs(bgd.kcd, bgd.version, pod.Spec)
 			if err != nil {
 				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
 				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))
@@ -313,7 +313,7 @@ func (bgd *BlueGreenDeployer) scaleUpSecondary(current, secondary TemplateRollou
 // scaleDown scales the rollout target down to zero replicas.
 func (bgd *BlueGreenDeployer) scaleDown(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if !bgd.cv.Spec.Strategy.BlueGreen.ScaleDown {
+		if !bgd.kcd.Spec.Strategy.BlueGreen.ScaleDown {
 			return state.Single(next)
 		}
 

@@ -27,7 +27,7 @@ import (
 
 type CustomV1Interface interface {
 	RESTClient() rest.Interface
-	ContainerVersionsGetter
+	KCDsGetter
 }
 
 // CustomV1Client is used to interact with features provided by the custom.k8s.io group.
@@ -35,8 +35,8 @@ type CustomV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *CustomV1Client) ContainerVersions(namespace string) ContainerVersionInterface {
-	return newContainerVersions(c, namespace)
+func (c *CustomV1Client) KCDs(namespace string) KCDInterface {
+	return newKCDs(c, namespace)
 }
 
 // NewForConfig creates a new CustomV1Client for the given config.

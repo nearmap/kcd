@@ -4,8 +4,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   name: {{ template "kcd.fullname" . }}
   labels:
-    cvapp: {{ template "kcd.name" . }}
-{{ toYaml .Values.cvCD.selector | indent 4 }}
+    kcdapp: {{ template "kcd.name" . }}
+{{ toYaml .Values.kcdCD.selector | indent 4 }}
     chart: {{ template "kcd.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -36,7 +36,7 @@ spec:
           args:
             - "run"
             - "--configmap-key={{ .Release.Namespace }}/{{ template "kcd.fullname" . }}"
-            - "--cv-img-repo={{ .Values.image.repository }}"
+            - "--kcd-img-repo={{ .Values.image.repository }}"
             - "--port={{ .Values.service.port }}"
           env:
           - name: STATS_HOST

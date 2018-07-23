@@ -51,8 +51,8 @@ autoUpdateKCD: false
 
 useRBAC: false
 
-cvCD:
+kcdCD:
   frequecy: 300
   refTag: latest
   selector:
-    cvapp: kcdcv
+    kcdapp: kcdkcd

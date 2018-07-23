@@ -15,6 +15,6 @@ Modify optional settings such as history or rollback options by editing [kcd con
 *Delete*
 ```sh
  kubectl delete -f kcd.yaml
- kubectl  get crd cv 
+ kubectl  get crd kcd 
 ```
 

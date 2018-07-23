@@ -52,7 +52,7 @@ func NewECR(imageRepo, versionExp string, stats stats.Stats) (*Provider, error) 
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	repoName, accountID, region, err := nameAccountRegionFromARN(imageRepo) //cv.Spec.ImageRepo
+	repoName, accountID, region, err := nameAccountRegionFromARN(imageRepo) //kcd.Spec.ImageRepo
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

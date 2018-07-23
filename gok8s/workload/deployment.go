@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -130,10 +130,10 @@ func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (d *Deployment) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (d *Deployment) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	// TODO: should we update the deployment with the returned patch version?
 	_, err := d.client.Patch(d.deployment.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for deployment %s", d.deployment.Name)
 	}
@@ -222,18 +222,18 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 }
 
 // AsResource implements the Workload interface.
-func (d *Deployment) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (d *Deployment) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range d.deployment.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace:     cv.Namespace,
+				Namespace:     kcd.Namespace,
 				Name:          d.deployment.Name,
 				Type:          TypeDeployment,
 				Container:     c.Name,
 				Version:       version(c.Image),
 				AvailablePods: d.deployment.Status.AvailableReplicas,
-				CV:            cv.Name,
-				Tag:           cv.Spec.Tag,
+				CV:            kcd.Name,
+				Tag:           kcd.Spec.Tag,
 			}
 		}
 	}

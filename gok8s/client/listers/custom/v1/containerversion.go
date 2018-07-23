@@ -25,70 +25,70 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ContainerVersionLister helps list ContainerVersions.
-type ContainerVersionLister interface {
-	// List lists all ContainerVersions in the indexer.
-	List(selector labels.Selector) (ret []*v1.ContainerVersion, err error)
-	// ContainerVersions returns an object that can list and get ContainerVersions.
-	ContainerVersions(namespace string) ContainerVersionNamespaceLister
-	ContainerVersionListerExpansion
+// KCDLister helps list KCDs.
+type KCDLister interface {
+	// List lists all KCDs in the indexer.
+	List(selector labels.Selector) (ret []*v1.KCD, err error)
+	// KCDs returns an object that can list and get KCDs.
+	KCDs(namespace string) KCDNamespaceLister
+	KCDListerExpansion
 }
 
-// containerVersionLister implements the ContainerVersionLister interface.
+// containerVersionLister implements the KCDLister interface.
 type containerVersionLister struct {
 	indexer cache.Indexer
 }
 
-// NewContainerVersionLister returns a new ContainerVersionLister.
-func NewContainerVersionLister(indexer cache.Indexer) ContainerVersionLister {
+// NewKCDLister returns a new KCDLister.
+func NewKCDLister(indexer cache.Indexer) KCDLister {
 	return &containerVersionLister{indexer: indexer}
 }
 
-// List lists all ContainerVersions in the indexer.
-func (s *containerVersionLister) List(selector labels.Selector) (ret []*v1.ContainerVersion, err error) {
+// List lists all KCDs in the indexer.
+func (s *containerVersionLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ContainerVersion))
+		ret = append(ret, m.(*v1.KCD))
 	})
 	return ret, err
 }
 
-// ContainerVersions returns an object that can list and get ContainerVersions.
-func (s *containerVersionLister) ContainerVersions(namespace string) ContainerVersionNamespaceLister {
+// KCDs returns an object that can list and get KCDs.
+func (s *containerVersionLister) KCDs(namespace string) KCDNamespaceLister {
 	return containerVersionNamespaceLister{indexer: s.indexer, namespace: namespace}
 }
 
-// ContainerVersionNamespaceLister helps list and get ContainerVersions.
-type ContainerVersionNamespaceLister interface {
-	// List lists all ContainerVersions in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1.ContainerVersion, err error)
-	// Get retrieves the ContainerVersion from the indexer for a given namespace and name.
-	Get(name string) (*v1.ContainerVersion, error)
-	ContainerVersionNamespaceListerExpansion
+// KCDNamespaceLister helps list and get KCDs.
+type KCDNamespaceLister interface {
+	// List lists all KCDs in the indexer for a given namespace.
+	List(selector labels.Selector) (ret []*v1.KCD, err error)
+	// Get retrieves the KCD from the indexer for a given namespace and name.
+	Get(name string) (*v1.KCD, error)
+	KCDNamespaceListerExpansion
 }
 
-// containerVersionNamespaceLister implements the ContainerVersionNamespaceLister
+// containerVersionNamespaceLister implements the KCDNamespaceLister
 // interface.
 type containerVersionNamespaceLister struct {
 	indexer   cache.Indexer
 	namespace string
 }
 
-// List lists all ContainerVersions in the indexer for a given namespace.
-func (s containerVersionNamespaceLister) List(selector labels.Selector) (ret []*v1.ContainerVersion, err error) {
+// List lists all KCDs in the indexer for a given namespace.
+func (s containerVersionNamespaceLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
 	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ContainerVersion))
+		ret = append(ret, m.(*v1.KCD))
 	})
 	return ret, err
 }
 
-// Get retrieves the ContainerVersion from the indexer for a given namespace and name.
-func (s containerVersionNamespaceLister) Get(name string) (*v1.ContainerVersion, error) {
+// Get retrieves the KCD from the indexer for a given namespace and name.
+func (s containerVersionNamespaceLister) Get(name string) (*v1.KCD, error) {
 	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("containerversion"), name)
+		return nil, errors.NewNotFound(v1.Resource("kcd"), name)
 	}
-	return obj.(*v1.ContainerVersion), nil
+	return obj.(*v1.KCD), nil
 }

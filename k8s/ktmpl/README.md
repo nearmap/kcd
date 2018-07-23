@@ -38,5 +38,5 @@ Uses [ktmpl](https://github.com/jimmycuadra/ktmpl) based [tool](https://hub.dock
 
 ## Remove CV resource def
 ```sh
-    kubectl  get crd cv 
+    kubectl  get crd kcd 
 ```

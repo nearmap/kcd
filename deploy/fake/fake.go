@@ -5,10 +5,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/nearmap/kcd/gok8s/workload"
-
 	"github.com/nearmap/kcd/deploy"
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -70,14 +69,14 @@ func (rt *RolloutTarget) PodSpec() corev1.PodSpec {
 	return rt.FakePodSpec
 }
 
-func (rt *RolloutTarget) AsResource(cv *cv1.ContainerVersion) *k8s.Resource {
+func (rt *RolloutTarget) AsResource(kcd *kcd1.KCD) *k8s.Resource {
 	return nil
 }
 
 // ReceivedPatchPodSpec represents the received parameters of an invocation of the
 // PatchPodSpec method.
 type ReceivedPatchPodSpec struct {
-	CV        *cv1.ContainerVersion
+	CV        *kcd1.KCD
 	Container corev1.Container
 	Version   string
 }
@@ -97,12 +96,12 @@ func NewInvocationPatchPodSpec() *InvocationPatchPodSpec {
 }
 
 // PatchPodSpec implements the RolloutTarget interface.
-func (rt *RolloutTarget) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (rt *RolloutTarget) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	var pps InvocationPatchPodSpec
 	rt.invocationFor(&pps)
 
 	if pps.Received != nil {
-		pps.Received.CV = cv
+		pps.Received.CV = kcd
 		pps.Received.Container = container
 		pps.Received.Version = version
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang/glog"
 	conf "github.com/nearmap/kcd/config"
-	"github.com/nearmap/kcd/cv"
 	"github.com/nearmap/kcd/events"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	k8s "github.com/nearmap/kcd/gok8s/workload"
@@ -16,6 +15,7 @@ import (
 	"github.com/nearmap/kcd/registry"
 	dh "github.com/nearmap/kcd/registry/dockerhub"
 	"github.com/nearmap/kcd/registry/ecr"
+	svc "github.com/nearmap/kcd/service"
 	"github.com/nearmap/kcd/signals"
 	"github.com/nearmap/kcd/state"
 	"github.com/nearmap/kcd/stats"
@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type crRoot struct {
+type regRoot struct {
 	*cobra.Command
 
 	stats stats.Stats
@@ -40,32 +40,32 @@ type crRoot struct {
 
 type crParams struct {
 	tag            string
-	cr             string
+	registry       string
 	providerUnused string
 
 	stats statsParams
 }
 
 func newCRCommands() *cobra.Command {
-	crRoot := newCRRootCommand()
-	crRoot.AddCommand(newCRSyncCommand(crRoot))
-	crRoot.AddCommand(newCRTagCommand(crRoot))
-	return crRoot.Command
+	regRoot := newCRRootCommand()
+	regRoot.AddCommand(newKCDSyncCommand(regRoot))
+	regRoot.AddCommand(newCRTagCommand(regRoot))
+	return regRoot.Command
 }
 
-func newCRRootCommand() *crRoot {
+func newCRRootCommand() *regRoot {
 	var params crParams
 
-	root := &crRoot{
+	root := &regRoot{
 		params: &params,
 		Command: &cobra.Command{
-			Use:   "cr",
+			Use:   "registry",
 			Short: "Command to perform container registry operations",
 			Long:  "Command to perform container registry operations such as registry sync, tag images etc",
 		},
 	}
 	root.PersistentFlags().StringVar(&params.tag, "tag", "", "Tag name to monitor on")
-	root.PersistentFlags().StringVar(&params.cr, "repo", "", "Container repository ARN of Docker or cr  ex. nearmap/kcd")
+	root.PersistentFlags().StringVar(&params.registry, "repo", "", "Container repository ARN of Docker or registry  ex. nearmap/kcd")
 	root.PersistentFlags().StringVar(&params.providerUnused, "provider", "ecr", "unused")
 
 	(&params.stats).addFlags(root.Command)
@@ -74,7 +74,7 @@ func newCRRootCommand() *crRoot {
 		// prevent glog complaining about flags not being parsed
 		flag.CommandLine.Parse([]string{})
 
-		root.stats, err = root.params.stats.stats("crsync")
+		root.stats, err = root.params.stats.stats("kcdsync")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
@@ -91,11 +91,11 @@ type crSyncParams struct {
 	k8sConfig string
 
 	namespace string
-	cvName    string
+	kcdName   string
 	version   string
 }
 
-func newCRSyncCommand(root *crRoot) *cobra.Command {
+func newKCDSyncCommand(root *regRoot) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Polls container registry to check for deployoments",
@@ -105,12 +105,12 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	var params crSyncParams
 	cmd.Flags().StringVar(&params.k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	cmd.Flags().StringVar(&params.namespace, "namespace", "", "namespace of container version resource that the syncer is based on.")
-	cmd.Flags().StringVar(&params.cvName, "cv", "", "name of container version resource that the syncer is based on")
-	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of cv resources to use in CR Syncer")
+	cmd.Flags().StringVar(&params.kcdName, "kcd", "", "name of container version resource that the syncer is based on")
+	cmd.Flags().StringVar(&params.version, "version", "", "Indicates version of kcd resources to use in CR Syncer")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		if params.cvName == "" || params.namespace == "" {
-			return errors.New("cv and namespace to watch on must be provided")
+		if params.kcdName == "" || params.namespace == "" {
+			return errors.New("kcd and namespace to watch on must be provided")
 		}
 
 		return nil
@@ -121,15 +121,15 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		glog.V(1).Info("Starting cr Sync")
+		glog.V(1).Info("Starting registry Sync")
 
-		stats, err := root.params.stats.stats(fmt.Sprintf("crsync.%s", params.cvName), params.namespace)
+		stats, err := root.params.stats.stats(fmt.Sprintf("kcdsync.%s", params.kcdName), params.namespace)
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
 		scStatus := 0
-		defer stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
+		defer stats.ServiceCheck("kcdsync.exec", "", scStatus, time.Now())
 
 		var cfg *rest.Config
 		if params.k8sConfig != "" {
@@ -162,46 +162,46 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		k8sProvider := k8s.NewProvider(k8sClient, customCS, params.namespace,
 			conf.WithRecorder(recorder), conf.WithStats(stats))
 
-		cv, err := customCS.CustomV1().ContainerVersions(params.namespace).Get(params.cvName, metav1.GetOptions{})
+		kcd, err := customCS.CustomV1().KCDs(params.namespace).Get(params.kcdName, metav1.GetOptions{})
 		if err != nil {
 			scStatus = 2
-			glog.Errorf("Failed to find CV resource in namespace=%s, name=%s, error=%v", params.namespace, params.cvName, err)
+			glog.Errorf("Failed to find CV resource in namespace=%s, name=%s, error=%v", params.namespace, params.kcdName, err)
 			return errors.Wrap(err, "Failed to find CV resource")
 		}
 
 		// CRD does not allow us to specify default type on OpenAPISpec
 		// TODO: this needs a better strategy but hacking it for now
 		//
-		if cv.Spec.VersionSyntax == "" {
-			cv.Spec.VersionSyntax = "[0-9a-f]{5,40}"
+		if kcd.Spec.VersionSyntax == "" {
+			kcd.Spec.VersionSyntax = "[0-9a-f]{5,40}"
 		}
 		var registryProvider registry.Provider
-		switch registry.ProviderByRepo(cv.Spec.ImageRepo) {
+		switch registry.ProviderByRepo(kcd.Spec.ImageRepo) {
 		case "ecr":
-			registryProvider, err = ecr.NewECR(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, stats)
+			registryProvider, err = ecr.NewECR(kcd.Spec.ImageRepo, kcd.Spec.VersionSyntax, stats)
 		case "dockerhub":
-			registryProvider, err = dh.NewDHV2(cv.Spec.ImageRepo, cv.Spec.VersionSyntax, dh.WithStats(stats))
+			registryProvider, err = dh.NewDHV2(kcd.Spec.ImageRepo, kcd.Spec.VersionSyntax, dh.WithStats(stats))
 		}
 		if err != nil {
-			glog.Errorf("Failed to create registry provider in namespace=%s for cv name=%s, error=%v",
-				params.namespace, params.cvName, err)
+			glog.Errorf("Failed to create registry provider in namespace=%s for kcd name=%s, error=%v",
+				params.namespace, params.kcdName, err)
 			return errors.Wrap(err, "Failed to create registry provider")
 		}
 
 		historyProvider := history.NewProvider(k8sClient, stats)
 
-		crSyncer, err := sync.NewSyncer(k8sProvider, cv, registryProvider, historyProvider,
+		crSyncer, err := sync.NewSyncer(k8sProvider, kcd, registryProvider, historyProvider,
 			conf.WithRecorder(recorder), conf.WithStats(stats))
 		if err != nil {
-			glog.Errorf("Failed to create syncer in namespace=%s for cv name=%s, error=%v",
-				params.namespace, params.cvName, err)
+			glog.Errorf("Failed to create syncer in namespace=%s for kcd name=%s, error=%v",
+				params.namespace, params.kcdName, err)
 			return errors.Wrap(err, "Failed to create syncer")
 		}
 
-		glog.V(1).Infof("Starting cr syncer with namespace=%s for cv name=%s, error=%v",
-			params.namespace, params.cvName, err)
+		glog.V(1).Infof("Starting registry syncer with namespace=%s for kcd name=%s, error=%v",
+			params.namespace, params.kcdName, err)
 
-		stats.ServiceCheck("crsync.exec", "", scStatus, time.Now())
+		stats.ServiceCheck("kcdsync.exec", "", scStatus, time.Now())
 
 		go func() {
 			crSyncer.Start()
@@ -211,7 +211,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 		if err = crSyncer.Stop(); err != nil {
 			glog.Errorf("error received while stopping state machine: %v", err)
 		}
-		glog.V(1).Info("crsync Server gracefully stopped")
+		glog.V(1).Info("kcdsync Server gracefully stopped")
 
 		return nil
 	}
@@ -240,7 +240,7 @@ func newCRSyncCommand(root *crRoot) *cobra.Command {
 	return cmd
 }
 
-type crTagParams struct {
+type regTagParams struct {
 	tags    []string
 	version string
 
@@ -249,19 +249,19 @@ type crTagParams struct {
 	verPat   string
 }
 
-// newCRTagCommand is CLI interface to managing tags on cr images
-func newCRTagCommand(root *crRoot) *cobra.Command {
+// newCRTagCommand is CLI interface to managing tags on registry images
+func newCRTagCommand(root *regRoot) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tags",
-		Short: "Manages tags of cr repository",
-		Long:  "Manages adds/removes tags on cr repositories",
+		Short: "Manages tags of registry repository",
+		Long:  "Manages adds/removes tags on registry repositories",
 	}
 
 	var crProvider registry.Tagger
-	var params crTagParams
+	var params regTagParams
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
 	cmd.PersistentFlags().StringVar(&params.verPat, "version-pattern", "[0-9a-f]{5,40}", "Regex pattern for container version")
-	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of cr image that is being tagged")
+	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of registry image that is being tagged")
 	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
 	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -270,11 +270,11 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
 
-		switch registry.ProviderByRepo(root.params.cr) {
+		switch registry.ProviderByRepo(root.params.registry) {
 		case "ecr":
-			crProvider, err = ecr.NewECR(root.params.cr, params.verPat, root.stats)
+			crProvider, err = ecr.NewECR(root.params.registry, params.verPat, root.stats)
 		case "dockerhub":
-			crProvider, err = dh.NewDHV2(root.params.cr, params.verPat, dh.WithStats(root.stats))
+			crProvider, err = dh.NewDHV2(root.params.registry, params.verPat, dh.WithStats(root.stats))
 		}
 		if err != nil {
 			return err
@@ -285,12 +285,12 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 
 	addTagCmd := &cobra.Command{
 		Use:   "add",
-		Short: "Add tag to image in given cr repository",
-		Long:  "Add tag to image in given cr repository",
+		Short: "Add tag to image in given registry repository",
+		Long:  "Add tag to image in given registry repository",
 	}
 	addTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		if root.params.cr == "" || params.tags == nil || len(params.tags) == 0 || params.version == "" {
-			return errors.New("cr repository name/URI and cr image version is required")
+		if root.params.registry == "" || params.tags == nil || len(params.tags) == 0 || params.version == "" {
+			return errors.New("registry repository name/URI and registry image version is required")
 		}
 
 		return nil
@@ -301,12 +301,12 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 
 	rmTagCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Remove tag to image in given cr repository",
-		Long:  "Remove tag to image in given cr repository",
+		Short: "Remove tag to image in given registry repository",
+		Long:  "Remove tag to image in given registry repository",
 	}
 	rmTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		if root.params.cr == "" || params.tags == nil || len(params.tags) == 0 {
-			return errors.New("cr repository name/URI and tags are required")
+		if root.params.registry == "" || params.tags == nil || len(params.tags) == 0 {
+			return errors.New("registry repository name/URI and tags are required")
 		}
 
 		return nil
@@ -317,12 +317,12 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 
 	getTagCmd := &cobra.Command{
 		Use:   "get",
-		Short: "get tags of image by its version tagin given cr repository",
-		Long:  "Remove tag to image in given cr repository",
+		Short: "get tags of image by its version tagin given registry repository",
+		Long:  "Remove tag to image in given registry repository",
 	}
 	getTagCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		if root.params.cr == "" || params.version == "" {
-			return errors.New("cr repository name/URI and version is required")
+		if root.params.registry == "" || params.version == "" {
+			return errors.New("registry repository name/URI and version is required")
 		}
 
 		return nil
@@ -332,7 +332,7 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Found tags %s on requested cr repository of image %s \n", ts, params.version)
+		fmt.Printf("Found tags %s on requested registry repository of image %s \n", ts, params.version)
 		return nil
 	}
 
@@ -343,11 +343,11 @@ func newCRTagCommand(root *crRoot) *cobra.Command {
 	return cmd
 }
 
-// newCVListCommand is CLI interface to list the current status of CV resources
+// newCVListCommand is CLI interface to list the current status of KCD resource definitions
 func newCVCommand() *cobra.Command {
 	var k8sConfig string
 	cmd := &cobra.Command{
-		Use:   "cv",
+		Use:   "rd",
 		Short: "Manages current status (version and status) of deployments managed by CV resources",
 		Long:  "Manages current status (version and status) of deployments managed by CV resources",
 	}
@@ -387,7 +387,7 @@ func newCVCommand() *cobra.Command {
 
 		k8sProvider := k8s.NewProvider(k8sClient, customClient, "")
 
-		return cv.AllContainerVersions(os.Stdout, "json", k8sProvider)
+		return svc.AllKCDs(os.Stdout, "json", k8sProvider)
 	}
 
 	cmd.AddCommand(listCmd)

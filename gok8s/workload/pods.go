@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/nearmap/kcd/events"
-	cv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -93,9 +93,9 @@ func (p *Pod) ProgressHealth(startTime time.Time) (*bool, error) {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (p *Pod) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := p.client.Patch(p.pod.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for Pod %s", p.pod.Name)
 	}
@@ -103,17 +103,17 @@ func (p *Pod) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container,
 }
 
 // AsResource implements the Workload interface.
-func (p *Pod) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (p *Pod) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range p.pod.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      p.pod.Name,
 				Type:      TypePod,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}
@@ -127,24 +127,24 @@ func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version stri
 	k.options.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
 		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
 		time.Now().UTC())
-	k.options.Recorder.Event(events.Warning, "CRSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
+	k.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
 }
 
-// CheckPodSpecContainerVersions tests whether all containers in the pod spec with container
-// names that match the cv spec have the given version.
+// CheckPodSpecKCDs tests whether all containers in the pod spec with container
+// names that match the kcd spec have the given version.
 // Returns false if at least one container's version does not match.
-func CheckPodSpecContainerVersions(cv *cv1.ContainerVersion, version string, podSpec corev1.PodSpec) (bool, error) {
+func CheckPodSpecKCDs(kcd *kcd1.KCD, version string, podSpec corev1.PodSpec) (bool, error) {
 	match := false
 	for _, c := range podSpec.Containers {
-		if c.Name == cv.Spec.Container.Name {
+		if c.Name == kcd.Spec.Container.Name {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
 			if len(parts) > 2 {
 				return false, errors.New("invalid image on container")
 			}
-			if parts[0] != cv.Spec.ImageRepo {
+			if parts[0] != kcd.Spec.ImageRepo {
 				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
-					cv.Spec.Container.Name, parts[0], cv.Spec.ImageRepo)
+					kcd.Spec.Container.Name, parts[0], kcd.Spec.ImageRepo)
 			}
 			if version != parts[1] {
 				return false, nil
@@ -153,7 +153,7 @@ func CheckPodSpecContainerVersions(cv *cv1.ContainerVersion, version string, pod
 	}
 
 	if !match {
-		return false, errors.Errorf("no container of name %s was found in workload", cv.Spec.Container.Name)
+		return false, errors.Errorf("no container of name %s was found in workload", kcd.Spec.Container.Name)
 	}
 
 	return true, nil

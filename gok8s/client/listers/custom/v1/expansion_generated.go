@@ -18,10 +18,10 @@ limitations under the License.
 
 package v1
 
-// ContainerVersionListerExpansion allows custom methods to be added to
-// ContainerVersionLister.
-type ContainerVersionListerExpansion interface{}
+// KCDListerExpansion allows custom methods to be added to
+// KCDLister.
+type KCDListerExpansion interface{}
 
-// ContainerVersionNamespaceListerExpansion allows custom methods to be added to
-// ContainerVersionNamespaceLister.
-type ContainerVersionNamespaceListerExpansion interface{}
+// KCDNamespaceListerExpansion allows custom methods to be added to
+// KCDNamespaceLister.
+type KCDNamespaceListerExpansion interface{}

@@ -28,8 +28,8 @@ type FakeCustomV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeCustomV1) ContainerVersions(namespace string) v1.ContainerVersionInterface {
-	return &FakeContainerVersions{c, namespace}
+func (c *FakeCustomV1) KCDs(namespace string) v1.KCDInterface {
+	return &FakeKCDs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
