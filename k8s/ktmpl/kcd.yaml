@@ -130,8 +130,8 @@ objects:
           tolerations:
             - key: "node-role.kubernetes.io/master"
               effect: NoSchedule
-          serviceAccountName: $(SVC_ACCOUNT)
-          serviceAccount: $(SVC_ACCOUNT)
+          # serviceAccountName: $(SVC_ACCOUNT)
+          # serviceAccount: $(SVC_ACCOUNT)
           containers:
             - name: kcdapp
               image: $(REPOSITORY):$(VERSION)

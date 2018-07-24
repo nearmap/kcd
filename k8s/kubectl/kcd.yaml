@@ -125,8 +125,8 @@ spec:
       tolerations:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
-      serviceAccountName: kcd
-      serviceAccount: kcd
+      # serviceAccountName: kcd
+      # serviceAccount: kcd
       containers:
         - name: "kcd"
           image: "nearmap/kcd:latest"

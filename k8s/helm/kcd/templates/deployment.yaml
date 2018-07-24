@@ -21,10 +21,10 @@ spec:
         app: {{ template "kcd.name" . }}
         release: {{ .Release.Name }}
     spec:
-{{- if .Values.useRBAC -}}
-      serviceAccountName: kcd
-      serviceAccount: kcd
-{{- end }}
+# {{- if .Values.useRBAC -}}
+#       serviceAccountName: kcd
+#       serviceAccount: kcd
+# {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
