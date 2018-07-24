@@ -19,41 +19,41 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	scheme "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/scheme"
+	v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	scheme "github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 )
 
-// ContainerVersionsGetter has a method to return a ContainerVersionInterface.
+// KCDsGetter has a method to return a KCDInterface.
 // A group's client should implement this interface.
-type ContainerVersionsGetter interface {
-	ContainerVersions(namespace string) ContainerVersionInterface
+type KCDsGetter interface {
+	KCDs(namespace string) KCDInterface
 }
 
-// ContainerVersionInterface has methods to work with ContainerVersion resources.
-type ContainerVersionInterface interface {
-	Create(*v1.ContainerVersion) (*v1.ContainerVersion, error)
-	Update(*v1.ContainerVersion) (*v1.ContainerVersion, error)
+// KCDInterface has methods to work with KCD resources.
+type KCDInterface interface {
+	Create(*v1.KCD) (*v1.KCD, error)
+	Update(*v1.KCD) (*v1.KCD, error)
 	Delete(name string, options *meta_v1.DeleteOptions) error
 	DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error
-	Get(name string, options meta_v1.GetOptions) (*v1.ContainerVersion, error)
-	List(opts meta_v1.ListOptions) (*v1.ContainerVersionList, error)
+	Get(name string, options meta_v1.GetOptions) (*v1.KCD, error)
+	List(opts meta_v1.ListOptions) (*v1.KCDList, error)
 	Watch(opts meta_v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ContainerVersion, err error)
-	ContainerVersionExpansion
+	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.KCD, err error)
+	KCDExpansion
 }
 
-// containerVersions implements ContainerVersionInterface
+// containerVersions implements KCDInterface
 type containerVersions struct {
 	client rest.Interface
 	ns     string
 }
 
-// newContainerVersions returns a ContainerVersions
-func newContainerVersions(c *CustomV1Client, namespace string) *containerVersions {
+// newKCDs returns a KCDs
+func newKCDs(c *CustomV1Client, namespace string) *containerVersions {
 	return &containerVersions{
 		client: c.RESTClient(),
 		ns:     namespace,
@@ -61,11 +61,11 @@ func newContainerVersions(c *CustomV1Client, namespace string) *containerVersion
 }
 
 // Get takes name of the containerVersion, and returns the corresponding containerVersion object, and an error if there is any.
-func (c *containerVersions) Get(name string, options meta_v1.GetOptions) (result *v1.ContainerVersion, err error) {
-	result = &v1.ContainerVersion{}
+func (c *containerVersions) Get(name string, options meta_v1.GetOptions) (result *v1.KCD, err error) {
+	result = &v1.KCD{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -73,12 +73,12 @@ func (c *containerVersions) Get(name string, options meta_v1.GetOptions) (result
 	return
 }
 
-// List takes label and field selectors, and returns the list of ContainerVersions that match those selectors.
-func (c *containerVersions) List(opts meta_v1.ListOptions) (result *v1.ContainerVersionList, err error) {
-	result = &v1.ContainerVersionList{}
+// List takes label and field selectors, and returns the list of KCDs that match those selectors.
+func (c *containerVersions) List(opts meta_v1.ListOptions) (result *v1.KCDList, err error) {
+	result = &v1.KCDList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -90,17 +90,17 @@ func (c *containerVersions) Watch(opts meta_v1.ListOptions) (watch.Interface, er
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
 
 // Create takes the representation of a containerVersion and creates it.  Returns the server's representation of the containerVersion, and an error, if there is any.
-func (c *containerVersions) Create(containerVersion *v1.ContainerVersion) (result *v1.ContainerVersion, err error) {
-	result = &v1.ContainerVersion{}
+func (c *containerVersions) Create(containerVersion *v1.KCD) (result *v1.KCD, err error) {
+	result = &v1.KCD{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		Body(containerVersion).
 		Do().
 		Into(result)
@@ -108,11 +108,11 @@ func (c *containerVersions) Create(containerVersion *v1.ContainerVersion) (resul
 }
 
 // Update takes the representation of a containerVersion and updates it. Returns the server's representation of the containerVersion, and an error, if there is any.
-func (c *containerVersions) Update(containerVersion *v1.ContainerVersion) (result *v1.ContainerVersion, err error) {
-	result = &v1.ContainerVersion{}
+func (c *containerVersions) Update(containerVersion *v1.KCD) (result *v1.KCD, err error) {
+	result = &v1.KCD{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		Name(containerVersion.Name).
 		Body(containerVersion).
 		Do().
@@ -124,7 +124,7 @@ func (c *containerVersions) Update(containerVersion *v1.ContainerVersion) (resul
 func (c *containerVersions) Delete(name string, options *meta_v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		Name(name).
 		Body(options).
 		Do().
@@ -135,7 +135,7 @@ func (c *containerVersions) Delete(name string, options *meta_v1.DeleteOptions) 
 func (c *containerVersions) DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -143,11 +143,11 @@ func (c *containerVersions) DeleteCollection(options *meta_v1.DeleteOptions, lis
 }
 
 // Patch applies the patch and returns the patched containerVersion.
-func (c *containerVersions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ContainerVersion, err error) {
-	result = &v1.ContainerVersion{}
+func (c *containerVersions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.KCD, err error) {
+	result = &v1.KCD{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("containerversions").
+		Resource("kcds").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

@@ -21,21 +21,21 @@ package v1
 import (
 	time "time"
 
-	custom_v1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	versioned "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
-	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/nearmap/cvmanager/gok8s/client/listers/custom/v1"
+	custom_v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	versioned "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
+	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/nearmap/kcd/gok8s/client/listers/custom/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ContainerVersionInformer provides access to a shared informer and lister for
-// ContainerVersions.
-type ContainerVersionInformer interface {
+// KCDInformer provides access to a shared informer and lister for
+// KCDs.
+type KCDInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ContainerVersionLister
+	Lister() v1.KCDLister
 }
 
 type containerVersionInformer struct {
@@ -44,46 +44,46 @@ type containerVersionInformer struct {
 	namespace        string
 }
 
-// NewContainerVersionInformer constructs a new informer for ContainerVersion type.
+// NewKCDInformer constructs a new informer for KCD type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewContainerVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredContainerVersionInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewKCDInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredKCDInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredContainerVersionInformer constructs a new informer for ContainerVersion type.
+// NewFilteredKCDInformer constructs a new informer for KCD type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredContainerVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredKCDInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomV1().ContainerVersions(namespace).List(options)
+				return client.CustomV1().KCDs(namespace).List(options)
 			},
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomV1().ContainerVersions(namespace).Watch(options)
+				return client.CustomV1().KCDs(namespace).Watch(options)
 			},
 		},
-		&custom_v1.ContainerVersion{},
+		&custom_v1.KCD{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
 func (f *containerVersionInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredContainerVersionInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewFilteredKCDInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *containerVersionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&custom_v1.ContainerVersion{}, f.defaultInformer)
+	return f.factory.InformerFor(&custom_v1.KCD{}, f.defaultInformer)
 }
 
-func (f *containerVersionInformer) Lister() v1.ContainerVersionLister {
-	return v1.NewContainerVersionLister(f.Informer().GetIndexer())
+func (f *containerVersionInformer) Lister() v1.KCDLister {
+	return v1.NewKCDLister(f.Informer().GetIndexer())
 }

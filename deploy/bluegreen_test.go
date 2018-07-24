@@ -4,21 +4,21 @@ import (
 	"context"
 	"testing"
 
-	"github.com/nearmap/cvmanager/deploy"
-	"github.com/nearmap/cvmanager/deploy/fake"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/registry"
+	"github.com/nearmap/kcd/deploy"
+	"github.com/nearmap/kcd/deploy/fake"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/registry"
 	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestBlueGreenDeployErrorCases(t *testing.T) {
-	cv := &cv1.ContainerVersion{
-		Spec: cv1.ContainerVersionSpec{
-			Container: cv1.ContainerSpec{
+	kcd := &kcd1.KCD{
+		Spec: kcd1.KCDSpec{
+			Container: kcd1.ContainerSpec{
 				Name: containerName,
 			},
-			Strategy: &cv1.StrategySpec{
-				BlueGreen: &cv1.BlueGreenSpec{},
+			Strategy: &kcd1.StrategySpec{
+				BlueGreen: &kcd1.BlueGreenSpec{},
 			},
 		},
 	}
@@ -32,7 +32,7 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 	var registryProvider registry.Provider
 
 	// SUT
-	deployer := deploy.NewBlueGreenDeployer(cs, registryProvider, namespace, cv, version, target, nil)
+	deployer := deploy.NewBlueGreenDeployer(cs, registryProvider, namespace, kcd, version, target, nil)
 
 	_, err := deployer.Do(context.Background())
 	if err == nil {

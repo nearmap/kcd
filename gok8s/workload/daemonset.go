@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,9 +76,9 @@ func (ds *DaemonSet) PodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (ds *DaemonSet) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := ds.client.Patch(ds.daemonSet.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for DaemonSet %s", ds.daemonSet.Name)
 	}
@@ -86,17 +86,17 @@ func (ds *DaemonSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Con
 }
 
 // AsResource implements the Workload interface.
-func (ds *DaemonSet) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (ds *DaemonSet) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range ds.daemonSet.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      ds.daemonSet.Name,
 				Type:      TypeDaemonSet,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}

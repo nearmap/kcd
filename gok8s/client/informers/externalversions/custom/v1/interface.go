@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/nearmap/cvmanager/gok8s/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// ContainerVersions returns a ContainerVersionInformer.
-	ContainerVersions() ContainerVersionInformer
+	// KCDs returns a KCDInformer.
+	KCDs() KCDInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ContainerVersions returns a ContainerVersionInformer.
-func (v *version) ContainerVersions() ContainerVersionInformer {
+// KCDs returns a KCDInformer.
+func (v *version) KCDs() KCDInformer {
 	return &containerVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

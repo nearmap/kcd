@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,9 +76,9 @@ func (rs *ReplicaSet) PodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 // PatchPodSpec implements the Workload interface.
-func (rs *ReplicaSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (rs *ReplicaSet) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := rs.client.Patch(rs.replicaSet.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(podTemplateSpecJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for ReplicaSet %s", rs.replicaSet.Name)
 	}
@@ -86,17 +86,17 @@ func (rs *ReplicaSet) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Co
 }
 
 // AsResource implements the Workload interface.
-func (rs *ReplicaSet) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (rs *ReplicaSet) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range rs.replicaSet.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      rs.replicaSet.Name,
 				Type:      TypeReplicaSet,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}

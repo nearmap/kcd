@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	custom "github.com/nearmap/cvmanager/gok8s/apis/custom"
+	custom "github.com/nearmap/kcd/gok8s/apis/custom"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -31,8 +31,8 @@ var (
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&ContainerVersion{},
-		&ContainerVersionList{},
+		&KCD{},
+		&KCDList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

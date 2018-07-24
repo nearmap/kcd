@@ -1,0 +1,230 @@
+kind: "Template"
+apiVersion: "v1"
+metadata:
+  name: "kcd-template"
+  annotations:
+    description: "Template for kcd service"
+labels:
+  template: "kcd-template"
+objects:
+  - kind: CustomResourceDefinition
+    # https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/
+    apiVersion: apiextensions.k8s.io/v1beta1
+    metadata:
+      name: kcds.custom.k8s.io
+    spec:
+      group: custom.k8s.io
+      version: v1
+      scope: Namespaced
+      names:
+        plural: kcds
+    #    singular: kcd
+        kind: KCD
+    #    listKind: KCDList
+        shortNames:
+        - kcd
+      validation:
+       # openAPIV3Schema is the schema for validating custom objects.
+        openAPIV3Schema:
+          properties:
+            spec:
+              required:
+                - tag
+                - imageRepo
+                - selector
+                - container
+              properties:
+                tag:
+                  type: string
+                  pattern: '^[a-zA-Z0-9-_.]*$'
+                versionSyntax:
+                  type: string
+                  ## default to regex for sha
+                  # default: '[0-9a-f]{5,40}'
+                imageRepo:
+                  type: string
+                  pattern: '^[^:]*$'
+                # selector:
+                #   type: objects
+                selector:
+                  properties:
+                    kcdapp:
+                      type: string
+                  required:
+                    - kcdapp
+                  # type: object
+                  # See https://github.com/kubernetes/kubernetes/issues/59485 maps not supported fully
+                  # additionalProperties:
+                  #   type: string
+                  # # This would work .. map should only be keyed on string type
+                  # # so not using it
+                  # additionalProperties: true
+                container:
+                  name:
+                    type: string
+                  verify:
+                    type: array
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
+                  required:
+                    - name
+                pollIntervalSeconds:
+                  type: integer
+                livenessSeconds:
+                  type: integer
+                config:
+                  name:
+                    type: string
+                  key:
+                    type: string
+                strategy:
+                  kind:
+                    type: string
+                  blueGreen:
+                    serviceName:
+                      type: string
+                    verificationServiceName:
+                      type: string
+                    labelNames:
+                      type: array
+                      items:
+                        type: string
+                    scaleDown:
+                      type: boolean
+                  verify:
+                    type: array
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
+
+  - kind: Deployment
+    apiVersion: apps/v1
+    metadata:
+      name: kcdapp
+      namespace: kube-system
+      labels:
+        kcdapp: kcdkcd
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: kcd
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+      minReadySeconds: 30
+      template:
+        metadata:
+          labels:
+            app: kcd
+            component: kcdapp
+        spec:
+          nodeSelector:
+            node-role.kubernetes.io/master: ""
+          tolerations:
+            - key: "node-role.kubernetes.io/master"
+              effect: NoSchedule
+          # serviceAccountName: $(SVC_ACCOUNT)
+          # serviceAccount: $(SVC_ACCOUNT)
+          containers:
+            - name: kcdapp
+              image: $(REPOSITORY):$(VERSION)
+              imagePullPolicy: Always
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                privileged: false
+              ports:
+                - name: http
+                  protocol: TCP
+                  containerPort: 8081
+              args:
+                - "run"
+                - "--configmap-key=kube-system/kcd"
+                - "--kcd-img-repo=$(REPOSITORY)"
+                - "--v=1"
+                - "--logtostderr=true"
+              env:
+              - name: NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: STATS_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.hostIP
+              livenessProbe:
+                httpGet:
+                  path: /alive
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /alive
+                  port: http
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: kcdapp
+      namespace: kube-system
+      labels:
+        app: kcd
+    spec:
+      type: NodePort
+      ports:
+        - port: 80
+          targetPort: http
+          protocol: TCP
+          name: http
+      selector:
+        app: kcd
+  - kind: KCD
+    apiVersion: custom.k8s.io/v1
+    metadata:
+      name: kcdkcd
+      namespace: kube-system
+    spec:
+      imageRepo: $(REPOSITORY)
+      tag: $(TAG)
+      pollIntervalSeconds: 300
+      selector:
+        kcdapp: kcdkcd
+      container:
+        name: kcdapp
+      config:
+        name: kcd
+        key: version
+  - kind: ConfigMap
+    apiVersion: v1
+    data:
+      version: $(VERSION)
+    metadata:
+      name: kcd
+      namespace: kube-system
+parameters:
+  - name: "VERSION"
+    description: "version of the application for deployment"
+    required: true
+    parameterType: "string"
+    value: "latest"
+  - name: "REPOSITORY"
+    description: "repository to pull image from"
+    required: true
+    parameterType: "string"
+    value: "nearmap/kcd"
+  - name: "TAG"
+    description: "container image tag representing the current version"
+    required: true
+    parameterType: "string"
+    value: "latest"
+  - name: "SVC_ACCOUNT"
+    description: "Name of service account to use"
+    required: true
+    parameterType: "string"
+    value: "default"
+

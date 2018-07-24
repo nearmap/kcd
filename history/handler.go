@@ -8,7 +8,7 @@ import (
 )
 
 // NewHandler is web handler to return history of workload updates
-// as performed by cvmanager
+// as performed by kcd
 func NewHandler(provider Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 

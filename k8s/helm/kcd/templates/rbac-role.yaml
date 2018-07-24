@@ -1,0 +1,108 @@
+# #####################################
+# ## This is still Work In progress  ##
+# #####################################
+
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   labels:
+#     app: {{ template "kcd.name" . }}
+#   name: {{ template "kcd.name" . }}
+# rules:
+#   - apiGroups:
+#       - ""
+#       - extensions
+#     resources:
+#       - configmaps
+#       - deployments
+#       - cronjobs
+#       - daemonsets
+#       - replicasets
+#       - statefulsets
+#       - services
+#       - jobs
+#       - cronjobs
+#       - customresourcedefinition
+#     verbs:
+#       - get
+#       - list
+#       - watch
+#   - apiGroups:
+#     # For versions
+#       - ""
+#       - extensions
+#     resources:
+#       - configmaps
+#       - deployments
+#       - cronjobs
+#       - daemonsets
+#       - replicasets
+#       - statefulsets
+#       - services
+#       - jobs
+#       - cronjobs
+#       - customresourcedefinition
+#     verbs:
+#       - patch
+#   - apiGroups:
+#     # for history and previous status
+#       - ""
+#       - extensions
+#     resources:
+#       - customresourcedefinition
+#     verbs:
+#       - update
+#   - apiGroups:
+#     # For syncer deploys
+#       - ""
+#       - extensions
+#     resources:
+#       - configmaps
+#       - deployments
+#     verbs:
+#       - delete
+#       - create
+#   - apiGroups:
+#     # To allow verifer pods
+#       - ""
+#       - extensions
+#     resources:
+#       - pods
+#     verbs:
+#       - create
+#       - patch
+#   - apiGroups:
+#     # For blue/green
+#       - ""
+#       - extensions
+#     resources:
+#       - pods
+#       - services
+#       - namespaces
+#     verbs:
+#       - get
+#       - list
+#       - watch
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   labels:
+#     app: {{ template "kcd.name" . }}
+#   name: {{ template "kcd.name" . }}
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: {{ template "kcd.name" . }}
+# subjects:
+#   - kind: ServiceAccount
+#     name: {{ template "kcd.name" . }}
+#     namespace: {{ .Release.Namespace }}
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   labels:
+#     app: {{ template "kcd.name" . }}
+#   name: {{ template "kcd.name" . }}
+#   namespace: {{ .Release.Namespace }}

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/cv"
-	k8s "github.com/nearmap/cvmanager/gok8s/workload"
-	"github.com/nearmap/cvmanager/history"
+	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/history"
+	svc "github.com/nearmap/kcd/service"
 	goji "goji.io"
 	"goji.io/pat"
 )
@@ -32,8 +32,8 @@ func NewServer(port int, version string,
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Get("/v1/cv/workloads"), cv.NewCVHandler(k8sProvider))
-	mux.Handle(pat.Get("/v1/cv/workloads/:name"), history.NewHandler(historyProvider))
+	mux.Handle(pat.Get("/v1/kcd/workloads"), svc.NewCVHandler(k8sProvider))
+	mux.Handle(pat.Get("/v1/kcd/workloads/:name"), history.NewHandler(historyProvider))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

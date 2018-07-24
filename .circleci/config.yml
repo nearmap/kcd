@@ -2,7 +2,7 @@ version: 2
 
 defaults: &defaults
   machine: true
-  working_directory: ~/go/src/github.com/nearmap/cvmanager
+  working_directory: ~/go/src/github.com/nearmap/kcd
 
 deploy-env: &deploy-env
   name: Tag current image as deploy candidate
@@ -12,8 +12,8 @@ deploy-env: &deploy-env
     docker run \
       -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
       -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-      nearmap/cvmanager cr tags add \
-      --repo ${ECR_ENDPOINT}/nearmap/cvmanager --tags $ENV --version ${CIRCLE_SHA1}
+      nearmap/kcd registry tags add \
+      --repo ${ECR_ENDPOINT}/nearmap/kcd --tags $ENV --version ${CIRCLE_SHA1}
 
 jobs:
   build:
@@ -29,9 +29,9 @@ jobs:
           command: |
             sed -i "s/NA/$CIRCLE_SHA1/g" version
       - run:
-          name: Build cvmanager container image
+          name: Build kcd container image
           command: |
-            docker build -t nearmap/cvmanager .
+            docker build -t nearmap/kcd .
       - run:
           name: Run unit and integration tests
           command: |
@@ -39,14 +39,14 @@ jobs:
       - run:
           name: Go Report Card
           command: |
-              curl -X POST -F 'repo=github.com/nearmap/cvmanager'  https://goreportcard.au-api.nearmap.com/checks
-              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/cvmanager"
+              curl -X POST -F 'repo=github.com/nearmap/kcd'  https://goreportcard.au-api.nearmap.com/checks
+              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/kcd"
       - deploy:
           name: Push application docker image
           command: |
               echo "Tagging container image with sha: ${CIRCLE_SHA1}"
-              docker tag nearmap/cvmanager ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
-              docker push ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
+              docker tag nearmap/kcd ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1}
+              docker push ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1}
 
   dev-deploy:
     <<: *defaults
@@ -85,13 +85,13 @@ jobs:
           name: Push image to dockerio
           command: |
             `aws ecr get-login --no-include-email --region ap-southeast-2`
-            docker pull ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1}
-            docker tag ${ECR_ENDPOINT}/nearmap/cvmanager:${CIRCLE_SHA1} nearmap/cvmanager:latest
+            docker pull ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1}
+            docker tag ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1} nearmap/kcd:latest
 
             docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}
-            docker tag nearmap/cvmanager:latest nearmap/cvmanager:${CIRCLE_SHA1}
-            docker push nearmap/cvmanager:${CIRCLE_SHA1}
-            docker push nearmap/cvmanager:latest
+            docker tag nearmap/kcd:latest nearmap/kcd:${CIRCLE_SHA1}
+            docker push nearmap/kcd:${CIRCLE_SHA1}
+            docker push nearmap/kcd:latest
 
   regression-check-qa: &regression-check
     <<: *defaults

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	"github.com/nearmap/cvmanager/registry"
-	"github.com/nearmap/cvmanager/state"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/registry"
+	"github.com/nearmap/kcd/state"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +27,7 @@ const (
 // tests the verification of a deployment or other image.
 type ImageVerifier struct {
 	client           gocorev1.PodInterface
-	spec             cv1.VerifySpec
+	spec             kcd1.VerifySpec
 	registryProvider registry.Provider
 	next             state.State
 }
@@ -36,7 +36,7 @@ type ImageVerifier struct {
 // with the given container immage and checking its exit code.
 // The Verify action passes if the image has a zero exit code.
 func NewImageVerifier(cs kubernetes.Interface, registryProvider registry.Provider, namespace string,
-	spec cv1.VerifySpec, next state.State) *ImageVerifier {
+	spec kcd1.VerifySpec, next state.State) *ImageVerifier {
 
 	client := cs.CoreV1().Pods(namespace)
 
@@ -70,7 +70,7 @@ func (iv *ImageVerifier) createPod(ctx context.Context) (*corev1.Pod, error) {
 	}
 
 	id := uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical)
-	name := fmt.Sprintf("cv-verifier-%s", uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
+	name := fmt.Sprintf("kcd-verifier-%s", uuid.Formatter(uuid.NewV4(), uuid.FormatCanonical))
 
 	glog.V(2).Infof("Creating verifier pod with name=%s, image=%s", name, image)
 
@@ -82,7 +82,7 @@ func (iv *ImageVerifier) createPod(ctx context.Context) (*corev1.Pod, error) {
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				corev1.Container{
-					Name:  fmt.Sprintf("cv-verifier-container-%s", id),
+					Name:  fmt.Sprintf("kcd-verifier-container-%s", id),
 					Image: image,
 					Env: []corev1.EnvVar{
 						corev1.EnvVar{
@@ -107,7 +107,7 @@ func (iv *ImageVerifier) createPod(ctx context.Context) (*corev1.Pod, error) {
 	return p, nil
 }
 
-func (iv *ImageVerifier) getImage(ctx context.Context, spec cv1.VerifySpec) (string, error) {
+func (iv *ImageVerifier) getImage(ctx context.Context, spec kcd1.VerifySpec) (string, error) {
 	if spec.Image == "" {
 		return "", errors.New("verify spec does not have a valid container image")
 	}

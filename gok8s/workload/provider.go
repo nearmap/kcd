@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/config"
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
-	clientset "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned"
+	"github.com/nearmap/kcd/config"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +37,7 @@ type Workload interface {
 
 	// PatchPodSpec receives a pod spec and container which is to be patched
 	// according to an appropriate strategy for the type.
-	PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error
+	PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error
 
 	// RollbackAfter indicates duration after which a failed rollout
 	// should attempt rollback
@@ -48,7 +48,7 @@ type Workload interface {
 	ProgressHealth(startTime time.Time) (*bool, error)
 
 	// AsResource returns a Resource struct defining the current state of the workload.
-	AsResource(cv *cv1.ContainerVersion) *Resource
+	AsResource(kcd *kcd1.KCD) *Resource
 }
 
 // TemplateWorkload defines methods for deployable resources that manage a collection
@@ -91,7 +91,7 @@ type Resource struct {
 // Provider manages workloads.
 type Provider struct {
 	cs        kubernetes.Interface
-	cvcs      clientset.Interface
+	kcdcs     clientset.Interface
 	namespace string
 
 	options *config.Options
@@ -99,7 +99,7 @@ type Provider struct {
 
 // NewProvider abstracts operations performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewProvider(cs kubernetes.Interface, cvcs clientset.Interface, ns string, options ...func(*config.Options)) *Provider {
+func NewProvider(cs kubernetes.Interface, kcdcs clientset.Interface, ns string, options ...func(*config.Options)) *Provider {
 	opts := config.NewOptions()
 	for _, opt := range options {
 		opt(opts)
@@ -107,7 +107,7 @@ func NewProvider(cs kubernetes.Interface, cvcs clientset.Interface, ns string, o
 
 	return &Provider{
 		cs:        cs,
-		cvcs:      cvcs,
+		kcdcs:     kcdcs,
 		namespace: ns,
 		options:   opts,
 	}
@@ -124,45 +124,45 @@ func (k *Provider) Client() kubernetes.Interface {
 	return k.cs
 }
 
-// CV returns a ContainerVersion resource with the given name.
-func (k *Provider) CV(name string) (*cv1.ContainerVersion, error) {
-	glog.V(2).Infof("Getting ContainerVersion with name=%s", name)
+// CV returns a KCD resource with the given name.
+func (k *Provider) CV(name string) (*kcd1.KCD, error) {
+	glog.V(2).Infof("Getting KCD with name=%s", name)
 
-	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
-	cv, err := client.Get(name, metav1.GetOptions{})
+	client := k.kcdcs.CustomV1().KCDs(k.namespace)
+	kcd, err := client.Get(name, metav1.GetOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", name)
+		return nil, errors.Wrapf(err, "failed to get KCD instance with name %s", name)
 	}
 
 	if glog.V(4) {
-		glog.V(4).Infof("Got ContainerVersion: %+v", cv)
+		glog.V(4).Infof("Got KCD: %+v", kcd)
 	}
-	return cv, nil
+	return kcd, nil
 }
 
-// UpdateRolloutStatus updates the ContainerVersion with the given name to indicate a
-// rollout status of the given version and time. Returns the updated ContainerVersion.
-func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm time.Time) (*cv1.ContainerVersion, error) {
-	glog.V(2).Infof("Updating rollout status for cv=%s, version=%s, status=%s, time=%v", cvName, version, status, tm)
+// UpdateRolloutStatus updates the KCD with the given name to indicate a
+// rollout status of the given version and time. Returns the updated KCD.
+func (k *Provider) UpdateRolloutStatus(kcdName string, version, status string, tm time.Time) (*kcd1.KCD, error) {
+	glog.V(2).Infof("Updating rollout status for kcd=%s, version=%s, status=%s, time=%v", kcdName, version, status, tm)
 
-	client := k.cvcs.CustomV1().ContainerVersions(k.namespace)
+	client := k.kcdcs.CustomV1().KCDs(k.namespace)
 
-	cv, err := client.Get(cvName, metav1.GetOptions{})
+	kcd, err := client.Get(kcdName, metav1.GetOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get ContainerVersion instance with name %s", cv.Name)
+		return nil, errors.Wrapf(err, "failed to get KCD instance with name %s", kcd.Name)
 	}
 
-	cv.Status.CurrVersion = version
-	cv.Status.CurrStatus = status
-	cv.Status.CurrStatusTime = metav1.NewTime(tm)
+	kcd.Status.CurrVersion = version
+	kcd.Status.CurrStatus = status
+	kcd.Status.CurrStatusTime = metav1.NewTime(tm)
 
 	if status == StatusSuccess {
-		cv.Status.SuccessVersion = version
+		kcd.Status.SuccessVersion = version
 	}
 
-	result, err := client.Update(cv)
+	result, err := client.Update(kcd)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to update ContainerVersion spec %s", cv.Name)
+		return nil, errors.Wrapf(err, "failed to update KCD spec %s", kcd.Name)
 	}
 
 	glog.V(2).Info("Successfully updated rollout status: %+v", result)
@@ -171,46 +171,46 @@ func (k *Provider) UpdateRolloutStatus(cvName string, version, status string, tm
 
 // AllResources returns all resources managed by container versions in the current namespace.
 func (k *Provider) AllResources() ([]*Resource, error) {
-	cvs, err := k.cvcs.CustomV1().ContainerVersions(k.namespace).List(metav1.ListOptions{})
+	kcds, err := k.kcdcs.CustomV1().KCDs(k.namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to generate template of CV list")
 	}
 
-	var cvsList []*Resource
-	for _, cv := range cvs.Items {
-		cvs, err := k.CVResources(&cv)
+	var kcdsList []*Resource
+	for _, kcd := range kcds.Items {
+		kcds, err := k.CVResources(&kcd)
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to generate template of CV list")
 		}
-		cvsList = append(cvsList, cvs...)
+		kcdsList = append(kcdsList, kcds...)
 	}
 
-	return cvsList, nil
+	return kcdsList, nil
 }
 
-// CVResources returns the resources managed by the given cv instance.
-func (k *Provider) CVResources(cv *cv1.ContainerVersion) ([]*Resource, error) {
+// CVResources returns the resources managed by the given kcd instance.
+func (k *Provider) CVResources(kcd *kcd1.KCD) ([]*Resource, error) {
 	var resources []*Resource
 
-	specs, err := k.Workloads(cv)
+	specs, err := k.Workloads(kcd)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	for _, spec := range specs {
-		resources = append(resources, spec.AsResource(cv))
+		resources = append(resources, spec.AsResource(kcd))
 	}
 
 	return resources, nil
 }
 
 // Workloads returns the workload instances that match the given container version resource.
-func (k *Provider) Workloads(cv *cv1.ContainerVersion) ([]Workload, error) {
+func (k *Provider) Workloads(kcd *kcd1.KCD) ([]Workload, error) {
 	var result []Workload
 
-	glog.V(4).Infof("Retrieving Workloads for cv=%s", cv.Name)
+	glog.V(4).Infof("Retrieving Workloads for kcd=%s", kcd.Name)
 
-	set := labels.Set(cv.Spec.Selector)
+	set := labels.Set(kcd.Spec.Selector)
 	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
 
 	deployments, err := k.cs.AppsV1().Deployments(k.namespace).List(listOpts)
@@ -283,7 +283,7 @@ func (k *Provider) Workloads(cv *cv1.ContainerVersion) ([]Workload, error) {
 }
 
 func (k *Provider) handleError(err error, typ string) error {
-	//k.options.Recorder.Event(events.Warning, "CRSyncFailed", "Failed to get workload")
+	//k.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get workload")
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
 

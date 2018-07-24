@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "kcd.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "kcd.name" . }}
+    chart: {{ template "kcd.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ template "kcd.name" . }}
+    release: {{ .Release.Name }}

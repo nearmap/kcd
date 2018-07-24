@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/nearmap/cvmanager/gok8s/client/clientset/versioned/typed/custom/v1"
+	v1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
@@ -28,8 +28,8 @@ type FakeCustomV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeCustomV1) ContainerVersions(namespace string) v1.ContainerVersionInterface {
-	return &FakeContainerVersions{c, namespace}
+func (c *FakeCustomV1) KCDs(namespace string) v1.KCDInterface {
+	return &FakeKCDs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

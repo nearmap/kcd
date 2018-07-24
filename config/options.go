@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/nearmap/cvmanager/events"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/kcd/events"
+	"github.com/nearmap/kcd/stats"
 )
 
 // Options contains additional (optional) configuration for the controller

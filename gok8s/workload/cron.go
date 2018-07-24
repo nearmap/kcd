@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cv1 "github.com/nearmap/cvmanager/gok8s/apis/custom/v1"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -89,9 +89,9 @@ var (
 )
 
 // PatchPodSpec implements the Workload interface.
-func (cj *CronJob) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Container, version string) error {
+func (cj *CronJob) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error {
 	_, err := cj.client.Patch(cj.cronJob.ObjectMeta.Name, types.StrategicMergePatchType,
-		[]byte(fmt.Sprintf(cronJobPatchPodJSON, container.Name, cv.Spec.ImageRepo, version)))
+		[]byte(fmt.Sprintf(cronJobPatchPodJSON, container.Name, kcd.Spec.ImageRepo, version)))
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for CronJOb %s", cj.cronJob.Name)
 	}
@@ -99,17 +99,17 @@ func (cj *CronJob) PatchPodSpec(cv *cv1.ContainerVersion, container corev1.Conta
 }
 
 // AsResource implements the Workload interface.
-func (cj *CronJob) AsResource(cv *cv1.ContainerVersion) *Resource {
+func (cj *CronJob) AsResource(kcd *kcd1.KCD) *Resource {
 	for _, c := range cj.cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers {
-		if cv.Spec.Container.Name == c.Name {
+		if kcd.Spec.Container.Name == c.Name {
 			return &Resource{
-				Namespace: cv.Namespace,
+				Namespace: kcd.Namespace,
 				Name:      cj.cronJob.Name,
 				Type:      TypeCronJob,
 				Container: c.Name,
 				Version:   version(c.Image),
-				CV:        cv.Name,
-				Tag:       cv.Spec.Tag,
+				CV:        kcd.Name,
+				Tag:       kcd.Spec.Tag,
 			}
 		}
 	}

@@ -11,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/registry"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/kcd/registry"
+	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 )
 
@@ -52,7 +52,7 @@ func NewECR(imageRepo, versionExp string, stats stats.Stats) (*Provider, error) 
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	repoName, accountID, region, err := nameAccountRegionFromARN(imageRepo) //cv.Spec.ImageRepo
+	repoName, accountID, region, err := nameAccountRegionFromARN(imageRepo) //kcd.Spec.ImageRepo
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

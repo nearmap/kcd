@@ -1,0 +1,75 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "kcd.fullname" . }}
+  labels:
+    kcdapp: {{ template "kcd.name" . }}
+{{ toYaml .Values.kcdCD.selector | indent 4 }}
+    chart: {{ template "kcd.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "kcd.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "kcd.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+# {{- if .Values.useRBAC -}}
+#       serviceAccountName: kcd
+#       serviceAccount: kcd
+# {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            privileged: false
+          args:
+            - "run"
+            - "--configmap-key={{ .Release.Namespace }}/{{ template "kcd.fullname" . }}"
+            - "--kcd-img-repo={{ .Values.image.repository }}"
+            - "--port={{ .Values.service.port }}"
+          env:
+          - name: STATS_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: http
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

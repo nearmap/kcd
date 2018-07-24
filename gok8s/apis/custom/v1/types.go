@@ -4,23 +4,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const CVAPP = "cvapp"
+const KCDAPP = "kcdapp"
 
 // +genclient
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ContainerVersion is ContainerVersion resource
-type ContainerVersion struct {
+// KCD is KCD resource
+type KCD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ContainerVersionSpec   `json:"spec"`
-	Status ContainerVersionStatus `json:"status"`
+	Spec   KCDSpec   `json:"spec"`
+	Status KCDStatus `json:"status"`
 }
 
-// ContainerVersionSpec is ContainerVersionSpec
-type ContainerVersionSpec struct {
+// KCDSpec is KCDSpec
+type KCDSpec struct {
 	ImageRepo     string `json:"imageRepo"`
 	Tag           string `json:"tag"`
 	VersionSyntax string `json:"versionSyntax"`
@@ -85,8 +85,8 @@ type ConfigSpec struct {
 	Key  string `json:"key"`
 }
 
-// ContainerVersionStatus is status  for Deployment resources
-type ContainerVersionStatus struct {
+// KCDStatus is status  for Deployment resources
+type KCDStatus struct {
 	Created bool `json:"deployed"`
 
 	// CurrVersion is the most recent version of a rollout, which has a status.
@@ -101,10 +101,10 @@ type ContainerVersionStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ContainerVersionList is a list of ContainerVersion resources
-type ContainerVersionList struct {
+// KCDList is a list of KCD resources
+type KCDList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ContainerVersion `json:"items"`
+	Items []KCD `json:"items"`
 }

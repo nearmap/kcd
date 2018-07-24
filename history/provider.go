@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/cvmanager/stats"
+	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -31,7 +31,7 @@ func (r *Record) String() string {
 	return fmt.Sprintf("Update occurred at:%s:\nWorkload:%s to version:%s\n", r.Time, r.Name, r.Version)
 }
 
-// Provider is an interface to add and fetch cv release/update history
+// Provider is an interface to add and fetch kcd release/update history
 type Provider interface {
 	// History returns the historical record in CV update history
 	History(namespace, name string) (string, error)
@@ -58,7 +58,7 @@ func (p *provider) History(namespace, name string) (string, error) {
 		if k8serr.IsNotFound(err) {
 			return "", nil
 		}
-		return "", errors.Wrapf(err, "failed to find cv history in configmap: %s/%s", namespace, name)
+		return "", errors.Wrapf(err, "failed to find kcd history in configmap: %s/%s", namespace, name)
 	}
 	return cm.Data[key], nil
 }
@@ -69,17 +69,17 @@ func (p *provider) Add(namespace, name string, record *Record) error {
 		if k8serr.IsNotFound(err) {
 			_, err = p.cs.CoreV1().ConfigMaps(namespace).Create(newRecordConfig(namespace, name, record))
 			if err != nil {
-				return errors.Wrapf(err, "failed to create cv history configmap:%s/%s", namespace, name)
+				return errors.Wrapf(err, "failed to create kcd history configmap:%s/%s", namespace, name)
 			}
 			return nil
 		}
-		return errors.Wrapf(err, "failed to get cv history configmap:%s/%s", namespace, name)
+		return errors.Wrapf(err, "failed to get kcd history configmap:%s/%s", namespace, name)
 	}
 
 	_, err = p.cs.CoreV1().ConfigMaps(namespace).Update(updateRecordConfig(cm, record))
 	if err != nil {
-		glog.Errorf("failed to update cv update history in configmap: %s/%s", namespace, name)
-		return errors.Wrapf(err, "failed to update cv update history in configmap: %s/%s", namespace, name)
+		glog.Errorf("failed to update kcd update history in configmap: %s/%s", namespace, name)
+		return errors.Wrapf(err, "failed to update kcd update history in configmap: %s/%s", namespace, name)
 	}
 	return nil
 }
@@ -88,7 +88,7 @@ func configName(name string) string {
 	return fmt.Sprintf("%s.history", name)
 }
 
-// newRecordConfig creates a new configmap to capture update history performed by cvmanager
+// newRecordConfig creates a new configmap to capture update history performed by kcd
 // specifically syncers
 func newRecordConfig(namespace, name string, records ...*Record) *corev1.ConfigMap {
 	var strRecords []string
@@ -130,7 +130,7 @@ func updateRecordConfig(cm *corev1.ConfigMap, records ...*Record) *corev1.Config
 
 func labels() map[string]string {
 	return map[string]string{
-		"OWNED_BY":    "CVManager",
+		"OWNED_BY":    "kcd",
 		"MODIFIED_AT": time.Now().Format("Mon-2Jan2006-15.04"),
 	}
 }
