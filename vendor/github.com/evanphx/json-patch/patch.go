@@ -204,7 +204,7 @@ func (n *lazyNode) equal(o *lazyNode) bool {
 }
 
 func (o operation) kind() string {
-	if obj, ok := o["op"]; ok && obj != nil {
+	if obj, ok := o["op"]; ok {
 		var op string
 
 		err := json.Unmarshal(*obj, &op)
@@ -220,7 +220,7 @@ func (o operation) kind() string {
 }
 
 func (o operation) path() string {
-	if obj, ok := o["path"]; ok && obj != nil {
+	if obj, ok := o["path"]; ok {
 		var op string
 
 		err := json.Unmarshal(*obj, &op)
@@ -236,7 +236,7 @@ func (o operation) path() string {
 }
 
 func (o operation) from() string {
-	if obj, ok := o["from"]; ok && obj != nil{
+	if obj, ok := o["from"]; ok {
 		var op string
 
 		err := json.Unmarshal(*obj, &op)
@@ -477,8 +477,8 @@ func (p Patch) replace(doc *container, op operation) error {
 		return fmt.Errorf("jsonpatch replace operation does not apply: doc is missing path: %s", path)
 	}
 
-	_, ok := con.get(key)
-	if ok != nil {
+	val, ok := con.get(key)
+	if val == nil || ok != nil {
 		return fmt.Errorf("jsonpatch replace operation does not apply: doc is missing key: %s", path)
 	}
 
