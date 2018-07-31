@@ -195,6 +195,12 @@
 			"revisionTime": "2017-12-01T22:46:18Z"
 		},
 		{
+			"checksumSHA1": "0rido7hYHQtfq3UJzVT5LClLAWc=",
+			"path": "github.com/beorn7/perks/quantile",
+			"revision": "3a771d992973f24aa725d07868b467d1ddfceafb",
+			"revisionTime": "2018-03-21T16:47:47Z"
+		},
+		{
 			"checksumSHA1": "SVDbxtq6zlRJ/mB0EAau/f9r4Hc=",
 			"path": "github.com/coreos/etcd/auth/authpb",
 			"revision": "33245c6b5b49130ca99280408fadfab01aac0e48",
