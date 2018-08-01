@@ -14,6 +14,7 @@ import (
 	goji "goji.io"
 	"goji.io/pat"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/server/options"
@@ -55,11 +56,16 @@ func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvi
 	}
 
 	mux := goji.NewMux()
-	mux.Use(auth(authenticator, authorizer))
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Get("/v1/kcd/workloads"), svc.NewCVHandler(k8sProvider))
-	mux.Handle(pat.Get("/v1/kcd/workloads/:name"), history.NewHandler(historyProvider))
+
+	kcdmux := goji.SubMux()
+	mux.Handle(pat.New("/kcd/*"), kcdmux)
+
+	kcdmux.Use(accessTokenQueryParam)
+	kcdmux.Use(auth(authenticator, authorizer))
+	kcdmux.Handle(pat.Get("/v1/workloads"), svc.NewCVHandler(k8sProvider))
+	kcdmux.Handle(pat.Get("/v1/workloads/:name"), history.NewHandler(historyProvider))
 
 	glog.V(1).Info("Starting server")
 
@@ -93,12 +99,25 @@ func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvi
 func auth(auther authenticator.Request, authzer authorizer.Authorizer) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, ok, err := auther.AuthenticateRequest(r)
+			userInfo, ok, err := auther.AuthenticateRequest(r)
 			if err != nil {
-				glog.Errorf("Authentication failed: %v", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				glog.Errorf("Authentication failed (type=%T): %+v", err, err)
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 				return
 			}
+
+			if ok {
+				if userInfo.GetName() == user.Anonymous {
+					ok = false
+				}
+				groups := userInfo.GetGroups()
+				for _, group := range groups {
+					if group == user.AllUnauthenticated {
+						ok = false
+					}
+				}
+			}
+
 			if !ok {
 				glog.V(2).Info("Failed to authenticate user")
 				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
@@ -106,7 +125,7 @@ func auth(auther authenticator.Request, authzer authorizer.Authorizer) func(http
 			}
 
 			if glog.V(4) {
-				glog.V(4).Infof("Authentication was successful for user %+v", user)
+				glog.V(4).Infof("Authentication was successful for user %+v", userInfo)
 			}
 
 			/* TODO: enable authorization
@@ -133,4 +152,15 @@ func auth(auther authenticator.Request, authzer authorizer.Authorizer) func(http
 			h.ServeHTTP(w, r)
 		})
 	}
+}
+
+func accessTokenQueryParam(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if token := q.Get("access_token"); token != "" && r.Header.Get("Authorization") == "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+
+		h.ServeHTTP(w, r)
+	})
 }
