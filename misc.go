@@ -74,7 +74,7 @@ func newCRRootCommand() *regRoot {
 		// prevent glog complaining about flags not being parsed
 		flag.CommandLine.Parse([]string{})
 
-		root.stats, err = root.params.stats.stats("kcdsync")
+		root.stats, err = root.params.stats.stats("kcd")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
@@ -123,7 +123,7 @@ func newKCDSyncCommand(root *regRoot) *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		glog.V(1).Info("Starting registry Sync")
 
-		stats, err := root.params.stats.stats(fmt.Sprintf("kcdsync.%s", params.kcdName), params.namespace)
+		stats, err := root.params.stats.stats("kcd", params.namespace)
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
@@ -265,7 +265,7 @@ func newCRTagCommand(root *regRoot) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
 	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		root.stats, err = root.params.stats.stats("crtagger")
+		root.stats, err = root.params.stats.stats("kcdtagger")
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize stats")
 		}
