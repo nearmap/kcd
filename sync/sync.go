@@ -154,9 +154,9 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 		glog.V(1).Infof("Failed to process container version: version=%v, target=%v, error=%v",
 			version, workload.Name(), err)
 
-		s.options.Stats.Event(fmt.Sprintf("%s.sync.failure", workload.Name()),
-			fmt.Sprintf("Failed to validate image with %s", version), "", "error",
-			time.Now().UTC())
+		s.options.Stats.Event("kcdsync.failure",
+			fmt.Sprintf("Failed to deploy %s with version %s", workload.Name(), version), "", "error",
+			time.Now().UTC(), s.kcd.Name)
 		s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to deploy the target")
 
 		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.kcd.Name, version, k8s.StatusFailed, time.Now().UTC())
@@ -219,7 +219,7 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("Updating stats for successful deployment")
 
-		s.options.Stats.IncCount("crsync.sync.success", workload.Name())
+		s.options.Stats.IncCount("kcdsync.success", s.kcd.Name)
 		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
 		return state.Single(next)
 	}
@@ -315,8 +315,8 @@ func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next st
 			Time:    time.Now().UTC(),
 		})
 		if err != nil {
-			s.options.Stats.IncCount("crsync.history.save.failure", target.Name())
 			s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
+			glog.Error("Failed to save history: %v", err)
 		}
 
 		return state.Single(next)

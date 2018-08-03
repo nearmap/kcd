@@ -14,7 +14,7 @@ const kcdListHTML = `
     p.progress{color:#0066cc;margin:0}
     </style>
     <style type="text/css">
-    p.failed{color:#ff0000;margin:0;font-size:18px}
+    p.failed{color:#ff0000;margin:0}
     </style>
     <style type="text/css">
     p.success{color:#009933;margin:0}
@@ -41,7 +41,7 @@ const kcdListHTML = `
                 <tr>
                     <td>{{.Namespace}}</td>
                     <td>{{.Name}}</td>
-                    <td><p class="progress">{{.Container}}</p></td>
+                    <td>{{.Container}}</td>
                     <td><p {{if eq .Status "Failed"}}class="failed"{{else if eq .Status "Progressing"}}class="progress"{{else if and (eq .Status "Success") .Recent}}class="success"{{end}}>{{.Status}}</td>
                     <td>{{.CurrVersion}}</td>
                     <td>{{.LiveVersion}}</td>
