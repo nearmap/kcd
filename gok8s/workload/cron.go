@@ -97,22 +97,3 @@ func (cj *CronJob) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, versi
 	}
 	return nil
 }
-
-// AsResource implements the Workload interface.
-func (cj *CronJob) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range cj.cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace: kcd.Namespace,
-				Name:      cj.cronJob.Name,
-				Type:      TypeCronJob,
-				Container: c.Name,
-				Version:   version(c.Image),
-				CV:        kcd.Name,
-				Tag:       kcd.Spec.Tag,
-			}
-		}
-	}
-
-	return nil
-}

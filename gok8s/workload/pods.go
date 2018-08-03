@@ -102,25 +102,6 @@ func (p *Pod) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version st
 	return nil
 }
 
-// AsResource implements the Workload interface.
-func (p *Pod) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range p.pod.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace: kcd.Namespace,
-				Name:      p.pod.Name,
-				Type:      TypePod,
-				Container: c.Name,
-				Version:   version(c.Image),
-				CV:        kcd.Name,
-				Tag:       kcd.Spec.Tag,
-			}
-		}
-	}
-
-	return nil
-}
-
 // raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
 func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
 	glog.Errorf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)

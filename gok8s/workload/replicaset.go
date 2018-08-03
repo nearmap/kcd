@@ -84,22 +84,3 @@ func (rs *ReplicaSet) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, ve
 	}
 	return nil
 }
-
-// AsResource implements the Workload interface.
-func (rs *ReplicaSet) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range rs.replicaSet.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace: kcd.Namespace,
-				Name:      rs.replicaSet.Name,
-				Type:      TypeReplicaSet,
-				Container: c.Name,
-				Version:   version(c.Image),
-				CV:        kcd.Name,
-				Tag:       kcd.Spec.Tag,
-			}
-		}
-	}
-
-	return nil
-}

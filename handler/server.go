@@ -64,10 +64,8 @@ func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvi
 
 	kcdmux.Use(accessTokenQueryParam)
 	kcdmux.Use(auth(authenticator, authorizer))
-	kcdmux.Handle(pat.Get("/v1/workloads"), svc.NewCVHandler(k8sProvider))
-	kcdmux.Handle(pat.Get("/v1/workloads/:name"), history.NewHandler(historyProvider))
-
-	glog.V(1).Info("Starting server")
+	kcdmux.Handle(pat.Get("/v1/resources"), svc.NewCVHandler(k8sProvider))
+	kcdmux.Handle(pat.Get("/v1/resource/:name"), history.NewHandler(historyProvider))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
@@ -83,6 +81,8 @@ func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvi
 			}
 		}
 	}()
+
+	glog.V(1).Infof("Started server on %v", srv.Addr)
 
 	<-stopCh
 	glog.V(2).Info("Shutting down http server")

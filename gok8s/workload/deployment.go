@@ -220,23 +220,3 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 	}
 	return nil
 }
-
-// AsResource implements the Workload interface.
-func (d *Deployment) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range d.deployment.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace:     kcd.Namespace,
-				Name:          d.deployment.Name,
-				Type:          TypeDeployment,
-				Container:     c.Name,
-				Version:       version(c.Image),
-				AvailablePods: d.deployment.Status.AvailableReplicas,
-				CV:            kcd.Name,
-				Tag:           kcd.Spec.Tag,
-			}
-		}
-	}
-
-	return nil
-}

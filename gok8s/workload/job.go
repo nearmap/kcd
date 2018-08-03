@@ -84,22 +84,3 @@ func (j *Job) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version st
 	}
 	return nil
 }
-
-// AsResource implements the Workload interface.
-func (j *Job) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range j.job.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace: kcd.Namespace,
-				Name:      j.job.Name,
-				Type:      TypeJob,
-				Container: c.Name,
-				Version:   version(c.Image),
-				CV:        kcd.Name,
-				Tag:       kcd.Spec.Tag,
-			}
-		}
-	}
-
-	return nil
-}

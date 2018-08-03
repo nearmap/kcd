@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/nearmap/kcd/config"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -37,7 +37,7 @@ type Workload interface {
 
 	// PatchPodSpec receives a pod spec and container which is to be patched
 	// according to an appropriate strategy for the type.
-	PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version string) error
+	PatchPodSpec(kcd *kcdv1.KCD, container corev1.Container, version string) error
 
 	// RollbackAfter indicates duration after which a failed rollout
 	// should attempt rollback
@@ -46,9 +46,6 @@ type Workload interface {
 	// ProgressHealth indicates weather the current status of progress healthy or not.
 	// The start time of the deployment operation is provided.
 	ProgressHealth(startTime time.Time) (*bool, error)
-
-	// AsResource returns a Resource struct defining the current state of the workload.
-	AsResource(kcd *kcd1.KCD) *Resource
 }
 
 // TemplateWorkload defines methods for deployable resources that manage a collection
@@ -77,15 +74,17 @@ type TemplateWorkload interface {
 // CV resources including version of current deploy and number of available pods
 // from this deployment/replicaset
 type Resource struct {
-	Namespace     string
-	Name          string
-	Type          string
-	Container     string
-	Version       string
-	AvailablePods int32
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Container string `json:"container"`
+	Tag       string `json:"tag"`
 
-	CV  string
-	Tag string
+	Status      string    `json:"status"`
+	CurrVersion string    `json:"currVersion"`
+	LiveVersion string    `json:"liveVersion"`
+	LastUpdated time.Time `json:"lastUpdated"`
+
+	Recent bool `json:"-"`
 }
 
 // Provider manages workloads.
@@ -125,7 +124,7 @@ func (k *Provider) Client() kubernetes.Interface {
 }
 
 // CV returns a KCD resource with the given name.
-func (k *Provider) CV(name string) (*kcd1.KCD, error) {
+func (k *Provider) CV(name string) (*kcdv1.KCD, error) {
 	glog.V(2).Infof("Getting KCD with name=%s", name)
 
 	client := k.kcdcs.CustomV1().KCDs(k.namespace)
@@ -142,7 +141,7 @@ func (k *Provider) CV(name string) (*kcd1.KCD, error) {
 
 // UpdateRolloutStatus updates the KCD with the given name to indicate a
 // rollout status of the given version and time. Returns the updated KCD.
-func (k *Provider) UpdateRolloutStatus(kcdName string, version, status string, tm time.Time) (*kcd1.KCD, error) {
+func (k *Provider) UpdateRolloutStatus(kcdName string, version, status string, tm time.Time) (*kcdv1.KCD, error) {
 	glog.V(2).Infof("Updating rollout status for kcd=%s, version=%s, status=%s, time=%v", kcdName, version, status, tm)
 
 	client := k.kcdcs.CustomV1().KCDs(k.namespace)
@@ -176,36 +175,31 @@ func (k *Provider) AllResources() ([]*Resource, error) {
 		return nil, errors.Wrap(err, "Failed to generate template of CV list")
 	}
 
-	var kcdsList []*Resource
-	for _, kcd := range kcds.Items {
-		kcds, err := k.CVResources(&kcd)
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to generate template of CV list")
-		}
-		kcdsList = append(kcdsList, kcds...)
-	}
-
-	return kcdsList, nil
-}
-
-// CVResources returns the resources managed by the given kcd instance.
-func (k *Provider) CVResources(kcd *kcd1.KCD) ([]*Resource, error) {
 	var resources []*Resource
-
-	specs, err := k.Workloads(kcd)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	for _, spec := range specs {
-		resources = append(resources, spec.AsResource(kcd))
+	for _, kcd := range kcds.Items {
+		resources = append(resources, k.CVResource(&kcd))
 	}
 
 	return resources, nil
 }
 
+// CVResource returns a resource summary for the given kcd instance.
+func (k *Provider) CVResource(kcd *kcdv1.KCD) *Resource {
+	return &Resource{
+		Namespace:   kcd.Namespace,
+		Name:        kcd.Name,
+		Container:   kcd.Spec.Container.Name,
+		Tag:         kcd.Spec.Tag,
+		Status:      kcd.Status.CurrStatus,
+		CurrVersion: kcd.Status.CurrVersion,
+		LiveVersion: kcd.Status.SuccessVersion,
+		LastUpdated: kcd.Status.CurrStatusTime.Time,
+		Recent:      kcd.Status.CurrStatusTime.Time.After(time.Now().UTC().Add(time.Hour * -1)),
+	}
+}
+
 // Workloads returns the workload instances that match the given container version resource.
-func (k *Provider) Workloads(kcd *kcd1.KCD) ([]Workload, error) {
+func (k *Provider) Workloads(kcd *kcdv1.KCD) ([]Workload, error) {
 	var result []Workload
 
 	glog.V(4).Infof("Retrieving Workloads for kcd=%s", kcd.Name)
