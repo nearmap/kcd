@@ -169,8 +169,8 @@ func (k *Provider) UpdateRolloutStatus(kcdName string, version, status string, t
 }
 
 // AllResources returns all resources managed by container versions in the current namespace.
-func (k *Provider) AllResources() ([]*Resource, error) {
-	kcds, err := k.kcdcs.CustomV1().KCDs(k.namespace).List(metav1.ListOptions{})
+func (k *Provider) AllResources(namespace string) ([]*Resource, error) {
+	kcds, err := k.kcdcs.CustomV1().KCDs(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to generate template of CV list")
 	}

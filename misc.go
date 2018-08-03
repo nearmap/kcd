@@ -387,7 +387,7 @@ func newCVCommand() *cobra.Command {
 
 		k8sProvider := k8s.NewProvider(k8sClient, customClient, "")
 
-		return svc.AllKCDs(os.Stdout, "json", k8sProvider)
+		return svc.AllKCDs(os.Stdout, "json", "", k8sProvider)
 	}
 
 	cmd.AddCommand(listCmd)
