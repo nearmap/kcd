@@ -219,7 +219,7 @@ func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.Sta
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("Updating stats for successful deployment")
 
-		s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.sync.success", workload.Name()))
+		s.options.Stats.IncCount("crsync.sync.success", workload.Name())
 		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
 		return state.Single(next)
 	}
@@ -315,7 +315,7 @@ func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next st
 			Time:    time.Now().UTC(),
 		})
 		if err != nil {
-			s.options.Stats.IncCount(fmt.Sprintf("crsyn.%s.history.save.failure", target.Name()))
+			s.options.Stats.IncCount("crsync.history.save.failure", target.Name())
 			s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 		}
 

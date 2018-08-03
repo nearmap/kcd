@@ -2,7 +2,6 @@ package dockerhub
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/heroku/docker-registry-client/registry"
 	kcdregistry "github.com/nearmap/kcd/registry"
@@ -88,7 +87,7 @@ func (vp *V2Provider) RegistryFor(imageRepo string) (kcdregistry.Registry, error
 func (vp *V2Provider) Version(ctx context.Context, tag string) (string, error) {
 	newVersion, err := vp.getDigest(tag)
 	if err != nil {
-		vp.opts.Stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", vp.repository), "badsha")
+		vp.opts.Stats.IncCount("registry.failure", vp.repository)
 		return "", errors.Errorf("No version found for tag %s", tag)
 	}
 	return newVersion, nil

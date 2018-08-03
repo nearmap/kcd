@@ -170,7 +170,7 @@ objects:
   - kind: Service
     apiVersion: v1
     metadata:
-      name: kcdapp
+      name: kcd-svc
       namespace: kube-system
       labels:
         app: kcd

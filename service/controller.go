@@ -213,7 +213,7 @@ func (c *CVController) processNextWorkItem() bool {
 
 		c.queue.Forget(obj)
 		glog.V(1).Infof("Successfully synced '%s'", key)
-		c.opts.Stats.IncCount(fmt.Sprintf("kcdc.%s.sync.success", key))
+		c.opts.Stats.IncCount("kcdc.sync.success", key)
 		return nil
 	}(obj)
 
@@ -247,12 +247,12 @@ func (c *CVController) syncHandler(key string) error {
 
 	version, err := c.fetchVersion()
 	if err != nil {
-		c.opts.Stats.IncCount(fmt.Sprintf("kcdc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
+		c.opts.Stats.IncCount("kcdc.sync.failure", fmt.Sprintf("env:%s", namespace))
 		c.recorder.Event(kcd, corev1.EventTypeWarning, "FailedCreateKCDSync", "Cant find config for KCDSync version")
 		return errors.Wrap(err, "Failed to find container version")
 	}
 	if err = c.syncDeployNames(namespace, key, version, kcd); err != nil {
-		c.opts.Stats.IncCount(fmt.Sprintf("kcdc.%s.sync.failure", name), fmt.Sprintf("env:%s", namespace))
+		c.opts.Stats.IncCount("kcdc.sync.failure", fmt.Sprintf("env:%s", namespace))
 		return errors.Wrap(err, "Failed to sync deployment")
 	}
 
