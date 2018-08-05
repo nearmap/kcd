@@ -19,16 +19,16 @@ type TemplateRolloutTarget = k8s.TemplateWorkload
 
 // Deployer is an interface for rollout strategies.
 type Deployer interface {
-	// Deploy initiates a rollout for a target spec based on the underlying strategy implementation.
-	Deploy(kcd *kcd1.KCD, version string, spec RolloutTarget) error
+	// Deploy initiates a rollout for the targets based on the underlying strategy implementation.
+	Deploy(kcd *kcd1.KCD, version string, targets []RolloutTarget) error
 }
 
 // NewDeployState returns a state that performs a deployment operation according to the
 // KCD spec.
 func NewDeployState(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, kcd *kcd1.KCD,
-	version string, target RolloutTarget, next state.State) state.State {
+	version string, targets []RolloutTarget, next state.State) state.State {
 
-	glog.V(2).Infof("Creating deployment for kcd=%+v, version=%s, rolloutTarget=%s", kcd, version, target.Name())
+	glog.V(2).Infof("Creating deployment for kcd=%+v, version=%s, rolloutTargets=%v", kcd, version, targets)
 
 	var kind string
 	if kcd.Spec.Strategy != nil {
@@ -37,8 +37,8 @@ func NewDeployState(cs kubernetes.Interface, registryProvider registry.Provider,
 
 	switch kind {
 	case KindServieBlueGreen:
-		return NewBlueGreenDeployer(cs, registryProvider, namespace, kcd, version, target, next)
+		return NewBlueGreenDeployer(cs, registryProvider, namespace, kcd, version, targets, next)
 	default:
-		return NewSimpleDeployer(kcd, version, target, next)
+		return NewSimpleDeployer(kcd, version, targets, next)
 	}
 }

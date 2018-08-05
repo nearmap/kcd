@@ -24,7 +24,10 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 	}
 	version := "version-string"
 	namespace := "test-namespace"
-	target := fake.NewRolloutTarget()
+	targets := []deploy.RolloutTarget{
+		fake.NewTemplateRolloutTarget(),
+		fake.NewTemplateRolloutTarget(),
+	}
 
 	cs := gofake.NewSimpleClientset()
 
@@ -32,7 +35,7 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 	var registryProvider registry.Provider
 
 	// SUT
-	deployer := deploy.NewBlueGreenDeployer(cs, registryProvider, namespace, kcd, version, target, nil)
+	deployer := deploy.NewBlueGreenDeployer(cs, registryProvider, namespace, kcd, version, targets, nil)
 
 	_, err := deployer.Do(context.Background())
 	if err == nil {

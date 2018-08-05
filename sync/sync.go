@@ -105,45 +105,21 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
 		}
 
-		if version == kcd.Status.CurrVersion && kcd.Status.CurrStatus == k8s.StatusFailed {
+		if version == kcd.Status.CurrVersion && (kcd.Status.CurrStatus == k8s.StatusFailed || kcd.Status.CurrStatus == k8s.StatusSuccess) {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", kcd.Name, version, kcd.Status)
 			return state.None()
 		}
 
-		var toUpdate []k8s.Workload
-		for _, wl := range workloads {
-			// if we're still progressing the rollout then add all workloads
-			if version == kcd.Status.CurrVersion && kcd.Status.CurrStatus == k8s.StatusProgressing {
-				toUpdate = append(toUpdate, wl)
-				continue
-			}
+		glog.V(4).Infof("Found %d workloads to update", len(workloads))
 
-			// otherwise check current version vs expected version
-			eq, err := k8s.CheckPodSpecKCDs(kcd, version, wl.PodSpec())
-			if err != nil {
-				return state.Error(errors.Wrapf(err, "failed to check podspec versions for kcd resource %s", kcd.Name))
-			}
-			if !eq {
-				toUpdate = append(toUpdate, wl)
-			}
-		}
-
-		glog.V(4).Infof("Found %d workloads to update", len(toUpdate))
-
-		var states []state.State
-		for _, wl := range toUpdate {
-			st := s.verify(version,
+		return state.Single(
+			s.verify(version,
 				s.updateRolloutStatus(version, k8s.StatusProgressing,
-					s.deploy(version, wl,
-						s.successfulDeploymentStats(wl,
+					s.deploy(version, workloads,
+						s.successfulDeploymentStats(
 							s.syncVersionConfig(version,
-								s.addHistory(version, wl,
-									s.updateRolloutStatus(version, k8s.StatusSuccess, nil)))))))
-
-			states = append(states, state.WithFailure(st, s.handleFailure(wl, version)))
-		}
-
-		return state.Many(states...)
+								s.addHistory(version, workloads,
+									s.updateRolloutStatus(version, k8s.StatusSuccess, nil))))))))
 	}
 }
 
@@ -205,22 +181,22 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 
 // deploy the rollout target to the given version according to the deployment strategy
 // defined in the kcd definition.
-func (s *Syncer) deploy(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
+func (s *Syncer) deploy(version string, targets []deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
-			deploy.NewDeployState(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(), s.kcd, version, target, next))
+			deploy.NewDeployState(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(), s.kcd, version, targets, next))
 	}
 }
 
 // successfulDeploymentStats generates stats for a successful rollout.
-func (s *Syncer) successfulDeploymentStats(workload k8s.Workload, next state.State) state.StateFunc {
+func (s *Syncer) successfulDeploymentStats(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("Updating stats for successful deployment")
 
 		s.options.Stats.IncCount("kcdsync.success", s.kcd.Name)
-		s.options.Recorder.Eventf(events.Normal, "Success", "%s updated completed successfully", workload.Name())
+		s.options.Recorder.Eventf(events.Normal, "Success", "%s completed successfully", s.kcd.Name)
 		return state.Single(next)
 	}
 }
@@ -292,31 +268,45 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 	}
 }
 
-// addHistory adds the successful rollout of the target to the given version to the
+// addHistory adds the successful rollout of the targets to the given version to the
 // history provider.
-func (s *Syncer) addHistory(version string, target deploy.RolloutTarget, next state.State) state.StateFunc {
+func (s *Syncer) addHistory(version string, targets []deploy.RolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if !s.kcd.Spec.History.Enabled {
 			glog.V(4).Infof("Not adding version history for kcd=%s, version=%s", s.kcd.Name, version)
 			return state.Single(next)
 		}
 
-		name := s.kcd.Spec.History.Name
-		if name == "" {
-			name = target.Name()
-		}
+		for _, target := range targets {
+			// depending on the deployer, not all targets will have been updated to the current version.
+			if ok, err := k8s.CheckPodSpecKCDs(s.kcd, version, target.PodSpec()); err != nil {
+				glog.Error("failed to check pod spec version while adding history: %v", err)
+				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
+				continue
+			} else if !ok {
+				glog.V(4).Infof("target %s is not at expected version: not adding to history", target.Name())
+				continue
+			}
 
-		glog.V(4).Infof("Adding version history for kcd=%s, name=%s, version=%s", s.kcd.Name, name, version)
+			// TODO: remove this spec field???
+			//name := s.kcd.Spec.History.Name
+			//if name == "" {
+			//	name = target.Name()
+			//}
+			name := target.Name()
 
-		err := s.historyProvider.Add(s.k8sProvider.Namespace(), name, &history.Record{
-			Type:    target.Type(),
-			Name:    target.Name(),
-			Version: version,
-			Time:    time.Now().UTC(),
-		})
-		if err != nil {
-			s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
-			glog.Error("Failed to save history: %v", err)
+			glog.V(4).Infof("Adding version history for kcd=%s, name=%s, version=%s", s.kcd.Name, name, version)
+
+			err := s.historyProvider.Add(s.k8sProvider.Namespace(), name, &history.Record{
+				Type:    target.Type(),
+				Name:    target.Name(),
+				Version: version,
+				Time:    time.Now().UTC(),
+			})
+			if err != nil {
+				glog.Error("Failed to save history: %v", err)
+				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
+			}
 		}
 
 		return state.Single(next)
