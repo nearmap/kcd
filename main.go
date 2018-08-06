@@ -15,6 +15,7 @@ import (
 	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/handler"
 	"github.com/nearmap/kcd/history"
+	"github.com/nearmap/kcd/resource"
 	svc "github.com/nearmap/kcd/service"
 	"github.com/nearmap/kcd/signals"
 	"github.com/nearmap/kcd/stats"
@@ -195,8 +196,9 @@ func newRunCommand() *cobra.Command {
 		stats.ServiceCheck("kcd.exec", "", scStatus, time.Now())
 
 		recorder := events.PodEventRecorder(k8sClient, "")
-		k8sProvider := k8s.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
+		workloadProvider := workload.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
 		historyProvider := history.NewProvider(k8sClient, stats)
+		resourceProvider := resource.NewK8sProvider("", customClient, workloadProvider)
 
 		authOptions := options.NewDelegatingAuthenticationOptions()
 		if params.k8sConfig != "" {
@@ -209,7 +211,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		err = handler.NewServer(params.port, Version, k8sProvider, historyProvider, authOptions, stopCh)
+		err = handler.NewServer(params.port, Version, resourceProvider, historyProvider, authOptions, stopCh)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}

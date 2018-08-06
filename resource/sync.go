@@ -1,4 +1,4 @@
-package sync
+package resource
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/nearmap/kcd/deploy"
 	"github.com/nearmap/kcd/events"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/history"
 	"github.com/nearmap/kcd/registry"
 	"github.com/nearmap/kcd/state"
@@ -27,8 +27,9 @@ type Syncer struct {
 
 	kcd *kcd1.KCD
 
-	k8sProvider     *k8s.Provider
-	historyProvider history.Provider
+	resourceProvider Provider
+	workloadProvider workload.Provider
+	historyProvider  history.Provider
 
 	registry         registry.Registry // provides version information for the current kcd resource
 	registryProvider registry.Provider // used to obtain version information for other registry resoures
@@ -37,8 +38,8 @@ type Syncer struct {
 }
 
 // NewSyncer creates a Syncer instance for handling the main sync loop.
-func NewSyncer(k8sProvider *k8s.Provider, kcd *kcd1.KCD, registryProvider registry.Provider,
-	hp history.Provider, options ...func(*config.Options)) (*Syncer, error) {
+func NewSyncer(resourceProvider Provider, workloadProvider workload.Provider, registryProvider registry.Provider,
+	hp history.Provider, kcd *kcd1.KCD, options ...func(*config.Options)) (*Syncer, error) {
 
 	opts := config.NewOptions()
 	for _, opt := range options {
@@ -59,7 +60,7 @@ func NewSyncer(k8sProvider *k8s.Provider, kcd *kcd1.KCD, registryProvider regist
 	}
 
 	s := &Syncer{
-		k8sProvider:      k8sProvider,
+		workloadProvider: workloadProvider,
 		kcd:              kcd,
 		registryProvider: registryProvider,
 		registry:         registry,
@@ -85,7 +86,7 @@ func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("Starting initial state")
 
-		kcd, err := s.k8sProvider.CV(s.kcd.Name)
+		kcd, err := s.resourceProvider.KCD(s.kcd.Namespace, s.kcd.Name)
 		if err != nil {
 			return state.Error(errors.Wrapf(err, "failed to get KCD instance with name %s", s.kcd.Name))
 		}
@@ -99,13 +100,13 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		glog.V(4).Infof("Current registry version: %v", version)
 
-		workloads, err := s.k8sProvider.Workloads(kcd)
+		workloads, err := s.workloadProvider.Workloads(kcd)
 		if err != nil {
 			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to obtain workloads for kcd resource")
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
 		}
 
-		if version == kcd.Status.CurrVersion && (kcd.Status.CurrStatus == k8s.StatusFailed || kcd.Status.CurrStatus == k8s.StatusSuccess) {
+		if version == kcd.Status.CurrVersion && (kcd.Status.CurrStatus == StatusFailed || kcd.Status.CurrStatus == StatusSuccess) {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", kcd.Name, version, kcd.Status)
 			return state.None()
 		}
@@ -114,18 +115,18 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		return state.Single(
 			s.verify(version,
-				s.updateRolloutStatus(version, k8s.StatusProgressing,
+				s.updateRolloutStatus(version, StatusProgressing,
 					s.deploy(version, workloads,
 						s.successfulDeploymentStats(
 							s.syncVersionConfig(version,
 								s.addHistory(version, workloads,
-									s.updateRolloutStatus(version, k8s.StatusSuccess, nil))))))))
+									s.updateRolloutStatus(version, StatusSuccess, nil))))))))
 	}
 }
 
 // handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
 // the rollout status and generating relevant stats and events.
-func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFailureFunc {
+func (s *Syncer) handleFailure(workload workload.Workload, version string) state.OnFailureFunc {
 	return func(ctx context.Context, err error) {
 		glog.V(1).Infof("Failed to process container version: version=%v, target=%v, error=%v",
 			version, workload.Name(), err)
@@ -135,7 +136,7 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 			time.Now().UTC(), s.kcd.Name)
 		s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to deploy the target")
 
-		_, uErr := s.k8sProvider.UpdateRolloutStatus(s.kcd.Name, version, k8s.StatusFailed, time.Now().UTC())
+		_, uErr := s.resourceProvider.UpdateStatus(s.kcd.Namespace, s.kcd.Name, version, StatusFailed, time.Now().UTC())
 		if uErr != nil {
 			glog.Errorf("Failed to update kcd %s status as failed rollout for version %s: %v", s.kcd.Name, version, uErr)
 			// TODO: something else?
@@ -145,13 +146,13 @@ func (s *Syncer) handleFailure(workload k8s.Workload, version string) state.OnFa
 
 func (s *Syncer) verify(version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if version == s.kcd.Status.CurrVersion && s.kcd.Status.CurrStatus == k8s.StatusProgressing {
+		if version == s.kcd.Status.CurrVersion && s.kcd.Status.CurrStatus == StatusProgressing {
 			// we've already run the verify step
 			return state.Single(next)
 		}
 
 		return state.Single(
-			verify.NewVerifiers(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(),
+			verify.NewVerifiers(s.workloadProvider.Client(), s.registryProvider, s.workloadProvider.Namespace(),
 				version, s.kcd.Spec.Container.Verify, next))
 	}
 }
@@ -166,7 +167,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 
 		glog.V(2).Infof("Updating rollout status: kcd=%s, version=%s, status=%s", s.kcd.Name, version, status)
 
-		kcd, err := s.k8sProvider.UpdateRolloutStatus(s.kcd.Name, version, status, time.Now().UTC())
+		kcd, err := s.resourceProvider.UpdateStatus(s.kcd.Namespace, s.kcd.Name, version, status, time.Now().UTC())
 		if err != nil {
 			glog.Errorf("Failed to update Rollout Status status for kcd=%s, version=%s, status=%s: %v", s.kcd.Name, version, status, err)
 			events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
@@ -186,7 +187,7 @@ func (s *Syncer) deploy(version string, targets []deploy.RolloutTarget, next sta
 		glog.V(4).Info("creating new deployer state")
 
 		return state.Single(
-			deploy.NewDeployState(s.k8sProvider.Client(), s.registryProvider, s.k8sProvider.Namespace(), s.kcd, version, targets, next))
+			deploy.NewDeployState(s.workloadProvider.Client(), s.registryProvider, s.workloadProvider.Namespace(), s.kcd, version, targets, next))
 	}
 }
 
@@ -214,8 +215,8 @@ func (s *Syncer) syncVersionConfig(version string, next state.State) state.State
 			return state.Single(next)
 		}
 
-		client := s.k8sProvider.Client()
-		namespace := s.k8sProvider.Namespace()
+		client := s.workloadProvider.Client()
+		namespace := s.workloadProvider.Namespace()
 
 		cm, err := client.CoreV1().ConfigMaps(namespace).Get(kcd.Spec.Config.Name, metav1.GetOptions{})
 		if err != nil {
@@ -279,7 +280,7 @@ func (s *Syncer) addHistory(version string, targets []deploy.RolloutTarget, next
 
 		for _, target := range targets {
 			// depending on the deployer, not all targets will have been updated to the current version.
-			if ok, err := k8s.CheckPodSpecKCDs(s.kcd, version, target.PodSpec()); err != nil {
+			if ok, err := workload.CheckPodSpecKCDs(s.kcd, version, target.PodSpec()); err != nil {
 				glog.Error("failed to check pod spec version while adding history: %v", err)
 				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 				continue
@@ -297,7 +298,7 @@ func (s *Syncer) addHistory(version string, targets []deploy.RolloutTarget, next
 
 			glog.V(4).Infof("Adding version history for kcd=%s, name=%s, version=%s", s.kcd.Name, name, version)
 
-			err := s.historyProvider.Add(s.k8sProvider.Namespace(), name, &history.Record{
+			err := s.historyProvider.Add(s.workloadProvider.Namespace(), name, &history.Record{
 				Type:    target.Type(),
 				Name:    target.Name(),
 				Version: version,

@@ -10,16 +10,16 @@ import (
 	conf "github.com/nearmap/kcd/config"
 	"github.com/nearmap/kcd/events"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/history"
 	"github.com/nearmap/kcd/registry"
 	dh "github.com/nearmap/kcd/registry/dockerhub"
 	"github.com/nearmap/kcd/registry/ecr"
+	"github.com/nearmap/kcd/resource"
 	svc "github.com/nearmap/kcd/service"
 	"github.com/nearmap/kcd/signals"
 	"github.com/nearmap/kcd/state"
 	"github.com/nearmap/kcd/stats"
-	"github.com/nearmap/kcd/sync"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -159,8 +159,10 @@ func newKCDSyncCommand(root *regRoot) *cobra.Command {
 
 		recorder := events.PodEventRecorder(k8sClient, params.namespace)
 
-		k8sProvider := k8s.NewProvider(k8sClient, customCS, params.namespace,
+		workloadProvider := workload.NewProvider(k8sClient, customCS, params.namespace,
 			conf.WithRecorder(recorder), conf.WithStats(stats))
+
+		resourceProvider := resource.NewK8sProvider(params.namespace, customCS, workloadProvider)
 
 		kcd, err := customCS.CustomV1().KCDs(params.namespace).Get(params.kcdName, metav1.GetOptions{})
 		if err != nil {
@@ -190,7 +192,7 @@ func newKCDSyncCommand(root *regRoot) *cobra.Command {
 
 		historyProvider := history.NewProvider(k8sClient, stats)
 
-		crSyncer, err := sync.NewSyncer(k8sProvider, kcd, registryProvider, historyProvider,
+		crSyncer, err := resource.NewSyncer(resourceProvider, workloadProvider, registryProvider, historyProvider, kcd,
 			conf.WithRecorder(recorder), conf.WithStats(stats))
 		if err != nil {
 			glog.Errorf("Failed to create syncer in namespace=%s for kcd name=%s, error=%v",
@@ -385,9 +387,10 @@ func newCVCommand() *cobra.Command {
 			return errors.Wrap(err, "Error building k8s container version clientset")
 		}
 
-		k8sProvider := k8s.NewProvider(k8sClient, customClient, "")
+		workloadProvider := workload.NewProvider(k8sClient, customClient, "")
+		resourceProvider := resource.NewK8sProvider("", customClient, workloadProvider)
 
-		return svc.AllKCDs(os.Stdout, "json", "", k8sProvider)
+		return svc.AllKCDs(os.Stdout, "json", "", resourceProvider, false)
 	}
 
 	cmd.AddCommand(listCmd)

@@ -1,12 +1,10 @@
-package k8s
+package workload
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
-	"github.com/nearmap/kcd/events"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -100,15 +98,6 @@ func (p *Pod) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version st
 		return errors.Wrapf(err, "failed to patch pod template spec container for Pod %s", p.pod.Name)
 	}
 	return nil
-}
-
-// raiseSyncPodErrEvents raises k8s and stats events indicating sync failure
-func (k *Provider) raiseSyncPodErrEvents(err error, typ, name, tag, version string) {
-	glog.Errorf("Failed sync %s with image: digest=%v, tag=%v, err=%v", typ, version, tag, err)
-	k.options.Stats.Event(fmt.Sprintf("%s.sync.failure", name),
-		fmt.Sprintf("Failed to sync pod spec with %s", version), "", "error",
-		time.Now().UTC())
-	k.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("Error syncing %s name:%s", typ, name))
 }
 
 // CheckPodSpecKCDs tests whether all containers in the pod spec with container

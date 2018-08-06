@@ -1,4 +1,4 @@
-package k8s
+package workload
 
 import (
 	"strings"
@@ -13,12 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-)
-
-const (
-	StatusFailed      = "Failed"
-	StatusSuccess     = "Success"
-	StatusProgressing = "Progressing"
 )
 
 // Workload defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
@@ -70,25 +64,15 @@ type TemplateWorkload interface {
 	PatchNumReplicas(num int32) error
 }
 
-// Resource maintains a high level status of deployments managed by
-// CV resources including version of current deploy and number of available pods
-// from this deployment/replicaset
-type Resource struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	Container string `json:"container"`
-	Tag       string `json:"tag"`
-
-	Status      string    `json:"status"`
-	CurrVersion string    `json:"currVersion"`
-	LiveVersion string    `json:"liveVersion"`
-	LastUpdated time.Time `json:"lastUpdated"`
-
-	Recent bool `json:"-"`
+// Provider defines methods for working with workloads.
+type Provider interface {
+	Namespace() string
+	Client() kubernetes.Interface
+	Workloads(kcd *kcdv1.KCD) ([]Workload, error)
 }
 
-// Provider manages workloads.
-type Provider struct {
+// K8sProvider is a Kubernetes implementation of a workload provider.
+type K8sProvider struct {
 	cs        kubernetes.Interface
 	kcdcs     clientset.Interface
 	namespace string
@@ -98,13 +82,13 @@ type Provider struct {
 
 // NewProvider abstracts operations performed against Kubernetes resources such as syncing deployments
 // config maps etc
-func NewProvider(cs kubernetes.Interface, kcdcs clientset.Interface, ns string, options ...func(*config.Options)) *Provider {
+func NewProvider(cs kubernetes.Interface, kcdcs clientset.Interface, ns string, options ...func(*config.Options)) *K8sProvider {
 	opts := config.NewOptions()
 	for _, opt := range options {
 		opt(opts)
 	}
 
-	return &Provider{
+	return &K8sProvider{
 		cs:        cs,
 		kcdcs:     kcdcs,
 		namespace: ns,
@@ -113,93 +97,18 @@ func NewProvider(cs kubernetes.Interface, kcdcs clientset.Interface, ns string, 
 }
 
 // Namespace returns the namespace that this K8sProvider is operating within.
-func (k *Provider) Namespace() string {
+func (k *K8sProvider) Namespace() string {
 	return k.namespace
 }
 
 // Client returns a kubernetes client interface for working directly with the kubernetes API.
 // The client will only work within the namespace of the provider.
-func (k *Provider) Client() kubernetes.Interface {
+func (k *K8sProvider) Client() kubernetes.Interface {
 	return k.cs
 }
 
-// CV returns a KCD resource with the given name.
-func (k *Provider) CV(name string) (*kcdv1.KCD, error) {
-	glog.V(2).Infof("Getting KCD with name=%s", name)
-
-	client := k.kcdcs.CustomV1().KCDs(k.namespace)
-	kcd, err := client.Get(name, metav1.GetOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get KCD instance with name %s", name)
-	}
-
-	if glog.V(4) {
-		glog.V(4).Infof("Got KCD: %+v", kcd)
-	}
-	return kcd, nil
-}
-
-// UpdateRolloutStatus updates the KCD with the given name to indicate a
-// rollout status of the given version and time. Returns the updated KCD.
-func (k *Provider) UpdateRolloutStatus(kcdName string, version, status string, tm time.Time) (*kcdv1.KCD, error) {
-	glog.V(2).Infof("Updating rollout status for kcd=%s, version=%s, status=%s, time=%v", kcdName, version, status, tm)
-
-	client := k.kcdcs.CustomV1().KCDs(k.namespace)
-
-	kcd, err := client.Get(kcdName, metav1.GetOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get KCD instance with name %s", kcd.Name)
-	}
-
-	kcd.Status.CurrVersion = version
-	kcd.Status.CurrStatus = status
-	kcd.Status.CurrStatusTime = metav1.NewTime(tm)
-
-	if status == StatusSuccess {
-		kcd.Status.SuccessVersion = version
-	}
-
-	result, err := client.Update(kcd)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to update KCD spec %s", kcd.Name)
-	}
-
-	glog.V(2).Info("Successfully updated rollout status: %+v", result)
-	return result, nil
-}
-
-// AllResources returns all resources managed by container versions in the current namespace.
-func (k *Provider) AllResources(namespace string) ([]*Resource, error) {
-	kcds, err := k.kcdcs.CustomV1().KCDs(namespace).List(metav1.ListOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to generate template of CV list")
-	}
-
-	var resources []*Resource
-	for _, kcd := range kcds.Items {
-		resources = append(resources, k.CVResource(&kcd))
-	}
-
-	return resources, nil
-}
-
-// CVResource returns a resource summary for the given kcd instance.
-func (k *Provider) CVResource(kcd *kcdv1.KCD) *Resource {
-	return &Resource{
-		Namespace:   kcd.Namespace,
-		Name:        kcd.Name,
-		Container:   kcd.Spec.Container.Name,
-		Tag:         kcd.Spec.Tag,
-		Status:      kcd.Status.CurrStatus,
-		CurrVersion: kcd.Status.CurrVersion,
-		LiveVersion: kcd.Status.SuccessVersion,
-		LastUpdated: kcd.Status.CurrStatusTime.Time,
-		Recent:      kcd.Status.CurrStatusTime.Time.After(time.Now().UTC().Add(time.Hour * -1)),
-	}
-}
-
 // Workloads returns the workload instances that match the given container version resource.
-func (k *Provider) Workloads(kcd *kcdv1.KCD) ([]Workload, error) {
+func (k *K8sProvider) Workloads(kcd *kcdv1.KCD) ([]Workload, error) {
 	var result []Workload
 
 	glog.V(4).Infof("Retrieving Workloads for kcd=%s", kcd.Name)
@@ -276,7 +185,7 @@ func (k *Provider) Workloads(kcd *kcdv1.KCD) ([]Workload, error) {
 	return result, nil
 }
 
-func (k *Provider) handleError(err error, typ string) error {
+func (k *K8sProvider) handleError(err error, typ string) error {
 	//k.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get workload")
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
