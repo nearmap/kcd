@@ -116,26 +116,26 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		glog.V(4).Infof("Found %d workloads to update", len(workloads))
 
-		return state.Single(
-			s.verify(version,
-				s.updateRolloutStatus(version, StatusProgressing,
-					s.deploy(version, workloads,
-						s.successfulDeploymentStats(
-							s.syncVersionConfig(version,
-								s.addHistory(version, workloads,
-									s.updateRolloutStatus(version, StatusSuccess, nil))))))))
+		syncState := s.verify(version,
+			s.updateRolloutStatus(version, StatusProgressing,
+				s.deploy(version, workloads,
+					s.successfulDeploymentStats(
+						s.syncVersionConfig(version,
+							s.addHistory(version, workloads,
+								s.updateRolloutStatus(version, StatusSuccess, nil)))))))
+
+		return state.Many(syncState, state.WithFailure(syncState, s.handleFailure(version)))
 	}
 }
 
 // handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
 // the rollout status and generating relevant stats and events.
-func (s *Syncer) handleFailure(workload workload.Workload, version string) state.OnFailureFunc {
+func (s *Syncer) handleFailure(version string) state.OnFailureFunc {
 	return func(ctx context.Context, err error) {
-		glog.V(1).Infof("Failed to process container version: version=%v, target=%v, error=%v",
-			version, workload.Name(), err)
+		glog.V(1).Infof("Failed to process kcd=%v, version=%v, error=%v", s.kcd.Name, version, err)
 
 		s.options.Stats.Event("kcdsync.failure",
-			fmt.Sprintf("Failed to deploy %s with version %s", workload.Name(), version), "", "error",
+			fmt.Sprintf("Failed to deploy %s with version %s", s.kcd.Name, version), "", "error",
 			time.Now().UTC(), s.kcd.Name)
 		s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to deploy the target")
 
