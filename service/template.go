@@ -11,14 +11,15 @@ const kcdListHTML = `
     body,h1{margin:0}body{padding:0}h1,p,table{font-size:14px;font-family:OpenSans,Lucida Grande,Lucida Sans Unicode,sans-serif;font-weight:100;width:100%;color:#555;padding:0px;border-collapse:collapse;margin:1px;}h1{font-size:18px;width:100%;border-bottom:solid 1px #eee;color:#7d7d7d;padding:3px}td,th{text-align:left;padding-bottom:3px}table{margin:15px}
     </style>
     <style type="text/css">
-    p.progress{color:#000000;margin:0;font-weight:bold}tr.progress{background-color:#0066ff;color:#000000;font-weight:bold}
+    p.progress{color:#000000;margin:0;font-weight:bold}tr.progress{background-color:#668cff;color:#000000;font-weight:bold}
     </style>
     <style type="text/css">
-    p.failed{color:#000000;margin:0;font-weight:bold}tr.failed{background-color:#ff0000;color:#000000;font-weight:bold}
+    p.failed{color:#000000;margin:0;font-weight:bold}tr.failed{background-color:#ff3333;color:#000000;font-weight:bold}
     </style>
     <style type="text/css">
-    p.success{color:#000000;margin:0;font-weight:bold}tr.success{background-color:#00cc00;color:#000000;font-weight:bold}
+    p.success{color:#000000;margin:0;font-weight:bold}tr.success{background-color:#66ff66;color:#000000;font-weight:bold}
     </style>
+    {{if .Reload}}
     <script>
         window.onload = function() {
             setTimeout(function () {
@@ -26,6 +27,7 @@ const kcdListHTML = `
             }, 60000);
         };
     </script>
+    {{end}}
 </head>
 <body>
 <main>
