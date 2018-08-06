@@ -118,7 +118,7 @@ func newRunCommand() *cobra.Command {
 	var params runParams
 	rc := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the cv controoler service",
+		Short: "Runs the kcd controller service",
 		Long:  fmt.Sprintf(`Runs the service as a HTTP server`),
 	}
 
