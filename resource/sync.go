@@ -60,6 +60,7 @@ func NewSyncer(resourceProvider Provider, workloadProvider workload.Provider, re
 	}
 
 	s := &Syncer{
+		resourceProvider: resourceProvider,
 		workloadProvider: workloadProvider,
 		kcd:              kcd,
 		registryProvider: registryProvider,
@@ -84,7 +85,9 @@ func (s *Syncer) Stop() error {
 // initialState returns a state that starts a sync process.
 func (s *Syncer) initialState() state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		glog.V(4).Info("Starting initial state")
+		if glog.V(4) {
+			glog.V(4).Infof("Starting initial state: kcd=%+v", s.kcd)
+		}
 
 		kcd, err := s.resourceProvider.KCD(s.kcd.Namespace, s.kcd.Name)
 		if err != nil {
