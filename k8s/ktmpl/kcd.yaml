@@ -148,7 +148,7 @@ objects:
                 - "run"
                 - "--configmap-key=kube-system/kcd"
                 - "--kcd-img-repo=$(REPOSITORY)"
-                - "--v=6"
+                - "--v=1"
                 - "--logtostderr=true"
               env:
               - name: NAME
