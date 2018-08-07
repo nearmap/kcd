@@ -1,11 +1,17 @@
+# KCD
+
 [![CircleCI](https://circleci.com/gh/nearmap/kcd.svg?style=svg&circle-token=e635659d5d8190eb041cc92149262a5b75470fcd)](https://circleci.com/gh/nearmap/kcd)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nearmap/kcd)](https://goreportcard.com/report/github.com/nearmap/kcd)
 [![GoDoc](https://godoc.org/github.com/nearmap/kcd?status.svg "GoDoc")](https://godoc.org/github.com/nearmap/kcd)
 ![Docker Pulls](https://img.shields.io/docker/pulls/nearmap/kcd.svg)
 ![GitHub (pre-)release](https://img.shields.io/github/release/nearmap/kcd/all.svg)
+  
 
+  
 
-# kcd
+![kcd](./docs/logo/kcd_logo.png "kcd logo")
+======
+
 Kubernetes Continous Delivery (kcd), formally known as _Container_ _Version_ _Manager_ (_kcd_), is a continous integration (CI) and continous delivery (CD) tool designed for Kubernetes cluster/services. Fundamentally, kcd is a custom Kubernetes controller to achieve a declarative configuration approach to continuous deployment. 
 
 Deployments that requires CI/CD, can declare [KCD](k8s/crd.yaml) resource. [kcd](k8s/kcd.yaml), KCD (Kubernetes Continous Delivery) controller starts monitoring for any new changes that should be rolled-out. If so, using the rollout strategy specified in this deployment, the rollout of new version is carried out.
@@ -17,7 +23,7 @@ The tool has 3 main parts:
 - KCD Syncer: Docker Registry Syncer (supports ECR and Dockerhub)
 - KCD Tagger: Docker Registry Tagger (supports ECR, with limited Dockerhub support)
 
-![architecture](kcd-architecture.png "kcd architecture")
+![architecture](kcd-architecture.png "kcd architecture")kcd logo.png
 
 Docker images are on [docker.io](https://hub.docker.com/r/nearmap/kcd/)
 
@@ -147,3 +153,4 @@ Use ```--history``` CLI option on kcd to capture release history in configmap.
 
 #### Reference links
 - https://kccnceu18.sched.com/event/DquY/continuous-delivery-meets-custom-kubernetes-controller-a-declarative-configuration-approach-to-cicd-suneeta-mall-simon-cochrane-nearmap-intermediate-skill-level-slides-attached
+- KubeCon EU 2018 Presentation [download](./docs/KubeCon-EU-2018/presentation.pdf)
