@@ -271,6 +271,13 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 			}
 
+			for _, cs := range pod.Status.ContainerStatuses {
+				if !cs.Ready {
+					glog.V(2).Infof("Still waiting for rollout: pod=%s, container=%s is not ready", pod.Name, cs.Name)
+					return state.After(15*time.Second, bgd.waitForAllPods(target, next))
+				}
+			}
+
 			ok, err := k8s.CheckPodSpecKCDs(bgd.kcd, bgd.version, pod.Spec)
 			if err != nil {
 				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)

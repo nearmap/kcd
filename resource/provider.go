@@ -129,6 +129,6 @@ func (p *K8sProvider) UpdateStatus(namespace, kcdName, version, status string, t
 		return nil, errors.Wrapf(err, "failed to update KCD spec %s", kcd.Name)
 	}
 
-	glog.V(2).Info("Successfully updated KCD status: %+v", result)
+	glog.V(2).Infof("Successfully updated KCD status: %+v", result)
 	return result, nil
 }
