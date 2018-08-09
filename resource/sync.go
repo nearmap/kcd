@@ -124,7 +124,7 @@ func (s *Syncer) initialState() state.StateFunc {
 							s.addHistory(version, workloads,
 								s.updateRolloutStatus(version, StatusSuccess, nil)))))))
 
-		return state.Many(syncState, state.WithFailure(syncState, s.handleFailure(version)))
+		return state.Single(state.WithFailure(syncState, s.handleFailure(version)))
 	}
 }
 
