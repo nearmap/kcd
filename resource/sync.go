@@ -108,6 +108,10 @@ func (s *Syncer) initialState() state.StateFunc {
 			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to obtain workloads for kcd resource")
 			return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
 		}
+		if len(workloads) == 0 {
+			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("No workloads found for kcd resource %s", kcd.Name))
+			return state.Error(errors.Wrapf(err, "no workloads found for kcd resource %s", kcd.Name))
+		}
 
 		if version == kcd.Status.CurrVersion && (kcd.Status.CurrStatus == StatusFailed || kcd.Status.CurrStatus == StatusSuccess) {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", kcd.Name, version, kcd.Status)
