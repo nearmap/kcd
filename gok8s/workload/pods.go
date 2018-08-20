@@ -2,7 +2,6 @@ package workload
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
@@ -98,33 +97,4 @@ func (p *Pod) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, version st
 		return errors.Wrapf(err, "failed to patch pod template spec container for Pod %s", p.pod.Name)
 	}
 	return nil
-}
-
-// CheckPodSpecKCDs tests whether all containers in the pod spec with container
-// names that match the kcd spec have the given version.
-// Returns false if at least one container's version does not match.
-func CheckPodSpecKCDs(kcd *kcd1.KCD, version string, podSpec corev1.PodSpec) (bool, error) {
-	match := false
-	for _, c := range podSpec.Containers {
-		if c.Name == kcd.Spec.Container.Name {
-			match = true
-			parts := strings.SplitN(c.Image, ":", 2)
-			if len(parts) > 2 {
-				return false, errors.New("invalid image on container")
-			}
-			if parts[0] != kcd.Spec.ImageRepo {
-				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
-					kcd.Spec.Container.Name, parts[0], kcd.Spec.ImageRepo)
-			}
-			if version != parts[1] {
-				return false, nil
-			}
-		}
-	}
-
-	if !match {
-		return false, errors.Errorf("no container of name %s was found in workload", kcd.Spec.Container.Name)
-	}
-
-	return true, nil
 }

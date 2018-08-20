@@ -113,7 +113,12 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "no workloads found for kcd resource %s", kcd.Name))
 		}
 
-		if version == kcd.Status.CurrVersion && (kcd.Status.CurrStatus == StatusFailed || kcd.Status.CurrStatus == StatusSuccess) {
+		process, err := s.shouldProcess(kcd, version, workloads)
+		if err != nil {
+			glog.Errorf("Failed to determine whether workloads should be processed for kcd=%s: %v", kcd.Name, err)
+			return state.Error(errors.Wrapf(err, "failed to determine whether workloads should be processed for kcd=%s", kcd.Name))
+		}
+		if !process {
 			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", kcd.Name, version, kcd.Status)
 			return state.None()
 		}
@@ -130,6 +135,42 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		return state.Single(state.WithFailure(syncState, s.handleFailure(version)))
 	}
+}
+
+// shouldProcess returns whether a rollout should be performed on the workloads defined
+// by the KCD resource.
+func (s *Syncer) shouldProcess(kcd *kcd1.KCD, version string, workloads []workload.Workload) (process bool, err error) {
+	if version != kcd.Status.CurrVersion || kcd.Status.CurrStatus == StatusProgressing {
+		return true, nil
+	}
+
+	// if status is failed and at least one workload version doesn't equal the current or previous version then process.
+	if kcd.Status.CurrStatus == StatusFailed {
+		for _, wl := range workloads {
+			ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, kcd.Status.CurrVersion, kcd.Status.SuccessVersion)
+			if err != nil {
+				return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
+			}
+			if !ok {
+				return true, nil
+			}
+		}
+	}
+
+	// if status is success and at least one workload doesn't equal the current version then process.
+	if kcd.Status.CurrStatus == StatusSuccess {
+		for _, wl := range workloads {
+			ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, kcd.Status.CurrVersion)
+			if err != nil {
+				return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
+			}
+			if !ok {
+				return true, nil
+			}
+		}
+	}
+
+	return process, nil
 }
 
 // handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
@@ -287,7 +328,7 @@ func (s *Syncer) addHistory(version string, targets []deploy.RolloutTarget, next
 
 		for _, target := range targets {
 			// depending on the deployer, not all targets will have been updated to the current version.
-			if ok, err := workload.CheckPodSpecKCDs(s.kcd, version, target.PodSpec()); err != nil {
+			if ok, err := workload.CheckPodSpecVersion(target.PodSpec(), s.kcd, version); err != nil {
 				glog.Error("failed to check pod spec version while adding history: %v", err)
 				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 				continue

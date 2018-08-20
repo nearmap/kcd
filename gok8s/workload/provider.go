@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/nearmap/kcd/config"
+	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
@@ -190,6 +191,43 @@ func (k *K8sProvider) handleError(err error, typ string) error {
 	return errors.Wrapf(err, "failed to get %s", typ)
 }
 
-func version(img string) string {
-	return strings.SplitAfterN(img, ":", 2)[1]
+// CheckPodSpecVersion tests whether all containers in the pod spec with container
+// names that match the kcd spec have the given version.
+// Returns false if at least one container's version does not match at least one
+// specified version.
+// Returns an error if no containers in the pod spec match the container name
+// defined by the KCD resource.
+func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcd1.KCD, versions ...string) (bool, error) {
+	match := false
+	for _, c := range podSpec.Containers {
+		if c.Name == kcd.Spec.Container.Name {
+			match = true
+			parts := strings.SplitN(c.Image, ":", 2)
+			if len(parts) > 2 {
+				return false, errors.Errorf("invalid image found in container %s: %v", c.Name, c.Image)
+			}
+			if parts[0] != kcd.Spec.ImageRepo {
+				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
+					c.Name, parts[0], kcd.Spec.ImageRepo)
+			}
+
+			found := false
+			cver := parts[1]
+			for _, version := range versions {
+				if cver == version {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false, nil
+			}
+		}
+	}
+
+	if !match {
+		return false, errors.Errorf("no container of name %s was found in workload", kcd.Spec.Container.Name)
+	}
+
+	return true, nil
 }

@@ -278,7 +278,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 				}
 			}
 
-			ok, err := k8s.CheckPodSpecKCDs(bgd.kcd, bgd.version, pod.Spec)
+			ok, err := k8s.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
 			if err != nil {
 				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
 				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))
