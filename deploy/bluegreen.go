@@ -42,12 +42,14 @@ type BlueGreenDeployer struct {
 	cs        kubernetes.Interface
 	namespace string
 
-	kcd       *kcd1.KCD
-	blueGreen *kcd1.BlueGreenSpec
-
 	registryProvider registry.Provider
 
+	kcd       *kcd1.KCD
+	blueGreen *kcd1.BlueGreenSpec
 	version   string
+
+	// primary is the current live workload (before the rollout) and secondary is the
+	// workload that will be updated and made live.
 	primary   TemplateRolloutTarget
 	secondary TemplateRolloutTarget
 }
@@ -249,7 +251,10 @@ func (bgd *BlueGreenDeployer) updateServiceSelector(serviceName string, target T
 func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		// ensure at least 1 pod
-		numReplicas := target.NumReplicas()
+		numReplicas, err := target.NumReplicas()
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to get num replicas for target %s", target.Name()))
+		}
 
 		glog.V(2).Infof("Target %s has %d replicas", target.Name(), numReplicas)
 
@@ -271,63 +276,89 @@ func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget, next s
 // Returns an error if a timeout value is reached.
 func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		pods, err := PodsForTarget(bgd.cs, bgd.namespace, target)
+		ok, err := bgd.checkPods(target, 1)
 		if err != nil {
-			glog.Errorf("Failed to get pods for target %s: %v", target.Name(), err)
-			return state.Error(errors.Wrapf(err, "failed to get pods for target %s", target.Name()))
+			return state.Error(errors.Wrapf(err, "failed to check pods in waitForAllPods for %s", target.Name()))
 		}
-		if len(pods) == 0 {
-			glog.V(2).Infof("no pods found for target %s", target.Name())
-			return state.After(15*time.Second, bgd.waitForAllPods(target, next))
+		if ok {
+			return state.Single(next)
 		}
-
-		for _, pod := range pods {
-			if pod.Status.Phase != corev1.PodRunning {
-				glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
-				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
-			}
-
-			for _, cs := range pod.Status.ContainerStatuses {
-				if !cs.Ready {
-					glog.V(2).Infof("Still waiting for rollout: pod=%s, container=%s is not ready", pod.Name, cs.Name)
-					return state.After(15*time.Second, bgd.waitForAllPods(target, next))
-				}
-			}
-
-			ok, err := workload.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
-			if err != nil {
-				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
-				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))
-			}
-			if !ok {
-				glog.V(2).Infof("Still waiting for rollout: pod %s is wrong version", pod.Name)
-				return state.After(15*time.Second, bgd.waitForAllPods(target, next))
-			}
-		}
-
-		glog.V(2).Infof("All pods are ready")
-		return state.Single(next)
+		return state.After(15*time.Second, bgd.waitForAllPods(target, next))
 	}
+}
+
+// checkPods checks whether the target has at least num pods and that every pod
+// is the current version (as defined by this deployer) and that every container
+// within each pod is in a ready state.
+func (bgd *BlueGreenDeployer) checkPods(target TemplateRolloutTarget, num int32) (bool, error) {
+	pods, err := PodsForTarget(bgd.cs, bgd.namespace, target)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to get pods for target %s", target.Name())
+	}
+	if len(pods) < int(num) {
+		glog.V(2).Infof("insufficient pods found for target %s: found %d but need %d", target.Name(), len(pods), num)
+		return false, nil
+	}
+
+	for _, pod := range pods {
+		if pod.Status.Phase != corev1.PodRunning {
+			glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
+			return false, nil
+		}
+
+		for _, cs := range pod.Status.ContainerStatuses {
+			if !cs.Ready {
+				glog.V(2).Infof("Still waiting for rollout: pod=%s, container=%s is not ready", pod.Name, cs.Name)
+				return false, nil
+			}
+		}
+
+		ok, err := workload.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to check container version for target %s", target.Name())
+		}
+		if !ok {
+			glog.V(2).Infof("Still waiting for rollout: pod %s is wrong version", pod.Name)
+			return false, nil
+		}
+	}
+
+	glog.V(2).Info("All pods and containers are ready")
+
+	return true, nil
 }
 
 // scaleUpSecondary scales up the secondary deployment to be the same as the primary.
 // This should be done before cutting the service over to the secondary to ensure there
 // is sufficient capacity.
-func (bgd *BlueGreenDeployer) scaleUpSecondary(current, secondary TemplateRolloutTarget, next state.State) state.StateFunc {
+func (bgd *BlueGreenDeployer) scaleUpSecondary(primary, secondary TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		currentNum := current.NumReplicas()
-		secondaryNum := secondary.NumReplicas()
+		primaryNum, err := primary.NumReplicas()
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to obtain ready replicas for workload %s", primary.Name()))
+		}
 
-		if secondaryNum >= currentNum {
-			glog.V(2).Infof("Secondary spec %s has sufficient replicas (%d)", secondary.Name(), secondaryNum)
+		secondaryNum, err := secondary.NumReplicas()
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to obtain ready replicas for workload %s", secondary.Name()))
+		}
+
+		if secondaryNum < primaryNum {
+			glog.V(1).Infof("Scaling up secondary pods to %d to match current primary", primaryNum)
+			if err := secondary.PatchNumReplicas(primaryNum); err != nil {
+				return state.Error(errors.Wrapf(err, "failed to patch number of replicas for secondary spec %s", secondary.Name()))
+			}
+		}
+
+		ok, err := bgd.checkPods(secondary, primaryNum)
+		if err != nil {
+			return state.Error(errors.Wrapf(err, "failed to check pods while scaling up sceondary %s", secondary.Name()))
+		}
+
+		if ok {
 			return state.Single(next)
 		}
-
-		if err := secondary.PatchNumReplicas(currentNum); err != nil {
-			return state.Error(errors.Wrapf(err, "failed to patch number of replicas for secondary spec %s", secondary.Name()))
-		}
-
-		return state.Single(bgd.waitForAllPods(secondary, next))
+		return state.After(15*time.Second, bgd.scaleUpSecondary(primary, secondary, next))
 	}
 }
 

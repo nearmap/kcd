@@ -58,8 +58,8 @@ type TemplateWorkload interface {
 	// SelectOwnPods returns a list of pods that are managed by this workload.
 	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
 
-	// NumReplicas returns the current number of running replicas for this workload.
-	NumReplicas() int32
+	// NumReplicas returns the current number of replicas for this workload.
+	NumReplicas() (int32, error)
 
 	// PatchNumReplicas modifies the number of replicas for this workload.
 	PatchNumReplicas(num int32) error
