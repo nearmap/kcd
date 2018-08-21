@@ -91,46 +91,60 @@ func (s *Syncer) initialState() state.StateFunc {
 
 		kcd, err := s.resourceProvider.KCD(s.kcd.Namespace, s.kcd.Name)
 		if err != nil {
-			return state.Error(errors.Wrapf(err, "failed to get KCD instance with name %s", s.kcd.Name))
+			glog.Errorf("Syncer failed to obtain KCD resource with name %s: %v", s.kcd.Name, err)
+			return state.Error(errors.Wrapf(err, "failed to obtain KCD instance with name %s", s.kcd.Name))
 		}
+
+		// refresh kcd state
 		s.kcd = kcd
 
-		version, err := s.registry.Version(ctx, kcd.Spec.Tag)
+		version, err := s.registry.Version(ctx, s.kcd.Spec.Tag)
 		if err != nil {
+			glog.Errorf("Syncer failed to get version from registry, kcd=%s, tag=%s: %v", s.kcd.Name, kcd.Spec.Tag, err)
 			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get version from registry")
 			return state.Error(errors.Wrap(err, "failed to get version from registry"))
 		}
 
-		glog.V(4).Infof("Current registry version: %v", version)
-
-		workloads, err := s.workloadProvider.Workloads(kcd)
-		if err != nil {
-			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to obtain workloads for kcd resource")
-			return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
-		}
-		if len(workloads) == 0 {
-			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("No workloads found for kcd resource %s", kcd.Name))
-			return state.Error(errors.Wrapf(err, "no workloads found for kcd resource %s", kcd.Name))
+		if glog.V(4) {
+			glog.V(4).Infof("Got registry version for kcd=%s, tag=%s, version=%v", s.kcd.Name, kcd.Spec.Tag, version)
 		}
 
-		process, err := s.shouldProcess(kcd, version, workloads)
+		/*
+			workloads, err := s.workloadProvider.Workloads(kcd)
+			if err != nil {
+				s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to obtain workloads for kcd resource")
+				return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
+			}
+			if len(workloads) == 0 {
+				s.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("No workloads found for kcd resource %s", kcd.Name))
+				return state.Error(errors.Wrapf(err, "no workloads found for kcd resource %s", kcd.Name))
+			}
+		*/
+
+		deployer, err := deploy.New(s.workloadProvider, s.registryProvider, s.kcd, version)
 		if err != nil {
-			glog.Errorf("Failed to determine whether workloads should be processed for kcd=%s: %v", kcd.Name, err)
-			return state.Error(errors.Wrapf(err, "failed to determine whether workloads should be processed for kcd=%s", kcd.Name))
+			glog.Errorf("Failed to create deployer for kcd=%s: %v", s.kcd.Name, err)
+			return state.Error(errors.Wrap(err, "failed to create deployer"))
+		}
+
+		process, err := s.shouldProcess(deployer, s.kcd, version)
+		if err != nil {
+			glog.Errorf("Failed to determine whether workloads should be processed for kcd=%s: %v", s.kcd.Name, err)
+			return state.Error(errors.Wrapf(err, "failed to determine whether workloads should be processed for kcd=%s", s.kcd.Name))
 		}
 		if !process {
-			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", kcd.Name, version, kcd.Status)
+			glog.V(4).Infof("Not attempting %s rollout of version %s: %+v", s.kcd.Name, version, s.kcd.Status)
 			return state.None()
 		}
 
-		glog.V(4).Infof("Found %d workloads to update", len(workloads))
+		glog.V(4).Infof("Creating rollout state for kcd=%s", s.kcd.Name)
 
 		syncState := s.verify(version,
 			s.updateRolloutStatus(version, StatusProgressing,
-				s.deploy(version, workloads,
+				s.deploy(deployer,
 					s.successfulDeploymentStats(
 						s.syncVersionConfig(version,
-							s.addHistory(version, workloads,
+							s.addHistory(deployer, version,
 								s.updateRolloutStatus(version, StatusSuccess, nil)))))))
 
 		return state.Single(state.WithFailure(syncState, s.handleFailure(version)))
@@ -139,38 +153,37 @@ func (s *Syncer) initialState() state.StateFunc {
 
 // shouldProcess returns whether a rollout should be performed on the workloads defined
 // by the KCD resource.
-func (s *Syncer) shouldProcess(kcd *kcd1.KCD, version string, workloads []workload.Workload) (process bool, err error) {
-	if version != kcd.Status.CurrVersion || kcd.Status.CurrStatus == StatusProgressing {
+func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, version string) (bool, error) {
+	if version != kcd.Status.CurrVersion {
 		return true, nil
 	}
 
-	// if status is failed and at least one workload version doesn't equal the current or previous version then process.
-	if kcd.Status.CurrStatus == StatusFailed {
-		for _, wl := range workloads {
-			ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, kcd.Status.CurrVersion, kcd.Status.SuccessVersion)
-			if err != nil {
-				return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
-			}
-			if !ok {
-				return true, nil
-			}
-		}
+	// versions to compare workloads against. If at least one workload is not at one of the
+	// specified versions then we process the deployment.
+	var versions []string
+
+	switch kcd.Status.CurrStatus {
+	case StatusProgressing:
+		// always process when status is progressing.
+		return true, nil
+	case StatusFailed:
+		// for failed case we don't process when workloads are at current or previously successful versions
+		versions = []string{kcd.Status.CurrVersion, kcd.Status.SuccessVersion}
+	default:
+		// otherwise we process when workloads are not at current version
+		versions = []string{kcd.Status.CurrVersion}
 	}
 
-	// if status is success and at least one workload doesn't equal the current version then process.
-	if kcd.Status.CurrStatus == StatusSuccess {
-		for _, wl := range workloads {
-			ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, kcd.Status.CurrVersion)
-			if err != nil {
-				return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
-			}
-			if !ok {
-				return true, nil
-			}
+	for _, wl := range deployer.Workloads() {
+		ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, versions...)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
+		}
+		if !ok {
+			return true, nil
 		}
 	}
-
-	return process, nil
+	return false, nil
 }
 
 // handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
@@ -230,12 +243,11 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 
 // deploy the rollout target to the given version according to the deployment strategy
 // defined in the kcd definition.
-func (s *Syncer) deploy(version string, targets []deploy.RolloutTarget, next state.State) state.StateFunc {
+func (s *Syncer) deploy(deployer deploy.Deployer, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		glog.V(4).Info("creating new deployer state")
 
-		return state.Single(
-			deploy.NewDeployState(s.workloadProvider.Client(), s.registryProvider, s.workloadProvider.Namespace(), s.kcd, version, targets, next))
+		return state.Single(deployer.AsState(next))
 	}
 }
 
@@ -319,24 +331,14 @@ func newVersionConfig(namespace, name, key, version string) *corev1.ConfigMap {
 
 // addHistory adds the successful rollout of the targets to the given version to the
 // history provider.
-func (s *Syncer) addHistory(version string, targets []deploy.RolloutTarget, next state.State) state.StateFunc {
+func (s *Syncer) addHistory(deployer deploy.Deployer, version string, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		if !s.kcd.Spec.History.Enabled {
 			glog.V(4).Infof("Not adding version history for kcd=%s, version=%s", s.kcd.Name, version)
 			return state.Single(next)
 		}
 
-		for _, target := range targets {
-			// depending on the deployer, not all targets will have been updated to the current version.
-			if ok, err := workload.CheckPodSpecVersion(target.PodSpec(), s.kcd, version); err != nil {
-				glog.Error("failed to check pod spec version while adding history: %v", err)
-				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
-				continue
-			} else if !ok {
-				glog.V(4).Infof("target %s is not at expected version: not adding to history", target.Name())
-				continue
-			}
-
+		for _, target := range deployer.Workloads() {
 			// TODO: remove this spec field???
 			//name := s.kcd.Spec.History.Name
 			//if name == "" {

@@ -2,11 +2,12 @@ package deploy
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/registry"
 	"github.com/nearmap/kcd/state"
 	"github.com/nearmap/kcd/verify"
@@ -24,6 +25,17 @@ const (
 	KindServieBlueGreen = "ServiceBlueGreen"
 )
 
+// InvalidTargetError indicates that a blue green deployment failed because the target workloads
+// were not in a valid state.
+type InvalidTargetError struct {
+	message string
+}
+
+// Error implements the Error interface.
+func (ite *InvalidTargetError) Error() string {
+	return ite.message
+}
+
 // BlueGreenDeployer is a Deployer that implements the blue-green rollout strategy at
 // the service level.
 type BlueGreenDeployer struct {
@@ -35,34 +47,34 @@ type BlueGreenDeployer struct {
 
 	registryProvider registry.Provider
 
-	initializeError error
-
-	version string
-	targets []TemplateRolloutTarget
-	primary TemplateRolloutTarget
-	next    state.State
+	version   string
+	primary   TemplateRolloutTarget
+	secondary TemplateRolloutTarget
 }
 
 // NewBlueGreenDeployer returns a Deployer for performing blue-green rollouts.
-func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Provider, namespace string, kcd *kcd1.KCD,
-	version string, targets []RolloutTarget, next state.State) *BlueGreenDeployer {
+func NewBlueGreenDeployer(workloadProvider workload.Provider, registryProvider registry.Provider, kcd *kcd1.KCD,
+	version string) (*BlueGreenDeployer, error) {
 
-	var err error
-
-	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, kcd=%s, version=%s, targets=%v",
-		namespace, kcd.Name, version, len(targets))
+	glog.V(2).Infof("Creating BlueGreenDeployer: namespace=%s, kcd=%s, version=%s",
+		workloadProvider.Namespace(), kcd.Name, version)
 
 	if kcd.Spec.Strategy.BlueGreen == nil {
-		err = errors.Errorf("no blue-green spec provided for kcd resource %s", kcd.Name)
+		return nil, errors.Errorf("no blue-green spec provided for kcd resource %s", kcd.Name)
 	}
 	if kcd.Spec.Strategy.BlueGreen.ServiceName == "" {
-		err = errors.Errorf("no service defined for blue-green strategy in kcd resource %s", kcd.Name)
+		return nil, errors.Errorf("no service defined for blue-green strategy in kcd resource %s", kcd.Name)
 	}
 	if len(kcd.Spec.Strategy.BlueGreen.LabelNames) == 0 {
-		err = errors.Errorf("no label names defined for blue-green strategy in kcd resource %s", kcd.Name)
+		return nil, errors.Errorf("no label names defined for blue-green strategy in kcd resource %s", kcd.Name)
+	}
+
+	targets, err := workloadProvider.Workloads(kcd, workload.TypeDeployment)
+	if err != nil {
+		return nil, errors.Wrapf(err, "blue-green deployer failed to obtain workloads for kcd=%s", kcd.Name)
 	}
 	if len(targets) != 2 {
-		err = errors.Errorf("blue-green deployer for %s requires exactly 2 rollout targets, found %d", kcd.Name, len(targets))
+		return nil, errors.Errorf("blue-green deployer for %s requires exactly 2 rollout targets, found %d", kcd.Name, len(targets))
 	}
 
 	var tTargets []TemplateRolloutTarget
@@ -70,53 +82,55 @@ func NewBlueGreenDeployer(cs kubernetes.Interface, registryProvider registry.Pro
 		tTarget, ok := target.(TemplateRolloutTarget)
 		if !ok {
 			glog.Errorf("BlueGreen deployer for %s requires targets of type TemplateRolloutTarget", kcd.Name)
-			if err == nil {
-				err = errors.Errorf("blue-green deployer for %s requires targets of type TemplateRolloutTarget", kcd.Name)
+			return nil, &InvalidTargetError{
+				message: fmt.Sprintf("blue-green deployer for %s requires targets of type TemplateRolloutTarget", kcd.Name),
 			}
 		}
 		tTargets = append(tTargets, tTarget)
 	}
 
-	return &BlueGreenDeployer{
-		namespace:        namespace,
-		cs:               cs,
+	bgd := &BlueGreenDeployer{
+		cs:               workloadProvider.Client(),
+		namespace:        workloadProvider.Namespace(),
+		registryProvider: registryProvider,
 		kcd:              kcd,
 		blueGreen:        kcd.Spec.Strategy.BlueGreen,
-		registryProvider: registryProvider,
 		version:          version,
-		targets:          tTargets,
-		next:             next,
-		initializeError:  err,
 	}
+
+	service, err := bgd.getService(kcd.Spec.Strategy.BlueGreen.ServiceName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find service for kcd spec %s", kcd.Name)
+	}
+
+	bgd.primary, bgd.secondary, err = bgd.getBlueGreenTargets(service, tTargets)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return bgd, nil
 }
 
-// Do implements the State interface.
-func (bgd *BlueGreenDeployer) Do(ctx context.Context) (state.States, error) {
-	if bgd.initializeError != nil {
-		return state.Error(bgd.initializeError)
-	}
+// Workloads implements the Deployer interface.
+func (bgd *BlueGreenDeployer) Workloads() []workload.Workload {
+	return []workload.Workload{bgd.primary}
+}
 
-	glog.V(2).Infof("Beginning blue-green deployment for kcd=%s, version=%s, namespace=%s",
-		bgd.kcd.Name, bgd.version, bgd.namespace)
+// AsState implements the Deployer interface.
+func (bgd *BlueGreenDeployer) AsState(next state.State) state.State {
+	return state.StateFunc(func(ctx context.Context) (state.States, error) {
+		glog.V(2).Infof("Beginning blue-green deployment for kcd=%s, version=%s, namespace=%s",
+			bgd.kcd.Name, bgd.version, bgd.namespace)
 
-	service, err := bgd.getService(bgd.kcd.Spec.Strategy.BlueGreen.ServiceName)
-	if err != nil {
-		return state.Error(errors.Wrapf(err, "failed to find service for kcd spec %s", bgd.kcd.Name))
-	}
-
-	primary, secondary, err := bgd.getBlueGreenTargets(service)
-	if err != nil {
-		return state.Error(errors.WithStack(err))
-	}
-
-	return state.Single(
-		bgd.updateVersion(secondary,
-			bgd.updateVerificationServiceSelector(secondary,
-				bgd.ensureHasPods(secondary,
-					verify.NewVerifiers(bgd.cs, bgd.registryProvider, bgd.namespace, bgd.version, bgd.kcd.Spec.Strategy.Verify,
-						bgd.scaleUpSecondary(primary, secondary,
-							bgd.updateServiceSelector(bgd.blueGreen.ServiceName, secondary,
-								bgd.scaleDown(primary, bgd.next))))))))
+		return state.Single(
+			bgd.updateVersion(bgd.secondary,
+				bgd.updateVerificationServiceSelector(bgd.secondary,
+					bgd.ensureHasPods(bgd.secondary,
+						verify.NewVerifiers(bgd.cs, bgd.registryProvider, bgd.namespace, bgd.version, bgd.kcd.Spec.Strategy.Verify,
+							bgd.scaleUpSecondary(bgd.primary, bgd.secondary,
+								bgd.updateServiceSelector(bgd.blueGreen.ServiceName, bgd.secondary,
+									bgd.scaleDown(bgd.primary, next))))))))
+	})
 }
 
 // getService returns the service with the given name.
@@ -131,9 +145,11 @@ func (bgd *BlueGreenDeployer) getService(serviceName string) (*corev1.Service, e
 
 // getBlueGreenTargets returns the primary and secondary rollout targets based on whether
 // the live service (as specified) is currently selecting them.
-func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service) (primary, secondary TemplateRolloutTarget, err error) {
+func (bgd *BlueGreenDeployer) getBlueGreenTargets(service *corev1.Service,
+	targets []TemplateRolloutTarget) (primary, secondary TemplateRolloutTarget, err error) {
+
 	selector := labels.Set(service.Spec.Selector).AsSelector()
-	for _, target := range bgd.targets {
+	for _, target := range targets {
 		ptLabels := labels.Set(target.PodTemplateSpec().Labels)
 		if selector.Matches(ptLabels) {
 			if primary != nil {
@@ -278,7 +294,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 				}
 			}
 
-			ok, err := k8s.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
+			ok, err := workload.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
 			if err != nil {
 				glog.Errorf("Failed to check container version for target %s: %v", target.Name(), err)
 				return state.Error(errors.Wrapf(err, "failed to check container version for target %s", target.Name()))

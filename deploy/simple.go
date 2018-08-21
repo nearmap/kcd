@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/state"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -17,41 +18,55 @@ type SimpleDeployer struct {
 	kcd     *kcd1.KCD
 	version string
 	targets []RolloutTarget
-
-	next state.State
 }
 
 // NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
 // by patching the target's pod spec with a new version and using the default
 // Kubernetes deployment strategy for the workload.
-func NewSimpleDeployer(kcd *kcd1.KCD, version string, targets []RolloutTarget, next state.State) *SimpleDeployer {
-	glog.V(2).Infof("Creating SimpleDeployer: kcd=%s, version=%s, targets=%s", kcd.Name, version, len(targets))
+func NewSimpleDeployer(workloadProvider workload.Provider, kcd *kcd1.KCD, version string) (*SimpleDeployer, error) {
+	if glog.V(2) {
+		glog.V(2).Infof("Creating SimpleDeployer: kcd=%s, version=%s", kcd.Name, version)
+	}
+
+	workloads, err := workloadProvider.Workloads(kcd)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to obtain workloads for simple deployer")
+	}
+	if len(workloads) == 0 {
+		return nil, errors.New("simple deployer found no workloads found to process")
+	}
 
 	return &SimpleDeployer{
 		kcd:     kcd,
 		version: version,
-		targets: targets,
-		next:    next,
-	}
+		targets: workloads,
+	}, nil
 }
 
-// Do implements the state interface.
-func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
-	for _, target := range sd.targets {
-		glog.V(2).Infof("Performing simple deployment: target=%s, version=%s", target.Name(), sd.version)
+// Workloads implements the Deployer interface.
+func (sd *SimpleDeployer) Workloads() []workload.Workload {
+	return sd.targets
+}
 
-		err := sd.patchPodSpec(target, sd.version)
-		if err != nil {
-			return state.Error(errors.WithStack(err))
+// AsState implements the Deployer interface.
+func (sd *SimpleDeployer) AsState(next state.State) state.State {
+	return state.StateFunc(func(ctx context.Context) (state.States, error) {
+		for _, target := range sd.targets {
+			glog.V(2).Infof("Performing simple deployment: target=%s, version=%s", target.Name(), sd.version)
+
+			err := sd.patchPodSpec(target, sd.version)
+			if err != nil {
+				return state.Error(errors.WithStack(err))
+			}
 		}
-	}
 
-	if sd.kcd.Spec.Rollback.Enabled {
-		return state.Single(sd.checkRolloutState())
-	}
+		if sd.kcd.Spec.Rollback.Enabled {
+			return state.Single(sd.checkRolloutState(next))
+		}
 
-	glog.V(2).Infof("Not checking rollback state")
-	return state.Single(sd.next)
+		glog.V(2).Infof("Not checking rollback state")
+		return state.Single(next)
+	})
 }
 
 func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) error {
@@ -83,7 +98,7 @@ func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) err
 	return nil
 }
 
-func (sd *SimpleDeployer) checkRolloutState() state.StateFunc {
+func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		for _, target := range sd.targets {
 			glog.V(2).Infof("Checking rollout state: target=%s, version=%s", target.Name(), sd.version)
@@ -93,7 +108,7 @@ func (sd *SimpleDeployer) checkRolloutState() state.StateFunc {
 				return state.Error(errors.WithStack(err))
 			}
 			if ok == nil {
-				return state.After(time.Second*15, sd.checkRolloutState())
+				return state.After(time.Second*15, sd.checkRolloutState(next))
 			}
 			if *ok {
 				continue
@@ -103,7 +118,7 @@ func (sd *SimpleDeployer) checkRolloutState() state.StateFunc {
 		}
 
 		glog.V(1).Infof("All rollouts succeeded for kcd=%s, version=%s", sd.kcd.Name, sd.version)
-		return state.Single(sd.next)
+		return state.Single(next)
 	}
 }
 

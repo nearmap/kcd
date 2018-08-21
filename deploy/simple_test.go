@@ -8,10 +8,12 @@ import (
 	"github.com/nearmap/kcd/deploy"
 	"github.com/nearmap/kcd/deploy/fake"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	gofake "k8s.io/client-go/kubernetes/fake"
 )
 
 const (
@@ -19,6 +21,8 @@ const (
 )
 
 func TestSimpleDeploy(t *testing.T) {
+	cs := gofake.NewSimpleClientset()
+
 	kcd := &kcd1.KCD{
 		Spec: kcd1.KCDSpec{
 			Container: kcd1.ContainerSpec{
@@ -27,15 +31,34 @@ func TestSimpleDeploy(t *testing.T) {
 		},
 	}
 	version := "version-string"
-	target := fake.NewRolloutTarget()
-	targets := []deploy.RolloutTarget{target}
+	targets := []deploy.RolloutTarget{}
+	workloadProvider := workload.NewFakeProvider(cs, "test-namespace", targets)
 
-	target.FakePodSpec.Containers = []corev1.Container{}
-	_, err := deploy.NewSimpleDeployer(kcd, version, targets, nil).Do(context.Background())
+	_, err := deploy.NewSimpleDeployer(workloadProvider, kcd, version)
 	if err == nil {
-		t.Errorf("Expected error when podspec does not contain any containers")
+		t.Errorf("Expected error when no workloads provided")
 	}
 
+	/////
+
+	target := fake.NewRolloutTarget()
+	target.FakePodSpec.Containers = []corev1.Container{}
+
+	targets = []deploy.RolloutTarget{target}
+	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
+
+	sd, err := deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	if err != nil {
+		t.Errorf("Unexpected error creating NewSimpleDeployer")
+	}
+	_, err = sd.AsState(nil).Do(context.Background())
+	if err == nil {
+		t.Errorf("Expected error when PodSpec does not have a container with the expected container name.")
+	}
+
+	/////
+
+	target = fake.NewRolloutTarget()
 	target.FakePodSpec.Containers = []corev1.Container{
 		corev1.Container{
 			Name: containerName,
@@ -44,7 +67,14 @@ func TestSimpleDeploy(t *testing.T) {
 	pps := fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
 
-	_, err = deploy.NewSimpleDeployer(kcd, version, targets, nil).Do(context.Background())
+	targets = []deploy.RolloutTarget{target}
+	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
+
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	if err != nil {
+		t.Errorf("Unexpected error creating NewSimpleDeployer")
+	}
+	_, err = sd.AsState(nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
@@ -58,6 +88,9 @@ func TestSimpleDeploy(t *testing.T) {
 		t.Errorf("Expected received version to equal the provided version. Got %+v.", pps.Received.Version)
 	}
 
+	/////
+
+	target = fake.NewRolloutTarget()
 	target.FakePodSpec.Containers = []corev1.Container{
 		corev1.Container{
 			Name: "first-name",
@@ -71,9 +104,17 @@ func TestSimpleDeploy(t *testing.T) {
 	}
 	pps = fake.NewInvocationPatchPodSpec()
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(kcd, version, targets, nil).Do(context.Background())
+
+	targets = []deploy.RolloutTarget{target}
+	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
+
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
 	if err != nil {
-		t.Errorf("Expected no error when PodSpec contains a container with the correct container name. Got %v", err)
+		t.Errorf("Unexpected error creating NewSimpleDeployer")
+	}
+	_, err = sd.AsState(nil).Do(context.Background())
+	if err != nil {
+		t.Errorf("Unexpected error when PodSpec contains a container with the correct container name. Got %v", err)
 	}
 	if !reflect.DeepEqual(pps.Received.CV, kcd) {
 		t.Errorf("Expected received CV instance to equal the provided instance. Got %+v.", pps.Received.CV)
@@ -85,19 +126,33 @@ func TestSimpleDeploy(t *testing.T) {
 		t.Errorf("Expected received version to equal the provided version. Got %+v.", pps.Received.Version)
 	}
 
+	/////
+
 	pps = fake.NewInvocationPatchPodSpec()
 	pps.Error = errors.New("an error occurred")
 	target.Invocations <- pps
-	_, err = deploy.NewSimpleDeployer(kcd, version, targets, nil).Do(context.Background())
+
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	if err != nil {
+		t.Errorf("Unexpected error creating NewSimpleDeployer")
+	}
+	_, err = sd.AsState(nil).Do(context.Background())
 	if err == nil {
 		t.Errorf("Expected error when PatchPodSpec returns an error that is not a conflict")
 	}
+
+	/////
 
 	pps = fake.NewInvocationPatchPodSpec()
 	pps.Error = apimacherrors.NewConflict(schema.GroupResource{}, "", errors.New(""))
 	target.Invocations <- pps
 	target.Invocations <- fake.NewInvocationPatchPodSpec()
-	_, err = deploy.NewSimpleDeployer(kcd, version, targets, nil).Do(context.Background())
+
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	if err != nil {
+		t.Errorf("Unexpected error creating NewSimpleDeployer")
+	}
+	_, err = sd.AsState(nil).Do(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error when PatchPodSpec returns an error that IS conflict")
 	}
