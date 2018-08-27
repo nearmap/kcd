@@ -273,7 +273,6 @@ func (bgd *BlueGreenDeployer) ensureHasPods(target TemplateRolloutTarget, next s
 
 // waitForAllPods checks that all pods tied to the given TemplateDeploySpec are at the specified
 // version, and starts polling if not the case.
-// Returns an error if a timeout value is reached.
 func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		ok, err := bgd.checkPods(target, 1)
