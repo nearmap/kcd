@@ -167,7 +167,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: kcd
+  name: kcd-svc
   namespace: "kube-system"
   labels:
     app: kcd

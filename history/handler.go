@@ -11,7 +11,6 @@ import (
 // as performed by kcd
 func NewHandler(provider Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		name := pat.Param(r, "name")
 		ns := r.URL.Query().Get("namespace")
 		if ns == "" {

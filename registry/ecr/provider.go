@@ -130,7 +130,7 @@ func (ep *Provider) Version(ctx context.Context, tag string) (string, error) {
 
 	currentVersion := ep.currentVersion(img)
 	if currentVersion == "" {
-		ep.stats.IncCount(fmt.Sprintf("registry.%s.sync.failure", ep.repoName), "badsha")
+		ep.stats.IncCount("registry.failure", ep.repoName)
 		return "", errors.Errorf("No version found for tag %s", tag)
 	}
 
@@ -155,7 +155,7 @@ func (ep *Provider) Add(version string, tags ...string) error {
 
 		getRes, err := ep.ecr.BatchGetImage(getReq)
 		if err != nil {
-			ep.stats.IncCount(fmt.Sprintf("registry.batchget.%s.failure", ep.repoName))
+			ep.stats.IncCount("registry.failure", ep.repoName)
 			return errors.Wrap(err, fmt.Sprintf("failed to get images of tag %s", tag))
 		}
 
@@ -175,7 +175,7 @@ func (ep *Provider) Add(version string, tags ...string) error {
 						continue
 					}
 				}
-				ep.stats.IncCount(fmt.Sprintf("registry.putimage.%s.failure", ep.repoName))
+				ep.stats.IncCount("registry.failure", ep.repoName)
 				return errors.Wrap(err, fmt.Sprintf("failed to add tag %s to image manifest %s",
 					tag, aws.StringValue(img.ImageManifest)))
 			}
@@ -199,7 +199,7 @@ func (ep *Provider) Remove(tags ...string) error {
 
 		getRes, err := ep.ecr.BatchGetImage(getReq)
 		if err != nil {
-			ep.stats.IncCount(fmt.Sprintf("registry.batchget.%s.failure", ep.repoName))
+			ep.stats.IncCount("registry.failure", ep.repoName)
 			return errors.Wrap(err, fmt.Sprintf("failed to get images of tag %s", tag))
 		}
 
@@ -218,7 +218,7 @@ func (ep *Provider) Remove(tags ...string) error {
 
 			_, err = ep.ecr.BatchDeleteImage(delReq)
 			if err != nil {
-				ep.stats.IncCount(fmt.Sprintf("registry.batchdelete.%s.failure", ep.repoName))
+				ep.stats.IncCount("registry.failure", ep.repoName)
 				return errors.Wrap(err, fmt.Sprintf("failed to perform batch delete image by tag %s and digest %s",
 					tag, aws.StringValue(img.ImageId.ImageDigest)))
 			}
@@ -241,7 +241,7 @@ func (ep *Provider) Get(version string) ([]string, error) {
 
 	getRes, err := ep.ecr.DescribeImages(getReq)
 	if err != nil {
-		ep.stats.IncCount(fmt.Sprintf("ecr.descimg.%s.failure", ep.repoName))
+		ep.stats.IncCount("registry.failure", ep.repoName)
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to get images of tag %s", version))
 	}
 

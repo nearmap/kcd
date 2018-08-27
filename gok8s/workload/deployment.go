@@ -1,4 +1,4 @@
-package k8s
+package workload
 
 import (
 	"fmt"
@@ -200,8 +200,13 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 }
 
 // NumReplicas implements the TemplateWorkload interface.
-func (d *Deployment) NumReplicas() int32 {
-	return d.deployment.Status.Replicas
+func (d *Deployment) NumReplicas() (int32, error) {
+	dep, err := d.client.Get(d.deployment.Name, metav1.GetOptions{})
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to get current deployment for %s", d.deployment.Name)
+	}
+
+	return dep.Status.Replicas, nil
 }
 
 const deploymentReplicaSetPatchJSON = `
@@ -218,25 +223,5 @@ func (d *Deployment) PatchNumReplicas(num int32) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec replicas for deployment %s", d.deployment.Name)
 	}
-	return nil
-}
-
-// AsResource implements the Workload interface.
-func (d *Deployment) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range d.deployment.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace:     kcd.Namespace,
-				Name:          d.deployment.Name,
-				Type:          TypeDeployment,
-				Container:     c.Name,
-				Version:       version(c.Image),
-				AvailablePods: d.deployment.Status.AvailableReplicas,
-				CV:            kcd.Name,
-				Tag:           kcd.Spec.Tag,
-			}
-		}
-	}
-
 	return nil
 }

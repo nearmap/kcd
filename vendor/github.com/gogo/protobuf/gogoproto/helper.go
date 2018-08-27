@@ -334,6 +334,9 @@ func HasExtensionsMap(file *google_protobuf.FileDescriptorProto, message *google
 }
 
 func HasUnrecognized(file *google_protobuf.FileDescriptorProto, message *google_protobuf.DescriptorProto) bool {
+	if IsProto3(file) {
+		return false
+	}
 	return proto.GetBoolExtension(message.Options, E_GoprotoUnrecognized, proto.GetBoolExtension(file.Options, E_GoprotoUnrecognizedAll, true))
 }
 

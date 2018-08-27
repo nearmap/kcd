@@ -12,14 +12,14 @@ import (
 	"github.com/nearmap/kcd/events"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	informer "github.com/nearmap/kcd/gok8s/client/informers/externalversions"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/handler"
 	"github.com/nearmap/kcd/history"
+	"github.com/nearmap/kcd/resource"
 	svc "github.com/nearmap/kcd/service"
 	"github.com/nearmap/kcd/signals"
 	"github.com/nearmap/kcd/stats"
 	"github.com/nearmap/kcd/stats/datadog"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apiserver/pkg/server/options"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -42,7 +43,6 @@ func main() {
 // withExitCode executes as the main method but returns the status code
 // that will be returned to the operating system. This is done to ensure
 // all deferred functions are completed before calling os.Exit().
-
 func withExitCode() (code int) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -119,7 +119,7 @@ func newRunCommand() *cobra.Command {
 	var params runParams
 	rc := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the kcd controoler service",
+		Short: "Runs the kcd controller service",
 		Long:  fmt.Sprintf(`Runs the service as a HTTP server`),
 	}
 
@@ -128,7 +128,6 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.kcdImgRepo, "kcd-img-repo", "nearmap/kcd", "Name of the docker registry to used be controller. defaults to nearmap/kcd")
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
-
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
 	(&params.stats).addFlags(rc)
 
@@ -197,8 +196,14 @@ func newRunCommand() *cobra.Command {
 		stats.ServiceCheck("kcd.exec", "", scStatus, time.Now())
 
 		recorder := events.PodEventRecorder(k8sClient, "")
-		k8sProvider := k8s.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
+		workloadProvider := workload.NewProvider(k8sClient, customClient, "", conf.WithStats(stats), conf.WithRecorder(recorder))
 		historyProvider := history.NewProvider(k8sClient, stats)
+		resourceProvider := resource.NewK8sProvider("", customClient, workloadProvider)
+
+		authOptions := options.NewDelegatingAuthenticationOptions()
+		if params.k8sConfig != "" {
+			authOptions.RemoteKubeConfigFile = params.k8sConfig
+		}
 
 		go func() {
 			if err = kcdc.Run(2, stopCh); err != nil {
@@ -206,7 +211,10 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		handler.NewServer(params.port, Version, k8sProvider, historyProvider, stopCh)
+		err = handler.NewServer(params.port, Version, resourceProvider, historyProvider, authOptions, stopCh)
+		if err != nil {
+			return errors.Wrap(err, "failed to start new server")
+		}
 
 		return nil
 	}

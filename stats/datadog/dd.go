@@ -4,6 +4,7 @@ package datadog
 import (
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,11 @@ func New(address, namespace string, tags ...string) (*DataDogStats, error) {
 		return &DataDogStats{}, fmt.Errorf("no address provided for stats")
 	}
 	address = addDefaultPort(address)
+
+	if !strings.HasSuffix(namespace, ".") {
+		namespace = namespace + "."
+	}
+
 	glog.V(1).Infof("Sending stats to %s with namespace %s", address, namespace)
 
 	client, err := statsd.NewBuffered(address, 1432)

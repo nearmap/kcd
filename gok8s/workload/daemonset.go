@@ -1,4 +1,4 @@
-package k8s
+package workload
 
 import (
 	"fmt"
@@ -82,24 +82,5 @@ func (ds *DaemonSet) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, ver
 	if err != nil {
 		return errors.Wrapf(err, "failed to patch pod template spec container for DaemonSet %s", ds.daemonSet.Name)
 	}
-	return nil
-}
-
-// AsResource implements the Workload interface.
-func (ds *DaemonSet) AsResource(kcd *kcd1.KCD) *Resource {
-	for _, c := range ds.daemonSet.Spec.Template.Spec.Containers {
-		if kcd.Spec.Container.Name == c.Name {
-			return &Resource{
-				Namespace: kcd.Namespace,
-				Name:      ds.daemonSet.Name,
-				Type:      TypeDaemonSet,
-				Container: c.Name,
-				Version:   version(c.Image),
-				CV:        kcd.Name,
-				Tag:       kcd.Spec.Tag,
-			}
-		}
-	}
-
 	return nil
 }
