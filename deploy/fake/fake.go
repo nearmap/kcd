@@ -7,7 +7,6 @@ import (
 
 	"github.com/nearmap/kcd/deploy"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -67,10 +66,6 @@ func (rt *RolloutTarget) Type() string {
 // PodSpec implements the RolloutTarget interface.
 func (rt *RolloutTarget) PodSpec() corev1.PodSpec {
 	return rt.FakePodSpec
-}
-
-func (rt *RolloutTarget) AsResource(kcd *kcd1.KCD) *k8s.Resource {
-	return nil
 }
 
 // ReceivedPatchPodSpec represents the received parameters of an invocation of the
@@ -190,8 +185,8 @@ func (trt *TemplateRolloutTarget) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod
 }
 
 // NumReplicas implements the TemplateRolloutTarget interface.
-func (trt *TemplateRolloutTarget) NumReplicas() int32 {
-	return trt.FakeNumReplicas
+func (trt *TemplateRolloutTarget) NumReplicas() (int32, error) {
+	return trt.FakeNumReplicas, nil
 }
 
 // ReceivedPatchNumReplicas represents the received values for a PatchNumReplicas invocation.

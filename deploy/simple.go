@@ -2,11 +2,11 @@ package deploy
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	"github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/state"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -17,38 +17,68 @@ import (
 type SimpleDeployer struct {
 	kcd     *kcd1.KCD
 	version string
-	target  RolloutTarget
-
-	next state.State
+	targets []RolloutTarget
 }
 
 // NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
 // by patching the target's pod spec with a new version and using the default
 // Kubernetes deployment strategy for the workload.
-func NewSimpleDeployer(kcd *kcd1.KCD, version string, target RolloutTarget, next state.State) *SimpleDeployer {
-	glog.V(2).Infof("Creating SimpleDeployer: kcd=%s, version=%s, target=%s", kcd.Name, version, target.Name())
+func NewSimpleDeployer(workloadProvider workload.Provider, kcd *kcd1.KCD, version string) (*SimpleDeployer, error) {
+	if glog.V(2) {
+		glog.V(2).Infof("Creating SimpleDeployer: kcd=%s, version=%s", kcd.Name, version)
+	}
+
+	workloads, err := workloadProvider.Workloads(kcd)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to obtain workloads for simple deployer")
+	}
+	if len(workloads) == 0 {
+		return nil, errors.New("simple deployer found no workloads found to process")
+	}
 
 	return &SimpleDeployer{
 		kcd:     kcd,
 		version: version,
-		target:  target,
-		next:    next,
-	}
+		targets: workloads,
+	}, nil
 }
 
-// Do implements the state interface.
-func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
-	glog.V(2).Infof("Performing simple deployment: target=%s, version=%s", sd.target.Name(), sd.version)
+// Workloads implements the Deployer interface.
+func (sd *SimpleDeployer) Workloads() []workload.Workload {
+	return sd.targets
+}
 
+// AsState implements the Deployer interface.
+func (sd *SimpleDeployer) AsState(next state.State) state.State {
+	return state.StateFunc(func(ctx context.Context) (state.States, error) {
+		for _, target := range sd.targets {
+			glog.V(2).Infof("Performing simple deployment: target=%s, version=%s", target.Name(), sd.version)
+
+			err := sd.patchPodSpec(target, sd.version)
+			if err != nil {
+				return state.Error(errors.WithStack(err))
+			}
+		}
+
+		if sd.kcd.Spec.Rollback.Enabled {
+			return state.Single(sd.checkRolloutState(next))
+		}
+
+		glog.V(2).Infof("Not checking rollback state")
+		return state.Single(next)
+	})
+}
+
+func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) error {
 	var container *v1.Container
-	podSpec := sd.target.PodSpec()
+	podSpec := target.PodSpec()
 
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, c := range podSpec.Containers {
 			if c.Name == sd.kcd.Spec.Container.Name {
-				if updateErr := sd.target.PatchPodSpec(sd.kcd, c, sd.version); updateErr != nil {
+				if updateErr := target.PatchPodSpec(sd.kcd, c, version); updateErr != nil {
 					glog.V(2).Infof("Failed to update container version: version=%v, target=%v, error=%v",
-						sd.version, sd.target.Name(), updateErr)
+						version, target.Name(), updateErr)
 					return updateErr
 				}
 				container = &c
@@ -58,57 +88,85 @@ func (sd *SimpleDeployer) Do(ctx context.Context) (state.States, error) {
 	})
 	if err == nil && container == nil {
 		err = errors.Errorf("container with name %s not found in PodSpec for target %s",
-			sd.kcd.Spec.Container, sd.target.Name())
+			sd.kcd.Spec.Container, target.Name())
 	}
 	if err != nil {
-		glog.V(2).Infof("Failed to rollout: target=%s, version=%s, error=%v", sd.target.Name(), sd.version, err)
-		return state.Error(err)
+		glog.V(2).Infof("Failed to rollout: target=%s, version=%s, error=%v", target.Name(), sd.version, err)
+		return errors.Wrapf(err, "failed to roll out target=%s, version=%s", target.Name(), sd.version)
 	}
 
-	if sd.kcd.Spec.Rollback.Enabled {
-		return state.Single(sd.checkRollbackState(container, sd.next))
-	}
-
-	glog.V(2).Infof("Not checking rollback state")
-	return state.Single(sd.next)
+	return nil
 }
 
-func (sd *SimpleDeployer) checkRollbackState(container *v1.Container, next state.State) state.StateFunc {
+func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
-		if sd.target.RollbackAfter() == nil {
-			glog.V(2).Infof("Target %s does not define a progress deadline.", sd.target.Name())
-			return state.Single(next)
-		}
+		for _, target := range sd.targets {
+			glog.V(2).Infof("Checking rollout state: target=%s, version=%s", target.Name(), sd.version)
 
-		healthy, err := sd.target.ProgressHealth(sd.kcd.Status.CurrStatusTime.Time)
-		if err != nil {
-			return state.Error(errors.Wrapf(err, "failed to check progress health for %s", sd.target.Name()))
-		}
-		if healthy == nil {
-			glog.V(4).Infof("Waiting for healthy state of target %s", sd.target.Name())
-			return state.After(time.Second*15, sd.checkRollbackState(container, next))
-		}
-
-		if *healthy == true {
-			glog.V(2).Info("Target is healthy")
-			return state.Single(next)
-		}
-
-		// rollback
-		prevVersion := strings.SplitAfterN(container.Image, ":", 2)[1]
-		glog.V(1).Infof("Rolling back target %s", sd.target.Name())
-		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			if rbErr := sd.target.PatchPodSpec(sd.kcd, *container, prevVersion); rbErr != nil {
-				glog.V(2).Infof("Failed to rollback container version (will retry):	from version=%s, to version=%s, target=%s, error=%v",
-					sd.version, prevVersion, sd.target.Name(), rbErr)
-				return rbErr
+			ok, err := sd.checkRollout(target)
+			if err != nil {
+				return state.Error(errors.WithStack(err))
 			}
-			return nil
-		})
+			if ok == nil {
+				return state.After(time.Second*15, sd.checkRolloutState(next))
+			}
+			if *ok {
+				continue
+			}
+
+			return state.Single(sd.performRollbackState())
+		}
+
+		glog.V(1).Infof("All rollouts succeeded for kcd=%s, version=%s", sd.kcd.Name, sd.version)
+		return state.Single(next)
+	}
+}
+
+// checkRollout determines whether the rollout of the target has completed successfully,
+// or needs to be rolled back.
+// Returns nil if the rollout is still progressing.
+// Returns true if the target doesn't be checked or has been successfully rolled out.
+// Returns false if the rollout faied and the workload needs to be rolled back.
+func (sd *SimpleDeployer) checkRollout(target RolloutTarget) (ok *bool, err error) {
+	if target.RollbackAfter() == nil {
+		glog.V(2).Infof("Cannot check for rollback: target %s does not define a progress deadline.", target.Name())
+		*ok = true
+		return ok, nil
+	}
+
+	ok, err = target.ProgressHealth(sd.kcd.Status.CurrStatusTime.Time)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to check progress health for %s", target.Name())
+	}
+	if ok == nil {
+		glog.V(4).Infof("Waiting for rollout state of target %s", target.Name())
+	} else if *ok {
+		glog.V(1).Info("Target rollout succeeded, target=%s", target.Name())
+	} else {
+		glog.V(1).Infof("Target rollout failed, target=%s", target.Name())
+	}
+
+	return ok, nil
+}
+
+func (sd *SimpleDeployer) performRollbackState() state.StateFunc {
+	return func(ctx context.Context) (state.States, error) {
+		prevVersion := sd.kcd.Status.SuccessVersion
+
+		var err error
+		for _, target := range sd.targets {
+			glog.V(2).Infof("Performing rollback: target=%s, version=%s", target.Name(), prevVersion)
+
+			err = sd.patchPodSpec(target, prevVersion)
+			if err != nil {
+				err = errors.Wrapf(err, "failed to pathc podspec while rolling back target=%s, version=%s", target.Name(), prevVersion)
+				glog.Errorf("failed to patch pod spec during rollback: %v", err)
+			}
+		}
 		if err != nil {
 			return state.Error(err)
 		}
 
-		return state.Error(state.NewFailed("deployment failed healthy state check and was rolled back"))
+		return state.Error(state.NewFailed("deployment failed health state check and was rolled back"))
 	}
 }

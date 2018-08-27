@@ -1,4 +1,4 @@
-package k8s
+package workload
 
 import (
 	"fmt"
@@ -200,8 +200,13 @@ func (d *Deployment) replicaSetForName(name string) (*appsv1.ReplicaSet, error) 
 }
 
 // NumReplicas implements the TemplateWorkload interface.
-func (d *Deployment) NumReplicas() int32 {
-	return d.deployment.Status.Replicas
+func (d *Deployment) NumReplicas() (int32, error) {
+	dep, err := d.client.Get(d.deployment.Name, metav1.GetOptions{})
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to get current deployment for %s", d.deployment.Name)
+	}
+
+	return dep.Status.Replicas, nil
 }
 
 const deploymentReplicaSetPatchJSON = `

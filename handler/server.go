@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
 	"github.com/nearmap/kcd/history"
+	"github.com/nearmap/kcd/resource"
 	svc "github.com/nearmap/kcd/service"
 	"github.com/pkg/errors"
 	goji "goji.io"
@@ -32,7 +32,7 @@ func StaticContentHandler(content string) http.HandlerFunc {
 
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
-func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvider history.Provider,
+func NewServer(port int, version string, resourceProvider resource.Provider, historyProvider history.Provider,
 	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}) error {
 
 	//authOptions := options.NewDelegatingAuthenticationOptions()
@@ -64,8 +64,10 @@ func NewServer(port int, version string, k8sProvider *k8s.Provider, historyProvi
 
 	kcdmux.Use(accessTokenQueryParam)
 	kcdmux.Use(auth(authenticator, authorizer))
-	kcdmux.Handle(pat.Get("/v1/resources"), svc.NewCVHandler(k8sProvider))
-	kcdmux.Handle(pat.Get("/v1/resource/:name"), history.NewHandler(historyProvider))
+	kcdmux.Handle(pat.Get("/v1/resources"), svc.NewAllResourceHandler(resourceProvider))
+	kcdmux.Handle(pat.Get("/v1/namespaces/:namespace/resources"), svc.NewResourceHandler(resourceProvider))
+	kcdmux.Handle(pat.Post("/v1/namespaces/:namespace/resources/:name"), svc.NewResourceUpdateHandler(resourceProvider))
+	kcdmux.Handle(pat.Get("/v1/history/:name"), history.NewHandler(historyProvider))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
