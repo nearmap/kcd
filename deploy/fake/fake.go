@@ -185,8 +185,8 @@ func (trt *TemplateRolloutTarget) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod
 }
 
 // NumReplicas implements the TemplateRolloutTarget interface.
-func (trt *TemplateRolloutTarget) NumReplicas() int32 {
-	return trt.FakeNumReplicas
+func (trt *TemplateRolloutTarget) NumReplicas() (int32, error) {
+	return trt.FakeNumReplicas, nil
 }
 
 // ReceivedPatchNumReplicas represents the received values for a PatchNumReplicas invocation.

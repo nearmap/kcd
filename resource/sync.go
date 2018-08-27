@@ -95,7 +95,7 @@ func (s *Syncer) initialState() state.StateFunc {
 			return state.Error(errors.Wrapf(err, "failed to obtain KCD instance with name %s", s.kcd.Name))
 		}
 
-		// refresh kcd state
+		// refresh kcd resource state
 		s.kcd = kcd
 
 		version, err := s.registry.Version(ctx, s.kcd.Spec.Tag)
@@ -108,18 +108,6 @@ func (s *Syncer) initialState() state.StateFunc {
 		if glog.V(4) {
 			glog.V(4).Infof("Got registry version for kcd=%s, tag=%s, version=%v", s.kcd.Name, kcd.Spec.Tag, version)
 		}
-
-		/*
-			workloads, err := s.workloadProvider.Workloads(kcd)
-			if err != nil {
-				s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to obtain workloads for kcd resource")
-				return state.Error(errors.Wrapf(err, "failed to obtain workloads for kcd resource %s", kcd.Name))
-			}
-			if len(workloads) == 0 {
-				s.options.Recorder.Event(events.Warning, "KCDSyncFailed", fmt.Sprintf("No workloads found for kcd resource %s", kcd.Name))
-				return state.Error(errors.Wrapf(err, "no workloads found for kcd resource %s", kcd.Name))
-			}
-		*/
 
 		deployer, err := deploy.New(s.workloadProvider, s.registryProvider, s.kcd, version)
 		if err != nil {
@@ -154,28 +142,25 @@ func (s *Syncer) initialState() state.StateFunc {
 // shouldProcess returns whether a rollout should be performed on the workloads defined
 // by the KCD resource.
 func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, version string) (bool, error) {
+	// if version changes then always process
 	if version != kcd.Status.CurrVersion {
 		return true, nil
 	}
 
-	// versions to compare workloads against. If at least one workload is not at one of the
-	// specified versions then we process the deployment.
-	var versions []string
-
-	switch kcd.Status.CurrStatus {
-	case StatusProgressing:
-		// always process when status is progressing.
+	// if progressing then always process
+	if kcd.Status.CurrStatus == StatusProgressing {
 		return true, nil
-	case StatusFailed:
-		// for failed case we don't process when workloads are at current or previously successful versions
-		versions = []string{kcd.Status.CurrVersion, kcd.Status.SuccessVersion}
-	default:
-		// otherwise we process when workloads are not at current version
-		versions = []string{kcd.Status.CurrVersion}
 	}
 
+	// don't attempt to rollout a failed state (since this may keep looping)
+	if kcd.Status.CurrStatus == StatusFailed {
+		return false, nil
+	}
+
+	// for a success state, check that the workload versions are as expected (in case specs were changed
+	// behind our backs).
 	for _, wl := range deployer.Workloads() {
-		ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, versions...)
+		ok, err := workload.CheckPodSpecVersion(wl.PodSpec(), kcd, kcd.Status.CurrVersion)
 		if err != nil {
 			return false, errors.Wrapf(err, "failed to check pod spec version for kcd=%v, wlname=%v", kcd.Name, wl.Name())
 		}
@@ -183,6 +168,8 @@ func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, version 
 			return true, nil
 		}
 	}
+
+	// everything is up to date
 	return false, nil
 }
 
