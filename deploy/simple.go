@@ -7,14 +7,22 @@ import (
 	"github.com/golang/glog"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/registry"
 	"github.com/nearmap/kcd/state"
+	"github.com/nearmap/kcd/verify"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
 
 // SimpleDeployer implements a rollout strategy by patching the target's pod spec with a new version.
 type SimpleDeployer struct {
+	cs        kubernetes.Interface
+	namespace string
+
+	registryProvider registry.Provider
+
 	kcd     *kcd1.KCD
 	version string
 	targets []RolloutTarget
@@ -23,7 +31,9 @@ type SimpleDeployer struct {
 // NewSimpleDeployer returns a new SimpleDeployer instance, which triggers rollouts
 // by patching the target's pod spec with a new version and using the default
 // Kubernetes deployment strategy for the workload.
-func NewSimpleDeployer(workloadProvider workload.Provider, kcd *kcd1.KCD, version string) (*SimpleDeployer, error) {
+func NewSimpleDeployer(workloadProvider workload.Provider, registryProvider registry.Provider,
+	kcd *kcd1.KCD, version string) (*SimpleDeployer, error) {
+
 	if glog.V(2) {
 		glog.V(2).Infof("Creating SimpleDeployer: kcd=%s, version=%s", kcd.Name, version)
 	}
@@ -37,9 +47,12 @@ func NewSimpleDeployer(workloadProvider workload.Provider, kcd *kcd1.KCD, versio
 	}
 
 	return &SimpleDeployer{
-		kcd:     kcd,
-		version: version,
-		targets: workloads,
+		cs:               workloadProvider.Client(),
+		namespace:        workloadProvider.Namespace(),
+		registryProvider: registryProvider,
+		kcd:              kcd,
+		version:          version,
+		targets:          workloads,
 	}, nil
 }
 
@@ -60,15 +73,14 @@ func (sd *SimpleDeployer) AsState(next state.State) state.State {
 			}
 		}
 
-		if sd.kcd.Spec.Rollback.Enabled {
-			return state.Single(sd.checkRolloutState(next))
-		}
-
-		glog.V(2).Infof("Not checking rollback state")
-		return state.Single(next)
+		return state.Single(
+			sd.checkRolloutState(
+				verify.NewVerifiers(sd.cs, sd.registryProvider, sd.namespace, sd.version, sd.kcd.Spec.Strategy.Verify,
+					next)))
 	})
 }
 
+// patchPodSpec patches the rollout target's pod spec with the given version.
 func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) error {
 	var container *v1.Container
 	podSpec := target.PodSpec()
@@ -98,10 +110,15 @@ func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) err
 	return nil
 }
 
+// checkRolloutState checks whether the state of each target workload successfully deploys,
+// initiating a rollback if not and the kcd spec indicates that rollback is enabled.
+// If rollback is not enabled then the deployment goes into a failed state.
 func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		for _, target := range sd.targets {
-			glog.V(2).Infof("Checking rollout state: target=%s, version=%s", target.Name(), sd.version)
+			if glog.V(2) {
+				glog.V(2).Infof("Checking rollout state: target=%s, version=%s", target.Name(), sd.version)
+			}
 
 			ok, err := sd.checkRollout(target)
 			if err != nil {
@@ -114,7 +131,7 @@ func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 				continue
 			}
 
-			return state.Single(sd.performRollbackState())
+			return state.Error(state.NewFailed("Rollout state was not ok for target=%s, version=%s", target.Name(), sd.version))
 		}
 
 		glog.V(1).Infof("All rollouts succeeded for kcd=%s, version=%s", sd.kcd.Name, sd.version)
@@ -149,24 +166,28 @@ func (sd *SimpleDeployer) checkRollout(target RolloutTarget) (ok *bool, err erro
 	return ok, nil
 }
 
-func (sd *SimpleDeployer) performRollbackState() state.StateFunc {
-	return func(ctx context.Context) (state.States, error) {
-		prevVersion := sd.kcd.Status.SuccessVersion
-
-		var err error
+// Rollback rolls the version of the workload back to its previous state.
+func (sd *SimpleDeployer) Rollback(prevVersion string, next state.State) state.State {
+	return state.StateFunc(func(ctx context.Context) (state.States, error) {
+		var firstErr error
 		for _, target := range sd.targets {
 			glog.V(2).Infof("Performing rollback: target=%s, version=%s", target.Name(), prevVersion)
 
-			err = sd.patchPodSpec(target, prevVersion)
+			err := sd.patchPodSpec(target, prevVersion)
 			if err != nil {
-				err = errors.Wrapf(err, "failed to pathc podspec while rolling back target=%s, version=%s", target.Name(), prevVersion)
+				err = errors.Wrapf(err, "failed to patch podspec while rolling back target=%s, version=%s", target.Name(), prevVersion)
 				glog.Errorf("failed to patch pod spec during rollback: %v", err)
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		}
-		if err != nil {
-			return state.Error(err)
+
+		if firstErr != nil {
+			glog.Error("Failed to rollback at least one workload: %v", firstErr)
+			return state.Error(firstErr)
 		}
 
-		return state.Error(state.NewFailed("deployment failed health state check and was rolled back"))
-	}
+		return state.Single(next)
+	})
 }

@@ -38,7 +38,7 @@ type KCDInformer interface {
 	Lister() v1.KCDLister
 }
 
-type containerVersionInformer struct {
+type kCDInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
@@ -76,14 +76,14 @@ func NewFilteredKCDInformer(client versioned.Interface, namespace string, resync
 	)
 }
 
-func (f *containerVersionInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+func (f *kCDInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
 	return NewFilteredKCDInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *containerVersionInformer) Informer() cache.SharedIndexInformer {
+func (f *kCDInformer) Informer() cache.SharedIndexInformer {
 	return f.factory.InformerFor(&custom_v1.KCD{}, f.defaultInformer)
 }
 
-func (f *containerVersionInformer) Lister() v1.KCDLister {
+func (f *kCDInformer) Lister() v1.KCDLister {
 	return v1.NewKCDLister(f.Informer().GetIndexer())
 }

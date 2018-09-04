@@ -41,5 +41,5 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // KCDs returns a KCDInformer.
 func (v *version) KCDs() KCDInformer {
-	return &containerVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &kCDInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

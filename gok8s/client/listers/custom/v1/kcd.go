@@ -34,18 +34,18 @@ type KCDLister interface {
 	KCDListerExpansion
 }
 
-// containerVersionLister implements the KCDLister interface.
-type containerVersionLister struct {
+// kCDLister implements the KCDLister interface.
+type kCDLister struct {
 	indexer cache.Indexer
 }
 
 // NewKCDLister returns a new KCDLister.
 func NewKCDLister(indexer cache.Indexer) KCDLister {
-	return &containerVersionLister{indexer: indexer}
+	return &kCDLister{indexer: indexer}
 }
 
 // List lists all KCDs in the indexer.
-func (s *containerVersionLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
+func (s *kCDLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.KCD))
 	})
@@ -53,8 +53,8 @@ func (s *containerVersionLister) List(selector labels.Selector) (ret []*v1.KCD, 
 }
 
 // KCDs returns an object that can list and get KCDs.
-func (s *containerVersionLister) KCDs(namespace string) KCDNamespaceLister {
-	return containerVersionNamespaceLister{indexer: s.indexer, namespace: namespace}
+func (s *kCDLister) KCDs(namespace string) KCDNamespaceLister {
+	return kCDNamespaceLister{indexer: s.indexer, namespace: namespace}
 }
 
 // KCDNamespaceLister helps list and get KCDs.
@@ -66,15 +66,15 @@ type KCDNamespaceLister interface {
 	KCDNamespaceListerExpansion
 }
 
-// containerVersionNamespaceLister implements the KCDNamespaceLister
+// kCDNamespaceLister implements the KCDNamespaceLister
 // interface.
-type containerVersionNamespaceLister struct {
+type kCDNamespaceLister struct {
 	indexer   cache.Indexer
 	namespace string
 }
 
 // List lists all KCDs in the indexer for a given namespace.
-func (s containerVersionNamespaceLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
+func (s kCDNamespaceLister) List(selector labels.Selector) (ret []*v1.KCD, err error) {
 	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.KCD))
 	})
@@ -82,7 +82,7 @@ func (s containerVersionNamespaceLister) List(selector labels.Selector) (ret []*
 }
 
 // Get retrieves the KCD from the indexer for a given namespace and name.
-func (s containerVersionNamespaceLister) Get(name string) (*v1.KCD, error) {
+func (s kCDNamespaceLister) Get(name string) (*v1.KCD, error) {
 	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err

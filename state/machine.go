@@ -57,7 +57,8 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 	}
 }
 
-// group tracks a collection of related ops.
+// group tracks a collection of related ops, which is typically all the
+// steps in a complete workflow including failure states.
 // This allows the machine to determine when a related set of operations
 // has completed so that new ops can be scheduled.
 type group struct {
@@ -221,6 +222,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 
 	glog.V(6).Infof("Executing operation: %v", o)
 
+	// check if context has been cancelled or deadline exceeded.
 	if err := o.ctx.Err(); err != nil {
 		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
 		m.completeOp(o)
@@ -282,11 +284,18 @@ func (m *Machine) permanentFailure(o *op, err error) {
 
 	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
 
+	// run the failure steps one by one and then schedule any returned states.
+	var ops []*op
 	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
-		o.failureFuncs[i].Fail(o.ctx, err)
+		states := o.failureFuncs[i].Fail(o.ctx, err)
+		for _, st := range states.States {
+			if st != nil {
+				// run as after state, to mitigate potential to continuously cycle through error conditions
+				ops = append(ops, o.new(NewAfterState(time.Now().Add(time.Second*15), st), states.OnFailure))
+			}
+		}
 	}
 
-	o.cancel()
 	m.completeOp(o)
 }
 

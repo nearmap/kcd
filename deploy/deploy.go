@@ -26,21 +26,24 @@ type Deployer interface {
 	AsState(next state.State) state.State
 }
 
+// SupportsRollback is implemented by deployers that support a Rollback mechanism.
+type SupportsRollback interface {
+	// Rollback performs a rollback of the deployment to the given previous version.
+	// Rollback always calls next, even on failure since it is assumed we are already
+	// in a failure date.
+	Rollback(prevVersion string, next state.State) state.State
+}
+
 // New returns a Deployer instance based on the "kind" of the kcd resource.
 func New(workloadProvider workload.Provider, registryProvider registry.Provider, kcd *kcd1.KCD, version string) (Deployer, error) {
 	if glog.V(2) {
 		glog.V(2).Infof("Creating deployment for kcd=%+v, version=%s", kcd, version)
 	}
 
-	var kind string
-	if kcd.Spec.Strategy != nil {
-		kind = kcd.Spec.Strategy.Kind
-	}
-
-	switch kind {
+	switch kcd.Spec.Strategy.Kind {
 	case KindServieBlueGreen:
 		return NewBlueGreenDeployer(workloadProvider, registryProvider, kcd, version)
 	default:
-		return NewSimpleDeployer(workloadProvider, kcd, version)
+		return NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	}
 }
