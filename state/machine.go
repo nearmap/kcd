@@ -296,6 +296,7 @@ func (m *Machine) permanentFailure(o *op, err error) {
 		}
 	}
 
+	m.scheduleOps(ops...)
 	m.completeOp(o)
 }
 

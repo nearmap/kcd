@@ -193,6 +193,8 @@ func (s *Syncer) handleFailure(version string, deployer deploy.Deployer) state.O
 			} else {
 				glog.Errorf("Rollback is enabled but deployer does not support rollback: kcd=%v", s.kcd.Name)
 			}
+		} else {
+			glog.V(1).Infof("Not rolling back kcd=%v", s.kcd.Name)
 		}
 
 		return state.NewStates(next)
