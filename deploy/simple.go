@@ -158,7 +158,7 @@ func (sd *SimpleDeployer) checkRollout(target RolloutTarget) (ok *bool, err erro
 	if ok == nil {
 		glog.V(4).Infof("Waiting for rollout state of target %s", target.Name())
 	} else if *ok {
-		glog.V(1).Info("Target rollout succeeded, target=%s", target.Name())
+		glog.V(1).Infof("Target rollout succeeded, target=%s", target.Name())
 	} else {
 		glog.V(1).Infof("Target rollout failed, target=%s", target.Name())
 	}
@@ -184,7 +184,7 @@ func (sd *SimpleDeployer) Rollback(prevVersion string, next state.State) state.S
 		}
 
 		if firstErr != nil {
-			glog.Error("Failed to rollback at least one workload: %v", firstErr)
+			glog.Errorf("Failed to rollback at least one workload: %v", firstErr)
 			return state.Error(firstErr)
 		}
 

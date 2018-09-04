@@ -191,7 +191,7 @@ func (s *Syncer) handleFailure(version string, deployer deploy.Deployer) state.O
 				glog.V(1).Infof("Initiating rollback for kcd=%v, prevVersion=%v", s.kcd.Name, s.kcd.Status.SuccessVersion)
 				return state.NewStates(rollbacker.Rollback(s.kcd.Status.SuccessVersion, next))
 			} else {
-				glog.Error("Rollback is enabled but deployer does not support rollback: kcd=%v", s.kcd.Name)
+				glog.Errorf("Rollback is enabled but deployer does not support rollback: kcd=%v", s.kcd.Name)
 			}
 		}
 
@@ -348,7 +348,7 @@ func (s *Syncer) addHistory(deployer deploy.Deployer, version string, next state
 				Time:    time.Now().UTC(),
 			})
 			if err != nil {
-				glog.Error("Failed to save history: %v", err)
+				glog.Errorf("Failed to save history: %v", err)
 				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 			}
 		}
