@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	goappsv1beta1 "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
@@ -70,6 +71,17 @@ func (cj *CronJob) RollbackAfter() *time.Duration {
 func (cj *CronJob) ProgressHealth(startTime time.Time) (*bool, error) {
 	result := true
 	return &result, nil
+}
+
+// RolloutFailed implements the Workload interface.
+func (cj *CronJob) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	return false, nil
+}
+
+// PodSelector implements the Workload interface.
+func (cj *CronJob) PodSelector() string {
+	set := labels.Set(cj.cronJob.Spec.JobTemplate.Spec.Template.Labels)
+	return set.AsSelector().String()
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.

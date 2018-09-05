@@ -110,9 +110,8 @@ func (sd *SimpleDeployer) patchPodSpec(target RolloutTarget, version string) err
 	return nil
 }
 
-// checkRolloutState checks whether the state of each target workload successfully deploys,
-// initiating a rollback if not and the kcd spec indicates that rollback is enabled.
-// If rollback is not enabled then the deployment goes into a failed state.
+// checkRolloutState determines whether the state of each target workload has successfully deployed.
+// Returns a permanently failed state if it is determined that the rollout failed.
 func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 	return func(ctx context.Context) (state.States, error) {
 		for _, target := range sd.targets {
@@ -145,25 +144,28 @@ func (sd *SimpleDeployer) checkRolloutState(next state.State) state.StateFunc {
 // Returns true if the target doesn't be checked or has been successfully rolled out.
 // Returns false if the rollout faied and the workload needs to be rolled back.
 func (sd *SimpleDeployer) checkRollout(target RolloutTarget) (ok *bool, err error) {
-	if target.RollbackAfter() == nil {
-		glog.V(2).Infof("Cannot check for rollback: target %s does not define a progress deadline.", target.Name())
+	failed, err := target.RolloutFailed(sd.kcd.Status.CurrStatusTime.Time)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to check whether rollout failed for %s", target.Name())
+	}
+	if failed {
+		glog.V(1).Infof("Rollout failed for target=%s", target.Name())
+		*ok = false
+		return ok, nil
+	}
+
+	success, err := CheckPods(sd.cs, sd.namespace, target, 1, sd.kcd, sd.version)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to check pods during rollout for %s", target.Name())
+	}
+	if success {
+		glog.V(1).Infof("Successfully rolled out all pods for target=%s", target.Name())
 		*ok = true
 		return ok, nil
 	}
 
-	ok, err = target.ProgressHealth(sd.kcd.Status.CurrStatusTime.Time)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to check progress health for %s", target.Name())
-	}
-	if ok == nil {
-		glog.V(4).Infof("Waiting for rollout state of target %s", target.Name())
-	} else if *ok {
-		glog.V(1).Infof("Target rollout succeeded, target=%s", target.Name())
-	} else {
-		glog.V(1).Infof("Target rollout failed, target=%s", target.Name())
-	}
-
-	return ok, nil
+	glog.V(4).Infof("Waiting for rollout state of target %s", target.Name())
+	return nil, nil
 }
 
 // Rollback rolls the version of the workload back to its previous state.

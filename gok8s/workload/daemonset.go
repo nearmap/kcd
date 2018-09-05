@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	goappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -68,6 +69,17 @@ func (ds *DaemonSet) RollbackAfter() *time.Duration {
 func (ds *DaemonSet) ProgressHealth(startTime time.Time) (*bool, error) {
 	result := true
 	return &result, nil
+}
+
+// RolloutFailed implements the Workload interface.
+func (ds *DaemonSet) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	return false, nil
+}
+
+// PodSelector implements the Workload interface.
+func (ds *DaemonSet) PodSelector() string {
+	set := labels.Set(ds.daemonSet.Spec.Template.Labels)
+	return set.AsSelector().String()
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.

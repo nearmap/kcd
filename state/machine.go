@@ -63,6 +63,11 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 // has completed so that new ops can be scheduled.
 type group struct {
 	ops []*op
+
+	// permError indicates that the group has failed permanently with the
+	// specified error. This indicates that failure steps have already been
+	// scheduled.
+	permError error
 }
 
 // op is an operation to be performed by the machine.
@@ -225,7 +230,7 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 	// check if context has been cancelled or deadline exceeded.
 	if err := o.ctx.Err(); err != nil {
 		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
-		m.completeOp(o)
+		m.permanentFailure(o, err)
 		return true
 	}
 
@@ -282,6 +287,12 @@ func (m *Machine) permanentFailure(o *op, err error) {
 		}
 	}()
 
+	if o.group.permError != nil {
+		glog.V(2).Infof("Failure steps already scheduled for group.")
+		m.completeOp(o)
+		return
+	}
+
 	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
 
 	// run the failure steps one by one and then schedule any returned states.
@@ -298,6 +309,9 @@ func (m *Machine) permanentFailure(o *op, err error) {
 
 	m.scheduleOps(ops...)
 	m.completeOp(o)
+
+	glog.V(2).Infof("Setting group permanent error to %v", err)
+	o.group.permError = err
 }
 
 // scheduleOps schedules the given operations on the state machine.
