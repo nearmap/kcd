@@ -12,12 +12,12 @@ import (
 
 // RolloutTarget defines a fake RolloutTarget implementation for use in testing.
 type RolloutTarget struct {
-	FakeName           string
-	FakeNamespace      string
-	FakeType           string
-	FakePodSpec        corev1.PodSpec
-	FakeRollbackAfter  *time.Duration
-	FakeProgressHealth *bool
+	FakeName          string
+	FakeNamespace     string
+	FakeType          string
+	FakePodSpec       corev1.PodSpec
+	FakeRolloutFailed bool
+	FakePodSelector   string
 
 	Invocations chan interface{}
 }
@@ -104,14 +104,14 @@ func (rt *RolloutTarget) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container,
 	return pps.Error
 }
 
-// RollbackAfter implements the RolloutTarget interface.
-func (rt *RolloutTarget) RollbackAfter() *time.Duration {
-	return rt.FakeRollbackAfter
+// RolloutFailed implements the RolloutTarget interface.
+func (rt *RolloutTarget) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	return rt.FakeRolloutFailed, nil
 }
 
-// ProgressHealth implements the ProgressHealth interface.
-func (rt *RolloutTarget) ProgressHealth(startTime time.Time) (*bool, error) {
-	return rt.FakeProgressHealth, nil
+// PodSelector implements the RolloutTarget interface.
+func (rt *RolloutTarget) PodSelector() string {
+	return rt.FakePodSelector
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.
@@ -137,51 +137,6 @@ func NewInvocationSelect() *InvocationSelect {
 	return &InvocationSelect{
 		Received: &ReceivedSelect{},
 	}
-}
-
-// Select implements the TemplateRolloutTarget interface.
-func (trt *TemplateRolloutTarget) Select(selector map[string]string) ([]deploy.TemplateRolloutTarget, error) {
-	var is InvocationSelect
-	trt.invocationFor(&is)
-
-	if is.Received != nil {
-		is.Received.Selector = selector
-	}
-
-	return is.ReturnTargets, is.ReturnError
-}
-
-// ReceivedSelectOwnPods represents the received values for an invocation of the
-// SelectOwnPods method.
-type ReceivedSelectOwnPods struct {
-	Pods []corev1.Pod
-}
-
-// InvocationSelectOwnPods represents an invocation of the SelectOwnPods method.
-type InvocationSelectOwnPods struct {
-	Received *ReceivedSelectOwnPods
-
-	ReturnPods  []corev1.Pod
-	ReturnError error
-}
-
-// NewInvocationSelectOwnPods returns a new instance of InvocationSelectOwnPods.
-func NewInvocationSelectOwnPods() *InvocationSelectOwnPods {
-	return &InvocationSelectOwnPods{
-		Received: &ReceivedSelectOwnPods{},
-	}
-}
-
-// SelectOwnPods implements the TemplateRolloutTarget interface.
-func (trt *TemplateRolloutTarget) SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error) {
-	var sop InvocationSelectOwnPods
-	trt.invocationFor(&sop)
-
-	if sop.Received != nil {
-		sop.Received.Pods = pods
-	}
-
-	return sop.ReturnPods, sop.ReturnError
 }
 
 // NumReplicas implements the TemplateRolloutTarget interface.

@@ -9,6 +9,7 @@ import (
 	"github.com/nearmap/kcd/deploy/fake"
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/nearmap/kcd/gok8s/workload"
+	"github.com/nearmap/kcd/registry"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +35,10 @@ func TestSimpleDeploy(t *testing.T) {
 	targets := []deploy.RolloutTarget{}
 	workloadProvider := workload.NewFakeProvider(cs, "test-namespace", targets)
 
-	_, err := deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	// TODO:
+	var registryProvider registry.Provider
+
+	_, err := deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err == nil {
 		t.Errorf("Expected error when no workloads provided")
 	}
@@ -47,7 +51,7 @@ func TestSimpleDeploy(t *testing.T) {
 	targets = []deploy.RolloutTarget{target}
 	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
 
-	sd, err := deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	sd, err := deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err != nil {
 		t.Errorf("Unexpected error creating NewSimpleDeployer")
 	}
@@ -70,7 +74,7 @@ func TestSimpleDeploy(t *testing.T) {
 	targets = []deploy.RolloutTarget{target}
 	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
 
-	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err != nil {
 		t.Errorf("Unexpected error creating NewSimpleDeployer")
 	}
@@ -108,7 +112,7 @@ func TestSimpleDeploy(t *testing.T) {
 	targets = []deploy.RolloutTarget{target}
 	workloadProvider = workload.NewFakeProvider(cs, "test-namespace", targets)
 
-	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err != nil {
 		t.Errorf("Unexpected error creating NewSimpleDeployer")
 	}
@@ -132,7 +136,7 @@ func TestSimpleDeploy(t *testing.T) {
 	pps.Error = errors.New("an error occurred")
 	target.Invocations <- pps
 
-	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err != nil {
 		t.Errorf("Unexpected error creating NewSimpleDeployer")
 	}
@@ -148,7 +152,7 @@ func TestSimpleDeploy(t *testing.T) {
 	target.Invocations <- pps
 	target.Invocations <- fake.NewInvocationPatchPodSpec()
 
-	sd, err = deploy.NewSimpleDeployer(workloadProvider, kcd, version)
+	sd, err = deploy.NewSimpleDeployer(workloadProvider, registryProvider, kcd, version)
 	if err != nil {
 		t.Errorf("Unexpected error creating NewSimpleDeployer")
 	}

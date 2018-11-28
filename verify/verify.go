@@ -30,6 +30,8 @@ func NewVerifier(cs kubernetes.Interface, registryProvider registry.Provider, na
 }
 
 // NewVerifiers returns a state function that invokes verify operations for the given verify specs.
+// If the list of verification specs is empty then the verification step is skipped and the "next"
+// step is scheduled.
 func NewVerifiers(cs kubernetes.Interface, registryProvider registry.Provider, namespace, version string,
 	kcdvs []kcd1.VerifySpec, next state.State) state.StateFunc {
 

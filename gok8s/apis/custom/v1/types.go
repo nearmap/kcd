@@ -32,7 +32,7 @@ type KCDSpec struct {
 	Selector  map[string]string `json:"selector,omitempty" protobuf:"bytes,2,rep,name=selector"`
 	Container ContainerSpec     `json:"container"`
 
-	Strategy *StrategySpec `json:"strategy"`
+	Strategy StrategySpec `json:"strategy"`
 
 	History  HistorySpec  `json:"history"`
 	Rollback RollbackSpec `json:"rollback"`

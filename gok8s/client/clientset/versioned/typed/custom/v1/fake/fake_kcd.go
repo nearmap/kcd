@@ -38,7 +38,7 @@ var kcdsResource = schema.GroupVersionResource{Group: "custom.k8s.io", Version: 
 
 var kcdsKind = schema.GroupVersionKind{Group: "custom.k8s.io", Version: "v1", Kind: "KCD"}
 
-// Get takes name of the containerVersion, and returns the corresponding containerVersion object, and an error if there is any.
+// Get takes name of the kCD, and returns the corresponding kCD object, and an error if there is any.
 func (c *FakeKCDs) Get(name string, options v1.GetOptions) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(kcdsResource, c.ns, name), &custom_v1.KCD{})
@@ -71,17 +71,17 @@ func (c *FakeKCDs) List(opts v1.ListOptions) (result *custom_v1.KCDList, err err
 	return list, err
 }
 
-// Watch returns a watch.Interface that watches the requested containerVersions.
+// Watch returns a watch.Interface that watches the requested kCDs.
 func (c *FakeKCDs) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(kcdsResource, c.ns, opts))
 
 }
 
-// Create takes the representation of a containerVersion and creates it.  Returns the server's representation of the containerVersion, and an error, if there is any.
-func (c *FakeKCDs) Create(containerVersion *custom_v1.KCD) (result *custom_v1.KCD, err error) {
+// Create takes the representation of a kCD and creates it.  Returns the server's representation of the kCD, and an error, if there is any.
+func (c *FakeKCDs) Create(kCD *custom_v1.KCD) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(kcdsResource, c.ns, containerVersion), &custom_v1.KCD{})
+		Invokes(testing.NewCreateAction(kcdsResource, c.ns, kCD), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
@@ -89,10 +89,10 @@ func (c *FakeKCDs) Create(containerVersion *custom_v1.KCD) (result *custom_v1.KC
 	return obj.(*custom_v1.KCD), err
 }
 
-// Update takes the representation of a containerVersion and updates it. Returns the server's representation of the containerVersion, and an error, if there is any.
-func (c *FakeKCDs) Update(containerVersion *custom_v1.KCD) (result *custom_v1.KCD, err error) {
+// Update takes the representation of a kCD and updates it. Returns the server's representation of the kCD, and an error, if there is any.
+func (c *FakeKCDs) Update(kCD *custom_v1.KCD) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(kcdsResource, c.ns, containerVersion), &custom_v1.KCD{})
+		Invokes(testing.NewUpdateAction(kcdsResource, c.ns, kCD), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (c *FakeKCDs) Update(containerVersion *custom_v1.KCD) (result *custom_v1.KC
 	return obj.(*custom_v1.KCD), err
 }
 
-// Delete takes name of the containerVersion and deletes it. Returns an error if one occurs.
+// Delete takes name of the kCD and deletes it. Returns an error if one occurs.
 func (c *FakeKCDs) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(kcdsResource, c.ns, name), &custom_v1.KCD{})
@@ -116,7 +116,7 @@ func (c *FakeKCDs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.Li
 	return err
 }
 
-// Patch applies the patch and returns the patched containerVersion.
+// Patch applies the patch and returns the patched kCD.
 func (c *FakeKCDs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(kcdsResource, c.ns, name, data, subresources...), &custom_v1.KCD{})

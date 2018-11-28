@@ -1,69 +1,15 @@
 package workload
 
 import (
-	"strings"
-	"time"
-
 	"github.com/golang/glog"
 	"github.com/nearmap/kcd/config"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 )
-
-// Workload defines an interface for something deployable, such as a Deployment, DaemonSet, Pod, etc.
-type Workload interface {
-	// Name is the name of the workload (without the namespace).
-	Name() string
-
-	// Namespace returns the namespace the workload belongs to.
-	Namespace() string
-
-	// Type returns the type of the spec.
-	Type() string
-
-	// PodSpec returns the PodSpec for the workload.
-	PodSpec() corev1.PodSpec
-
-	// PatchPodSpec receives a pod spec and container which is to be patched
-	// according to an appropriate strategy for the type.
-	PatchPodSpec(kcd *kcdv1.KCD, container corev1.Container, version string) error
-
-	// RollbackAfter indicates duration after which a failed rollout
-	// should attempt rollback
-	RollbackAfter() *time.Duration
-
-	// ProgressHealth indicates weather the current status of progress healthy or not.
-	// The start time of the deployment operation is provided.
-	ProgressHealth(startTime time.Time) (*bool, error)
-}
-
-// TemplateWorkload defines methods for deployable resources that manage a collection
-// of pods via a pod template. More deployment options are available for such resources.
-type TemplateWorkload interface {
-	Workload
-
-	// PodTemplateSpec returns the PodTemplateSpec for this workload.
-	PodTemplateSpec() corev1.PodTemplateSpec
-
-	// Select all Workloads of this type with the given selector. May return
-	// the current spec if it matches the selector.
-	Select(selector map[string]string) ([]TemplateWorkload, error)
-
-	// SelectOwnPods returns a list of pods that are managed by this workload.
-	SelectOwnPods(pods []corev1.Pod) ([]corev1.Pod, error)
-
-	// NumReplicas returns the current number of replicas for this workload.
-	NumReplicas() (int32, error)
-
-	// PatchNumReplicas modifies the number of replicas for this workload.
-	PatchNumReplicas(num int32) error
-}
 
 // Provider defines methods for working with workloads.
 type Provider interface {
@@ -221,45 +167,4 @@ func contains(types []string, typ string) bool {
 func (k *K8sProvider) handleError(err error, typ string) error {
 	//k.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get workload")
 	return errors.Wrapf(err, "failed to get %s", typ)
-}
-
-// CheckPodSpecVersion tests whether all containers in the pod spec with container
-// names that match the kcd spec have the given version.
-// Returns false if at least one container's version does not match at least one
-// specified version.
-// Returns an error if no containers in the pod spec match the container name
-// defined by the KCD resource.
-func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcd1.KCD, versions ...string) (bool, error) {
-	match := false
-	for _, c := range podSpec.Containers {
-		if c.Name == kcd.Spec.Container.Name {
-			match = true
-			parts := strings.SplitN(c.Image, ":", 2)
-			if len(parts) > 2 {
-				return false, errors.Errorf("invalid image found in container %s: %v", c.Name, c.Image)
-			}
-			if parts[0] != kcd.Spec.ImageRepo {
-				return false, errors.Errorf("Repository mismatch for container %s: %s and requested %s don't match",
-					c.Name, parts[0], kcd.Spec.ImageRepo)
-			}
-
-			found := false
-			cver := parts[1]
-			for _, version := range versions {
-				if cver == version {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false, nil
-			}
-		}
-	}
-
-	if !match {
-		return false, errors.Errorf("no container of name %s was found in workload", kcd.Spec.Container.Name)
-	}
-
-	return true, nil
 }

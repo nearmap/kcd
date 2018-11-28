@@ -57,11 +57,17 @@ func WithRecorder(rec events.Recorder) func(*Options) {
 	}
 }
 
-// group tracks a collection of related ops.
+// group tracks a collection of related ops, which is typically all the
+// steps in a complete workflow including failure states.
 // This allows the machine to determine when a related set of operations
 // has completed so that new ops can be scheduled.
 type group struct {
 	ops []*op
+
+	// permError indicates that the group has failed permanently with the
+	// specified error. This indicates that failure steps have already been
+	// scheduled.
+	permError error
 }
 
 // op is an operation to be performed by the machine.
@@ -221,9 +227,10 @@ func (m *Machine) executeOp(o *op) (finished bool) {
 
 	glog.V(6).Infof("Executing operation: %v", o)
 
+	// check if context has been cancelled or deadline exceeded.
 	if err := o.ctx.Err(); err != nil {
 		glog.V(1).Infof("Operation %s context error: %+v", ID(o.ctx), err)
-		m.completeOp(o)
+		m.permanentFailure(o, err)
 		return true
 	}
 
@@ -280,14 +287,31 @@ func (m *Machine) permanentFailure(o *op, err error) {
 		}
 	}()
 
-	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
-
-	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
-		o.failureFuncs[i].Fail(o.ctx, err)
+	if o.group.permError != nil {
+		glog.V(2).Infof("Failure steps already scheduled for group.")
+		m.completeOp(o)
+		return
 	}
 
-	o.cancel()
+	glog.V(1).Infof("Operation %s failed with permanent error: %+v", ID(o.ctx), err)
+
+	// run the failure steps one by one and then schedule any returned states.
+	var ops []*op
+	for i := len(o.failureFuncs) - 1; i >= 0; i-- {
+		states := o.failureFuncs[i].Fail(o.ctx, err)
+		for _, st := range states.States {
+			if st != nil {
+				// run as after state, to mitigate potential to continuously cycle through error conditions
+				ops = append(ops, o.new(NewAfterState(time.Now().Add(time.Second*15), st), states.OnFailure))
+			}
+		}
+	}
+
+	m.scheduleOps(ops...)
 	m.completeOp(o)
+
+	glog.V(2).Infof("Setting group permanent error to %v", err)
+	o.group.permError = err
 }
 
 // scheduleOps schedules the given operations on the state machine.

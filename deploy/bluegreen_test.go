@@ -20,7 +20,7 @@ func TestBlueGreenDeployErrorCases(t *testing.T) {
 			Container: kcd1.ContainerSpec{
 				Name: containerName,
 			},
-			Strategy: &kcd1.StrategySpec{
+			Strategy: kcd1.StrategySpec{
 				BlueGreen: &kcd1.BlueGreenSpec{
 					ServiceName: serviceName,
 					LabelNames:  []string{"test-label"},

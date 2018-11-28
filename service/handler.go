@@ -118,7 +118,7 @@ func NewResourceUpdateHandler(resourceProvider resource.Provider) http.HandlerFu
 
 		_, err := resourceProvider.UpdateStatus(namespace, name, "", status, time.Now().UTC())
 		if err != nil {
-			glog.Error("failed to update resource for name=%s, error=%+v", name, err)
+			glog.Errorf("failed to update resource for name=%s, error=%+v", name, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}

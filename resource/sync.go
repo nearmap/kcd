@@ -135,7 +135,7 @@ func (s *Syncer) initialState() state.StateFunc {
 							s.addHistory(deployer, version,
 								s.updateRolloutStatus(version, StatusSuccess, nil)))))))
 
-		return state.Single(state.WithFailure(syncState, s.handleFailure(version)))
+		return state.Single(state.WithFailure(syncState, s.handleFailure(version, deployer)))
 	}
 }
 
@@ -175,8 +175,8 @@ func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, version 
 
 // handleFailure is a state invoked when a sync permanently fails. It is responsible for updating
 // the rollout status and generating relevant stats and events.
-func (s *Syncer) handleFailure(version string) state.OnFailureFunc {
-	return func(ctx context.Context, err error) {
+func (s *Syncer) handleFailure(version string, deployer deploy.Deployer) state.OnFailureFunc {
+	return func(ctx context.Context, err error) state.States {
 		glog.V(1).Infof("Failed to process kcd=%v, version=%v, error=%v", s.kcd.Name, version, err)
 
 		s.options.Stats.Event("kcdsync.failure",
@@ -184,11 +184,20 @@ func (s *Syncer) handleFailure(version string) state.OnFailureFunc {
 			time.Now().UTC(), s.kcd.Name)
 		s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to deploy the target")
 
-		_, uErr := s.resourceProvider.UpdateStatus(s.kcd.Namespace, s.kcd.Name, version, StatusFailed, time.Now().UTC())
-		if uErr != nil {
-			glog.Errorf("Failed to update kcd %s status as failed rollout for version %s: %v", s.kcd.Name, version, uErr)
-			// TODO: something else?
+		next := s.updateRolloutStatus(version, StatusFailed, nil)
+
+		if s.kcd.Spec.Rollback.Enabled {
+			if rollbacker, ok := deployer.(deploy.SupportsRollback); ok {
+				glog.V(1).Infof("Initiating rollback for kcd=%v, prevVersion=%v", s.kcd.Name, s.kcd.Status.SuccessVersion)
+				return state.NewStates(rollbacker.Rollback(s.kcd.Status.SuccessVersion, next))
+			} else {
+				glog.Errorf("Rollback is enabled but deployer does not support rollback: kcd=%v", s.kcd.Name)
+			}
+		} else {
+			glog.V(1).Infof("Not rolling back kcd=%v", s.kcd.Name)
 		}
+
+		return state.NewStates(next)
 	}
 }
 
@@ -219,8 +228,7 @@ func (s *Syncer) updateRolloutStatus(version, status string, next state.State) s
 		if err != nil {
 			glog.Errorf("Failed to update Rollout Status status for kcd=%s, version=%s, status=%s: %v", s.kcd.Name, version, status, err)
 			events.FromContext(ctx).Event(events.Warning, "FailedUpdateRolloutStatus", "Failed to update version status")
-			return state.Error(errors.Wrapf(err, "failed to update Rollout status for kcd=%s, version=%s, status=%s",
-				s.kcd.Name, version, status))
+			return state.Error(errors.Wrapf(err, "failed to update Rollout status for kcd=%s, version=%s, status=%s", s.kcd.Name, version, status))
 		}
 
 		s.kcd = kcd
@@ -342,7 +350,7 @@ func (s *Syncer) addHistory(deployer deploy.Deployer, version string, next state
 				Time:    time.Now().UTC(),
 			})
 			if err != nil {
-				glog.Error("Failed to save history: %v", err)
+				glog.Errorf("Failed to save history: %v", err)
 				s.options.Recorder.Event(events.Warning, "SaveHistoryFailed", "Failed to record update history")
 			}
 		}

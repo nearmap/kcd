@@ -124,6 +124,37 @@ func (d *Deployment) ProgressHealth(startTime time.Time) (*bool, error) {
 	return ok, nil
 }
 
+// RolloutFailed implements the Workload interface.
+func (d *Deployment) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	glog.V(4).Infof("checking rollout failure for %v at time %v", d.deployment.Name, rolloutTime)
+
+	dep, err := d.curr()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to obtain current deployment while checking rollout failure")
+	}
+
+	for _, c := range dep.Status.Conditions {
+		if glog.V(4) {
+			glog.V(4).Infof("deployment condition: %+v", c)
+		}
+
+		if c.LastUpdateTime.Time.Before(rolloutTime) {
+			continue
+		}
+		if c.Type != appsv1.DeploymentProgressing {
+			continue
+		}
+
+		if c.Status == corev1.ConditionFalse {
+			if c.Reason == "ProgressDeadlineExceeded" {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 // PodTemplateSpec implements the TemplateWorkload interface.
 func (d *Deployment) PodTemplateSpec() corev1.PodTemplateSpec {
 	return d.deployment.Spec.Template
@@ -138,6 +169,12 @@ func (d *Deployment) PatchPodSpec(kcd *kcd1.KCD, container corev1.Container, ver
 		return errors.Wrapf(err, "failed to patch pod template spec container for deployment %s", d.deployment.Name)
 	}
 	return nil
+}
+
+// PodSelector implements the Workload interface.
+func (d *Deployment) PodSelector() string {
+	set := labels.Set(d.deployment.Spec.Template.Labels)
+	return set.AsSelector().String()
 }
 
 // Select implements the TemplateWorkload interface.

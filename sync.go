@@ -49,7 +49,7 @@ type crParams struct {
 func newCRCommands() *cobra.Command {
 	regRoot := newCRRootCommand()
 	regRoot.AddCommand(newKCDSyncCommand(regRoot))
-	regRoot.AddCommand(newCRTagCommand(regRoot))
+	regRoot.AddCommand(newTagsCommand(regRoot))
 	return regRoot.Command
 }
 
@@ -251,8 +251,8 @@ type regTagParams struct {
 	verPat   string
 }
 
-// newCRTagCommand is CLI interface to managing tags on registry images
-func newCRTagCommand(root *regRoot) *cobra.Command {
+// newTagsCommand is CLI interface to managing tags on registry images
+func newTagsCommand(root *regRoot) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tags",
 		Short: "Manages tags of registry repository",
@@ -350,16 +350,16 @@ func newCVCommand() *cobra.Command {
 	var k8sConfig string
 	cmd := &cobra.Command{
 		Use:   "rd",
-		Short: "Manages current status (version and status) of deployments managed by CV resources",
-		Long:  "Manages current status (version and status) of deployments managed by CV resources",
+		Short: "Manages current status (version and status) of deployments managed by KCD resources",
+		Long:  "Manages current status (version and status) of deployments managed by KCD resources",
 	}
 
 	cmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 
 	listCmd := &cobra.Command{
 		Use:   "get",
-		Short: "Get current status (version and status) of deployments managed by CV resources",
-		Long:  "Get current status (version and status) of deployments managed by CV resources",
+		Short: "Get current status (version and status) of deployments managed by KCD resources",
+		Long:  "Get current status (version and status) of deployments managed by KCD resources",
 	}
 
 	listCmd.RunE = func(cmd *cobra.Command, args []string) error {

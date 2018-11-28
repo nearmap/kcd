@@ -374,21 +374,3 @@ func (bgd *BlueGreenDeployer) scaleDown(target TemplateRolloutTarget, next state
 		return state.Single(next)
 	}
 }
-
-// PodsForTarget returns the pods managed by the given rollout target.
-func PodsForTarget(cs kubernetes.Interface, namespace string, target TemplateRolloutTarget) ([]corev1.Pod, error) {
-	set := labels.Set(target.PodTemplateSpec().Labels)
-	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
-
-	pods, err := cs.CoreV1().Pods(namespace).List(listOpts)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to select pods for target %s", target.Name())
-	}
-
-	result, err := target.SelectOwnPods(pods.Items)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to filter pods for target %s", target.Name())
-	}
-
-	return result, nil
-}

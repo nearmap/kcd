@@ -12,7 +12,7 @@ type State interface {
 
 // OnFailure is invoked when a permanent failure occurs during processing.
 type OnFailure interface {
-	Fail(ctx context.Context, err error)
+	Fail(ctx context.Context, err error) States
 }
 
 // States represents a collection of states returned from a particular machine state.
@@ -54,11 +54,11 @@ func (sf StateFunc) Do(ctx context.Context) (States, error) {
 }
 
 // OnFailureFunc defines a function that implements the OnFailure interface.
-type OnFailureFunc func(ctx context.Context, err error)
+type OnFailureFunc func(ctx context.Context, err error) States
 
 // Fail implements the OnFailure interface.
-func (off OnFailureFunc) Fail(ctx context.Context, err error) {
-	off(ctx, err)
+func (off OnFailureFunc) Fail(ctx context.Context, err error) States {
+	return off(ctx, err)
 }
 
 // HasAfter is an interface defining a State that is to be executed after a given time.

@@ -7,6 +7,7 @@ import (
 	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	gocorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -83,10 +84,21 @@ func (p *Pod) RollbackAfter() *time.Duration {
 	return nil
 }
 
-//ProgressHealth implements the Workload interface.
+// ProgressHealth implements the Workload interface.
 func (p *Pod) ProgressHealth(startTime time.Time) (*bool, error) {
 	result := true
 	return &result, nil
+}
+
+// RolloutFailed implements the Workload interface.
+func (p *Pod) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	return false, nil
+}
+
+// PodSelector implements the Workload interface.
+func (p *Pod) PodSelector() string {
+	set := labels.Set(p.pod.Labels)
+	return set.AsSelector().String()
 }
 
 // PatchPodSpec implements the Workload interface.

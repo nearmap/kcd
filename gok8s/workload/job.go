@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	gobatchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
@@ -68,6 +69,17 @@ func (j *Job) RollbackAfter() *time.Duration {
 func (j *Job) ProgressHealth(startTime time.Time) (*bool, error) {
 	result := true
 	return &result, nil
+}
+
+// RolloutFailed implements the Workload interface.
+func (j *Job) RolloutFailed(rolloutTime time.Time) (bool, error) {
+	return false, nil
+}
+
+// PodSelector implements the Workload interface.
+func (j *Job) PodSelector() string {
+	set := labels.Set(j.job.Spec.Template.Labels)
+	return set.AsSelector().String()
 }
 
 // PodTemplateSpec implements the TemplateRolloutTarget interface.
