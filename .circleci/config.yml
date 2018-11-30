@@ -48,16 +48,6 @@ jobs:
               docker tag nearmap/kcd ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1}
               docker push ${ECR_ENDPOINT}/nearmap/kcd:${CIRCLE_SHA1}
 
-  dev-deploy:
-    <<: *defaults
-    steps:
-      - run:
-          name: Set env tag
-          command: |
-            echo "export ENV=dev" >> env_file
-      - run:
-          <<: *deploy-env
-
   qa-deploy:
     <<: *defaults
     steps:
@@ -111,28 +101,14 @@ jobs:
               echo "All good! No regression found .. "
             fi
 
-  regression-check-master:
-    <<: *regression-check
-
-  regression-check-prod:
-    <<: *regression-check
-
 workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
-      - regression-check-master:
+      - build:
           filters:
             branches:
-              only: master
-      - dev-deploy-hold:
-          type: approval
-          requires:
-            - build
-      - dev-deploy:
-          requires:
-            - dev-deploy-hold
+              ignore: master
       - qa-deploy-hold:
           type: approval
           requires:
@@ -143,21 +119,15 @@ workflows:
       - qa-deploy:
           requires:
             - regression-check-qa
-      - regression-check-prod:
+  build_and_deploy:
+    jobs:
+      - build:
           filters:
             branches:
               only: master
+      - prod-deploy:
           requires:
             - build
-      - prod-deploy:
-          filters:
-            branches:
-              only: master
-          requires:
-            - regression-check-prod
       - push-to-dockerio:
-          filters:
-            branches:
-              only: master
           requires:
             - prod-deploy
