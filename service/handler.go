@@ -20,10 +20,16 @@ func (rl byStatus) Len() int      { return len(rl) }
 func (rl byStatus) Swap(i, j int) { rl[i], rl[j] = rl[j], rl[i] }
 func (rl byStatus) Less(i, j int) bool {
 	a, b := rl[i], rl[j]
-	if a.Status < b.Status {
+	if statusWeight[a.Status] < statusWeight[b.Status] {
 		return true
 	}
 	return a.LastUpdated.Before(b.LastUpdated)
+}
+
+var statusWeight = map[string]int{
+	resource.StatusSuccess:     1,
+	resource.StatusFailed:      2,
+	resource.StatusProgressing: 3,
 }
 
 func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, reload bool) error {
