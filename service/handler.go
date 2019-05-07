@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/golang/glog"
@@ -13,8 +14,21 @@ import (
 	"goji.io/pat"
 )
 
+type byStatus []*resource.Resource
+
+func (rl byStatus) Len() int      { return len(rl) }
+func (rl byStatus) Swap(i, j int) { rl[i], rl[j] = rl[j], rl[i] }
+func (rl byStatus) Less(i, j int) bool {
+	a, b := rl[i], rl[j]
+	if a.Status < b.Status {
+		return true
+	}
+	return a.LastUpdated.Before(b.LastUpdated)
+}
+
 func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, reload bool) error {
 	t := template.Must(template.New("kcdList").Parse(kcdListHTML))
+	sort.Sort(byStatus(resources))
 	data := struct {
 		Resources []*resource.Resource
 		Namespace string
