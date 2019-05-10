@@ -4,6 +4,6 @@ services:
     build:
       context: .
     working_dir: /go/src/github.com/nearmap/kcd
-    entrypoint: env CGO_ENABLED=0 go test ./...
+    entrypoint: env CGO_ENABLED=0 GOCACHE=off go test ./...
     volumes:
       - .:/go/src/github.com/nearmap/kcd
