@@ -15,9 +15,9 @@ import (
 )
 
 var statusWeight = map[string]int{
-	resource.StatusSuccess:     1,
+	resource.StatusProgressing: 1,
 	resource.StatusFailed:      2,
-	resource.StatusProgressing: 3,
+	resource.StatusSuccess:     3,
 }
 
 func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, reload bool) error {
@@ -27,7 +27,7 @@ func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, re
 		if statusWeight[a.Status] < statusWeight[b.Status] {
 			return true
 		}
-		return a.LastUpdated.Before(b.LastUpdated)
+		return a.LastUpdated.After(b.LastUpdated)
 	})
 	data := struct {
 		Resources []*resource.Resource
