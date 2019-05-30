@@ -26,6 +26,8 @@ func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, re
 		a, b := resources[i], resources[j]
 		if statusWeight[a.Status] < statusWeight[b.Status] {
 			return true
+		} else if statusWeight[a.Status] > statusWeight[b.Status] {
+			return false
 		}
 		return a.LastUpdated.After(b.LastUpdated)
 	})
