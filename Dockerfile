@@ -9,7 +9,7 @@ VOLUME /go/src
 
 # TODO: this is dodgy it expects k8s files to always be available from runtime directory
 
-# need to packae the yaml n version file using tool chains properly
+# need to package the yaml version file using tool chains properly
 RUN mkdir -p /kcd
 ADD ./k8s /kcd/k8s/
 ADD version /kcd/
