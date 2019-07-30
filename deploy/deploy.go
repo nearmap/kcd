@@ -2,11 +2,11 @@ package deploy
 
 import (
 	"github.com/golang/glog"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/gok8s/workload"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
+	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/eric1313/kcd/gok8s/workload"
+	k8s "github.com/eric1313/kcd/gok8s/workload"
+	"github.com/eric1313/kcd/registry"
+	"github.com/eric1313/kcd/state"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,8 +52,8 @@ func New(workloadProvider workload.Provider, registryProvider registry.Provider,
 	}
 }
 
-// PodsForTarget returns the pods managed by the given rollout target.
-func PodsForTarget(cs kubernetes.Interface, namespace string, target RolloutTarget) ([]corev1.Pod, error) {
+// ActivePodsForTarget returns the pods managed by the given rollout target.
+func ActivePodsForTarget(cs kubernetes.Interface, namespace string, target RolloutTarget) ([]corev1.Pod, error) {
 	listOpts := metav1.ListOptions{
 		LabelSelector: target.PodSelector(),
 	}
@@ -63,8 +63,11 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target RolloutTarg
 		return nil, errors.Wrapf(err, "failed to select pods for target %s", target.Name())
 	}
 
-	var pods []corev1.Pod
+	var pods = make([]corev1.Pod, 0, len(podList.Items))
 	for _, pod := range podList.Items {
+		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			continue
+		}
 		pods = append(pods, pod)
 	}
 
@@ -75,7 +78,7 @@ func PodsForTarget(cs kubernetes.Interface, namespace string, target RolloutTarg
 // specified version and that every kcd managed container (defined by the kcd resource)
 // within each pod is in a ready state.
 func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, num int32, kcd *kcd1.KCD, version string) (bool, error) {
-	pods, err := PodsForTarget(cs, namespace, target)
+	pods, err := ActivePodsForTarget(cs, namespace, target)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to get pods for target %s", target.Name())
 	}

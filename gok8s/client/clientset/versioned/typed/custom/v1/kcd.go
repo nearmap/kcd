@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	scheme "github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
+	v1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	scheme "github.com/eric1313/kcd/gok8s/client/clientset/versioned/scheme"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

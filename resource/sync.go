@@ -3,18 +3,19 @@ package resource
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/eric1313/kcd/config"
+	"github.com/eric1313/kcd/deploy"
+	"github.com/eric1313/kcd/events"
+	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/eric1313/kcd/gok8s/workload"
+	"github.com/eric1313/kcd/history"
+	"github.com/eric1313/kcd/registry"
+	"github.com/eric1313/kcd/state"
+	"github.com/eric1313/kcd/verify"
 	"github.com/golang/glog"
-	"github.com/nearmap/kcd/config"
-	"github.com/nearmap/kcd/deploy"
-	"github.com/nearmap/kcd/events"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/gok8s/workload"
-	"github.com/nearmap/kcd/history"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
-	"github.com/nearmap/kcd/verify"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -98,24 +99,25 @@ func (s *Syncer) initialState() state.StateFunc {
 		// refresh kcd resource state
 		s.kcd = kcd
 
-		version, err := s.registry.Version(ctx, s.kcd.Spec.Tag)
+		versions, err := s.registry.Versions(ctx, s.kcd.Spec.Tag)
 		if err != nil {
 			glog.Errorf("Syncer failed to get version from registry, kcd=%s, tag=%s: %v", s.kcd.Name, kcd.Spec.Tag, err)
-			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get version from registry")
-			return state.Error(errors.Wrap(err, "failed to get version from registry"))
+			s.options.Recorder.Event(events.Warning, "KCDSyncFailed", "Failed to get versions from registry")
+			return state.Error(errors.Wrap(err, "failed to get versions from registry"))
 		}
 
+		version := versions[0]
 		if glog.V(4) {
-			glog.V(4).Infof("Got registry version for kcd=%s, tag=%s, version=%v", s.kcd.Name, kcd.Spec.Tag, version)
+			glog.V(4).Infof("Got registry versions for kcd=%s, tag=%s, versions=%v, rolloutVersion=%s", s.kcd.Name, kcd.Spec.Tag, strings.Join(versions, ", "), version)
 		}
 
-		deployer, err := deploy.New(s.workloadProvider, s.registryProvider, s.kcd, version)
+		deployer, err := deploy.New(s.workloadProvider, s.registryProvider, s.kcd, versions[0])
 		if err != nil {
 			glog.Errorf("Failed to create deployer for kcd=%s: %v", s.kcd.Name, err)
 			return state.Error(errors.Wrap(err, "failed to create deployer"))
 		}
 
-		process, err := s.shouldProcess(deployer, s.kcd, version)
+		process, err := s.shouldProcess(deployer, s.kcd, versions)
 		if err != nil {
 			glog.Errorf("Failed to determine whether workloads should be processed for kcd=%s: %v", s.kcd.Name, err)
 			return state.Error(errors.Wrapf(err, "failed to determine whether workloads should be processed for kcd=%s", s.kcd.Name))
@@ -141,9 +143,16 @@ func (s *Syncer) initialState() state.StateFunc {
 
 // shouldProcess returns whether a rollout should be performed on the workloads defined
 // by the KCD resource.
-func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, version string) (bool, error) {
+func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, versions []string) (bool, error) {
+	var containsCurrentVersion bool
+	for _, version := range versions {
+		if version == kcd.Status.CurrVersion {
+			containsCurrentVersion = true
+			break
+		}
+	}
 	// if version changes then always process
-	if version != kcd.Status.CurrVersion {
+	if !containsCurrentVersion {
 		return true, nil
 	}
 

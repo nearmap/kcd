@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/gok8s/workload"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
-	"github.com/nearmap/kcd/verify"
+	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/eric1313/kcd/gok8s/workload"
+	"github.com/eric1313/kcd/registry"
+	"github.com/eric1313/kcd/state"
+	"github.com/eric1313/kcd/verify"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -290,41 +290,7 @@ func (bgd *BlueGreenDeployer) waitForAllPods(target TemplateRolloutTarget, next 
 // is the current version (as defined by this deployer) and that every container
 // within each pod is in a ready state.
 func (bgd *BlueGreenDeployer) checkPods(target TemplateRolloutTarget, num int32) (bool, error) {
-	pods, err := PodsForTarget(bgd.cs, bgd.namespace, target)
-	if err != nil {
-		return false, errors.Wrapf(err, "failed to get pods for target %s", target.Name())
-	}
-	if len(pods) < int(num) {
-		glog.V(2).Infof("insufficient pods found for target %s: found %d but need %d", target.Name(), len(pods), num)
-		return false, nil
-	}
-
-	for _, pod := range pods {
-		if pod.Status.Phase != corev1.PodRunning {
-			glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
-			return false, nil
-		}
-
-		for _, cs := range pod.Status.ContainerStatuses {
-			if !cs.Ready {
-				glog.V(2).Infof("Still waiting for rollout: pod=%s, container=%s is not ready", pod.Name, cs.Name)
-				return false, nil
-			}
-		}
-
-		ok, err := workload.CheckPodSpecVersion(pod.Spec, bgd.kcd, bgd.version)
-		if err != nil {
-			return false, errors.Wrapf(err, "failed to check container version for target %s", target.Name())
-		}
-		if !ok {
-			glog.V(2).Infof("Still waiting for rollout: pod %s is wrong version", pod.Name)
-			return false, nil
-		}
-	}
-
-	glog.V(2).Info("All pods and containers are ready")
-
-	return true, nil
+	return CheckPods(bgd.cs, bgd.namespace, target, num, bgd.kcd, bgd.version)
 }
 
 // scaleUpSecondary scales up the secondary deployment to be the same as the primary.

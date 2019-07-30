@@ -3,9 +3,9 @@ package dockerhub
 import (
 	"context"
 
+	kcdregistry "github.com/eric1313/kcd/registry"
+	"github.com/eric1313/kcd/stats"
 	"github.com/heroku/docker-registry-client/registry"
-	kcdregistry "github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/stats"
 	"github.com/pkg/errors"
 )
 
@@ -83,14 +83,16 @@ func (vp *V2Provider) RegistryFor(imageRepo string) (kcdregistry.Registry, error
 	}, nil
 }
 
-// Version implements the Registry interface.
-func (vp *V2Provider) Version(ctx context.Context, tag string) (string, error) {
+// Versions implements the Registry interface.
+func (vp *V2Provider) Versions(ctx context.Context, tag string) ([]string, error) {
+	tags := make([]string, 0, 5)
 	newVersion, err := vp.getDigest(tag)
 	if err != nil {
 		vp.opts.Stats.IncCount("registry.failure", vp.repository)
-		return "", errors.Errorf("No version found for tag %s", tag)
+		return tags, errors.Errorf("No version found for tag %s", tag)
 	}
-	return newVersion, nil
+	tags = append(tags, newVersion)
+	return tags, nil
 }
 
 // Add adds list of tags to the image identified with version

@@ -5,16 +5,32 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/kcd/resource"
+	"github.com/eric1313/kcd/resource"
 	"github.com/pkg/errors"
 	"goji.io/pat"
 )
 
+var statusWeight = map[string]int{
+	resource.StatusProgressing: 1,
+	resource.StatusFailed:      2,
+	resource.StatusSuccess:     3,
+}
+
 func genCVHTML(w io.Writer, resources []*resource.Resource, namespace string, reload bool) error {
 	t := template.Must(template.New("kcdList").Parse(kcdListHTML))
+	sort.Slice(resources, func(i, j int) bool {
+		a, b := resources[i], resources[j]
+		if statusWeight[a.Status] < statusWeight[b.Status] {
+			return true
+		} else if statusWeight[a.Status] > statusWeight[b.Status] {
+			return false
+		}
+		return a.LastUpdated.After(b.LastUpdated)
+	})
 	data := struct {
 		Resources []*resource.Resource
 		Namespace string

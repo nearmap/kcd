@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcdv1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
