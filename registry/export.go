@@ -20,7 +20,11 @@ type Provider interface {
 
 // Registry contains methods for obtaining image information from a registry.
 type Registry interface {
-	Version(ctx context.Context, tag string) (string, error)
+	// Some images may be tagged with multiple versions if, for example, they are built
+	// on each commit and a commit that does not change the resulting image is made
+	// and is tagged. In this case, the syncers check all the tags for the existing
+	// version before determining if a rollout should occur.
+	Versions(ctx context.Context, tag string) ([]string, error)
 }
 
 // Tagger provides capability of adding/removing environment tags on ECR
