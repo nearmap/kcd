@@ -19,7 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	customv1 "github.com/eric1313/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
+	customv1 "github.com/wish/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
 	glog "github.com/golang/glog"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"

@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/eric1313/kcd/events"
-	"github.com/eric1313/kcd/stats"
+	"github.com/wish/kcd/events"
+	"github.com/wish/kcd/stats"
 )
 
 // Options contains additional (optional) configuration for the controller

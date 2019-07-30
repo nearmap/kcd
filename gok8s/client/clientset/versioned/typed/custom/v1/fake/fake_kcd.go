@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	custom_v1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	custom_v1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

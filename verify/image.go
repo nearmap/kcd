@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
-	"github.com/eric1313/kcd/registry"
-	"github.com/eric1313/kcd/state"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/registry"
+	"github.com/wish/kcd/state"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"

@@ -1,7 +1,7 @@
 package workload
 
 import (
-	kcdv1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"k8s.io/client-go/kubernetes"
 )
 

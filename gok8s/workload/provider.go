@@ -2,9 +2,9 @@ package workload
 
 import (
 	"github.com/golang/glog"
-	"github.com/eric1313/kcd/config"
-	kcdv1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
-	clientset "github.com/eric1313/kcd/gok8s/client/clientset/versioned"
+	"github.com/wish/kcd/config"
+	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/wish/kcd/gok8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

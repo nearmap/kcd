@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/eric1313/kcd/deploy"
-	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/deploy"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 

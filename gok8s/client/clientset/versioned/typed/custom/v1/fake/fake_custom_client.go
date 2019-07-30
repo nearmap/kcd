@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/eric1313/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
+	v1 "github.com/wish/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

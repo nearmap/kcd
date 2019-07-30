@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

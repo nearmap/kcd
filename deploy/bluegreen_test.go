@@ -3,11 +3,11 @@ package deploy_test
 import (
 	"testing"
 
-	"github.com/eric1313/kcd/deploy"
-	"github.com/eric1313/kcd/deploy/fake"
-	kcd1 "github.com/eric1313/kcd/gok8s/apis/custom/v1"
-	"github.com/eric1313/kcd/gok8s/workload"
-	"github.com/eric1313/kcd/registry"
+	"github.com/wish/kcd/deploy"
+	"github.com/wish/kcd/deploy/fake"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/gok8s/workload"
+	"github.com/wish/kcd/registry"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gofake "k8s.io/client-go/kubernetes/fake"

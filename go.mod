@@ -1,4 +1,4 @@
-module github.com/eric1313/kcd
+module github.com/wish/kcd
 
 go 1.12
 

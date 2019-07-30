@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eric1313/kcd/registry"
-	"github.com/eric1313/kcd/stats"
+	"github.com/wish/kcd/registry"
+	"github.com/wish/kcd/stats"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
