@@ -30,7 +30,7 @@ echo $CODEGEN_PKG
 
 
 # ${CODEGEN_PKG}/generate-internal-groups.sh all \
-#   github.com/Eric1313/kcd/gok8s/client github.com/Eric1313/kcd/gok8s/apis github.com/Eric1313/kcd/gok8s/apis \
+#   github.com/eric1313/kcd/gok8s/client github.com/eric1313/kcd/gok8s/apis github.com/eric1313/kcd/gok8s/apis \
 #   custom:v1 \
 #   --output-base "$(dirname ${BASH_SOURCE})/../../../.."
 
@@ -39,7 +39,7 @@ echo $CODEGEN_PKG
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh all \
-  github.com/Eric1313/kcd/gok8s/client github.com/Eric1313/kcd/gok8s/apis \
+  github.com/eric1313/kcd/gok8s/client github.com/eric1313/kcd/gok8s/apis \
   custom:v1 \
   --output-base "$(dirname ${BASH_SOURCE})/../../../.."
 # To use your own boilerplate text append:

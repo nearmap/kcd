@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/Eric1313/kcd/gok8s/client/clientset/versioned"
-	custom "github.com/Eric1313/kcd/gok8s/client/informers/externalversions/custom"
-	internalinterfaces "github.com/Eric1313/kcd/gok8s/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/eric1313/kcd/gok8s/client/clientset/versioned"
+	custom "github.com/eric1313/kcd/gok8s/client/informers/externalversions/custom"
+	internalinterfaces "github.com/eric1313/kcd/gok8s/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

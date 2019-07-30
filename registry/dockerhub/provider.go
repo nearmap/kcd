@@ -3,8 +3,8 @@ package dockerhub
 import (
 	"context"
 
-	kcdregistry "github.com/Eric1313/kcd/registry"
-	"github.com/Eric1313/kcd/stats"
+	kcdregistry "github.com/eric1313/kcd/registry"
+	"github.com/eric1313/kcd/stats"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/pkg/errors"
 )

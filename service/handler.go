@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/Eric1313/kcd/resource"
+	"github.com/eric1313/kcd/resource"
 	"github.com/pkg/errors"
 	"goji.io/pat"
 )

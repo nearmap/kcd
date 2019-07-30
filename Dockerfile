@@ -1,9 +1,9 @@
 FROM golang:alpine
 
-ADD . /go/src/github.com/Eric1313/kcd
-RUN go install github.com/Eric1313/kcd
+ADD . /go/src/github.com/eric1313/kcd
+RUN go install github.com/eric1313/kcd
 
-RUN rm -r /go/src/github.com/Eric1313/kcd
+RUN rm -r /go/src/github.com/eric1313/kcd
 
 VOLUME /go/src
 
@@ -12,7 +12,7 @@ VOLUME /go/src
 # need to package the yaml version file using tool chains properly
 RUN mkdir -p /kcd
 ADD ./k8s /kcd/k8s/
-ADD version /kcd/
+#ADD version /kcd/
 
 WORKDIR /kcd
 
