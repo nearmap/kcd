@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/heroku/docker-registry-client/registry"
-	kcdregistry "github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/stats"
+	kcdregistry "github.com/Eric1313/kcd/registry"
+	"github.com/Eric1313/kcd/stats"
 	"github.com/pkg/errors"
 )
 

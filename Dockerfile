@@ -1,9 +1,9 @@
 FROM golang:alpine
 
-ADD . /go/src/github.com/nearmap/kcd
-RUN go install github.com/nearmap/kcd
+ADD . /go/src/github.com/Eric1313/kcd
+RUN go install github.com/Eric1313/kcd
 
-RUN rm -r /go/src/github.com/nearmap/kcd
+RUN rm -r /go/src/github.com/Eric1313/kcd
 
 VOLUME /go/src
 

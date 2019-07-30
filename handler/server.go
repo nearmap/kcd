@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nearmap/kcd/history"
-	"github.com/nearmap/kcd/resource"
-	svc "github.com/nearmap/kcd/service"
+	"github.com/Eric1313/kcd/history"
+	"github.com/Eric1313/kcd/resource"
+	svc "github.com/Eric1313/kcd/service"
 	"github.com/pkg/errors"
 	goji "goji.io"
 	"goji.io/pat"

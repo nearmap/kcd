@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	custom "github.com/nearmap/kcd/gok8s/client/informers/externalversions/custom"
-	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/Eric1313/kcd/gok8s/client/clientset/versioned"
+	custom "github.com/Eric1313/kcd/gok8s/client/informers/externalversions/custom"
+	internalinterfaces "github.com/Eric1313/kcd/gok8s/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

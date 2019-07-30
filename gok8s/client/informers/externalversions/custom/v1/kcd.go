@@ -21,10 +21,10 @@ package v1
 import (
 	time "time"
 
-	custom_v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	versioned "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/nearmap/kcd/gok8s/client/listers/custom/v1"
+	custom_v1 "github.com/Eric1313/kcd/gok8s/apis/custom/v1"
+	versioned "github.com/Eric1313/kcd/gok8s/client/clientset/versioned"
+	internalinterfaces "github.com/Eric1313/kcd/gok8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/Eric1313/kcd/gok8s/client/listers/custom/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

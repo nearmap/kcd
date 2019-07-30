@@ -2,11 +2,11 @@ package deploy
 
 import (
 	"github.com/golang/glog"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/gok8s/workload"
-	k8s "github.com/nearmap/kcd/gok8s/workload"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
+	kcd1 "github.com/Eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/Eric1313/kcd/gok8s/workload"
+	k8s "github.com/Eric1313/kcd/gok8s/workload"
+	"github.com/Eric1313/kcd/registry"
+	"github.com/Eric1313/kcd/state"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

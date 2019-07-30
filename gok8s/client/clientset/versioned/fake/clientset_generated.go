@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	customv1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
-	fakecustomv1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1/fake"
+	clientset "github.com/Eric1313/kcd/gok8s/client/clientset/versioned"
+	customv1 "github.com/Eric1313/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
+	fakecustomv1 "github.com/Eric1313/kcd/gok8s/client/clientset/versioned/typed/custom/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

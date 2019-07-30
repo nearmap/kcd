@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
+	kcd1 "github.com/Eric1313/kcd/gok8s/apis/custom/v1"
+	"github.com/Eric1313/kcd/registry"
+	"github.com/Eric1313/kcd/state"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 	corev1 "k8s.io/api/core/v1"

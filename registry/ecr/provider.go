@@ -11,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/golang/glog"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/stats"
+	"github.com/Eric1313/kcd/registry"
+	"github.com/Eric1313/kcd/stats"
 	"github.com/pkg/errors"
 )
 
