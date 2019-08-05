@@ -7,14 +7,14 @@ WORKDIR /go/src/github.com/wish/kcd
 RUN export GO111MODULE=on && GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /go/bin/kcd
 
 #Actual Image
-FROM alpine
+FROM alpine:3.10.1
 
 VOLUME /go/src
 
 RUN mkdir -p /kcd
 ADD ./k8s /kcd/k8s/
 
-COPY --from=builder /go/bin/kcd /kcd/
+COPY --from=builder /go/bin/kcd /usr/local/bin
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
 
@@ -22,4 +22,4 @@ WORKDIR /kcd
 EXPOSE 2019
 USER 1001
 
-ENTRYPOINT ["/kcd/kcd"]
+ENTRYPOINT ["kcd"]
