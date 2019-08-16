@@ -147,7 +147,7 @@ func (sd *SimpleDeployer) checkRollout(target RolloutTarget) (complete bool, err
 		return false, state.NewFailed("rollout failed for target=%s, version=%s", target.Name(), sd.version)
 	}
 
-	success, err := CheckPods(sd.cs, sd.namespace, target, 1, sd.kcd, sd.version)
+	success, err := CheckPods(sd.cs, sd.namespace, target, 0, sd.kcd, sd.version)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to check pods during rollout for %s", target.Name())
 	}
