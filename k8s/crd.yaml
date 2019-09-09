@@ -5,7 +5,12 @@ metadata:
   name: kcds.custom.k8s.io
 spec:
   group: custom.k8s.io
-  version: v1
+  versions:
+    - name: v1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
   scope: Namespaced
   names:
     plural: kcds
@@ -51,15 +56,17 @@ spec:
               # # so not using it
               # additionalProperties: true
             container:
-              name:
-                type: string
-              verify:
-                type: array
-                kind:
+              properties:
+                name:
                   type: string
-                image:
-                  type: string
-                  pattern: '^[^:]*$'
+                verify:
+                  type: array
+                  items:
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
               required:
                 - name
             pollIntervalSeconds:
@@ -67,28 +74,32 @@ spec:
             livenessSeconds:
               type: integer
             config:
-              name:
-                type: string
-              key:
-                type: string
+              properties:
+                name:
+                  type: string
+                key:
+                  type: string
             strategy:
-              kind:
-                type: string
-              blueGreen:
-                serviceName:
-                  type: string
-                verificationServiceName:
-                  type: string
-                labelNames:
-                  type: array
-                  items:
-                    type: string
-                scaleDown:
-                  type: boolean
-              verify:
-                type: array
+              properties:
                 kind:
                   type: string
-                image:
-                  type: string
-                  pattern: '^[^:]*$'
+                blueGreen:
+                  properties:
+                    serviceName:
+                      type: string
+                    verificationServiceName:
+                      type: string
+                    labelNames:
+                      type: array
+                      items:
+                        type: string
+                    scaleDown:
+                      type: boolean
+                verify:
+                  type: array
+                  items:
+                    kind:
+                      type: string
+                    image:
+                      type: string
+                      pattern: '^[^:]*$'
