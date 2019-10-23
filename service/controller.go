@@ -468,6 +468,9 @@ func (c *CVController) newKCDSyncDeployment(kcd *kcd1.KCD, version string) *apps
 							},
 						},
 					},
+					NodeSelector: map[string]string{
+						"kops.k8s.io/instancegroup": "kcd",
+					},
 				},
 			},
 		},
