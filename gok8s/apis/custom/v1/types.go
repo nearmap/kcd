@@ -43,7 +43,7 @@ type KCDSpec struct {
 // ContainerSpec defines a name of container and option container level verification step
 type ContainerSpec struct {
 	Name   string       `json:"name"`
-	Verify []VerifySpec `json:"verify"`
+	Verify []VerifySpec `json:"verify,omitempty"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
