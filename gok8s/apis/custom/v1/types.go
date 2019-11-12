@@ -25,6 +25,10 @@ type KCDSpec struct {
 	Tag           string `json:"tag"`
 	VersionSyntax string `json:"versionSyntax"`
 
+	// ServiceAccountName is the name of the service account
+	// to use by the syncer pod
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
 	TimeoutSeconds      int `json:"timeoutSeconds"`

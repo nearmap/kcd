@@ -106,6 +106,7 @@ workflows:
   build_and_test:
     jobs:
       - build:
+          context: api-team-aws
           filters:
             branches:
               ignore: master
@@ -117,15 +118,18 @@ workflows:
           requires:
             - qa-deploy-hold
       - qa-deploy:
+          context: api-team-aws
           requires:
             - regression-check-qa
   build_and_deploy:
     jobs:
       - build:
+          context: api-team-aws
           filters:
             branches:
               only: master
       - prod-deploy:
+          context: api-team-aws
           requires:
             - build
       - push-to-dockerio:
