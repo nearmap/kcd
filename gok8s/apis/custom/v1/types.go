@@ -67,9 +67,10 @@ type BlueGreenSpec struct {
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	Kind  string `json:"kind"`
-	Image string `json:"image"`
-	Tag   string `json:"tag"`
+	Kind        string            `json:"kind"`
+	Image       string            `json:"image"`
+	Tag         string            `json:"tag"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // HistorySpec contains configuration for saving rollout history.
