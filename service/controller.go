@@ -392,6 +392,7 @@ func (c *CVController) newKCDSyncDeployment(kcd *kcd1.KCD, version string) *apps
 		"app":        "registry-syncer",
 		"controller": kcd.Name,
 	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dName,
@@ -414,9 +415,11 @@ func (c *CVController) newKCDSyncDeployment(kcd *kcd1.KCD, version string) *apps
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels:      labels,
+					Annotations: kcd.Annotations,
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName: kcd.Spec.ServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							Name:  fmt.Sprintf("%s-container", dName),

@@ -25,6 +25,10 @@ type KCDSpec struct {
 	Tag           string `json:"tag"`
 	VersionSyntax string `json:"versionSyntax"`
 
+	// ServiceAccountName is the name of the service account
+	// to use by the syncer pod
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
 	PollIntervalSeconds int `json:"pollIntervalSeconds"`
 	LivenessSeconds     int `json:"livenessSeconds"`
 	TimeoutSeconds      int `json:"timeoutSeconds"`
@@ -43,7 +47,7 @@ type KCDSpec struct {
 // ContainerSpec defines a name of container and option container level verification step
 type ContainerSpec struct {
 	Name   string       `json:"name"`
-	Verify []VerifySpec `json:"verify"`
+	Verify []VerifySpec `json:"verify,omitempty"`
 }
 
 // StrategySpec defines a rollout strategy and optional verification steps.
@@ -63,9 +67,10 @@ type BlueGreenSpec struct {
 
 // VerifySpec defines various verification types performed during a rollout.
 type VerifySpec struct {
-	Kind  string `json:"kind"`
-	Image string `json:"image"`
-	Tag   string `json:"tag"`
+	Kind        string            `json:"kind"`
+	Image       string            `json:"image"`
+	Tag         string            `json:"tag"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // HistorySpec contains configuration for saving rollout history.
