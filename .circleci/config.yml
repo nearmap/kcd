@@ -133,5 +133,6 @@ workflows:
           requires:
             - build
       - push-to-dockerio:
+          context: api-team-aws
           requires:
             - prod-deploy
