@@ -88,10 +88,10 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 	}
 
 	for _, pod := range pods {
-		if pod.Status.Phase != corev1.PodRunning {
-			glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
-			return false, nil
-		}
+		//if pod.Status.Phase != corev1.PodRunning {
+		//	glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
+		//	return false, nil
+		//}
 
 		for _, cs := range pod.Status.ContainerStatuses {
 			if !cs.Ready {
