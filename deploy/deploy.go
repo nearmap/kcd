@@ -87,18 +87,12 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 		return false, nil
 	}
 
+	// firstly, check if there are old pods left
 	for _, pod := range pods {
 		//if pod.Status.Phase != corev1.PodRunning {
 		//	glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 		//	return false, nil
 		//}
-
-		for _, cs := range pod.Status.ContainerStatuses {
-			if !cs.Ready {
-				glog.V(2).Infof("Still waiting for rollout: pod=%s, container=%s is not ready", pod.Name, cs.Name)
-				return false, nil
-			}
-		}
 
 		ok, err := workload.CheckPodSpecVersion(pod.Spec, kcd, version)
 		if err != nil {
@@ -110,7 +104,28 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 		}
 	}
 
-	glog.V(2).Info("All pods and containers are ready")
+	// secondly, check if new pods are up and running
+	for _, pod := range pods {
+		if CheckPodRunningState(pod) {
+			glog.V(4).Infof("Pod %s in latest version is ready", pod.Name)
+			return true, nil
+		}
+	}
 
-	return true, nil
+	//glog.V(2).Info("All pods and containers are ready")
+	glog.V(2).Info("Still waiting for rollout, new pods are not ready yet")
+	return false, nil
+}
+
+// CheckPodRunningState checks whether a pod is running and all of its container is in ready state.
+func CheckPodRunningState(pod corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodRunning {
+		return false
+	}
+	for _, cs := range pod.Status.ContainerStatuses {
+		if !cs.Ready {
+			return false
+		}
+	}
+	return true
 }
