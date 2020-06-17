@@ -82,6 +82,12 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to get pods for target %s", target.Name())
 	}
+
+	if len(pods) == 0 {
+		glog.V(4).Infof("%s has %d replicaset, thus deployment succeeded", target.Name(), len(pods))
+		return true, nil
+	}
+
 	if len(pods) < int(num) {
 		glog.V(2).Infof("insufficient pods found for target %s: found %d but need %d", target.Name(), len(pods), num)
 		return false, nil
