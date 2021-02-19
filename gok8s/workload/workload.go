@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"github.com/golang/glog"
 	"strings"
 	"time"
 
@@ -77,6 +78,7 @@ type TemplateWorkload interface {
 // defined by the KCD resource.
 func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcdv1.KCD, versions ...string) (bool, error) {
 	match := false
+	glog.V(4).Infof("podSpec: %v kcd: %v", podSpec, kcd)
 	for _, c := range podSpec.Containers {
 		if c.Name == kcd.Spec.Container.Name {
 			match = true
