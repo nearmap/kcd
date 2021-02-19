@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/registry"
+	"github.com/wish/kcd/state"
 	"github.com/golang/glog"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 	corev1 "k8s.io/api/core/v1"
@@ -122,11 +122,12 @@ func (iv *ImageVerifier) getImage(ctx context.Context, spec kcd1.VerifySpec) (st
 		return "", errors.Wrapf(err, "failed to get registry for %s", spec.Image)
 	}
 
-	version, err := registry.Version(ctx, spec.Tag)
+	versions, err := registry.Versions(ctx, spec.Tag)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to get version from registry for %+v", spec)
 	}
 
+	version := versions[0]
 	parts := strings.SplitN(spec.Image, ":", 2)
 	return fmt.Sprintf("%s:%s", parts[0], version), nil
 }

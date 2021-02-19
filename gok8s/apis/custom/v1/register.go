@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	custom "github.com/nearmap/kcd/gok8s/apis/custom"
+	custom "github.com/wish/kcd/gok8s/apis/custom"
 )
 
 // SchemeGroupVersion is group version used to register these objects

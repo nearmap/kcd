@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	customv1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
-	fakecustomv1 "github.com/nearmap/kcd/gok8s/client/clientset/versioned/typed/custom/v1/fake"
+	clientset "github.com/wish/kcd/gok8s/client/clientset/versioned"
+	customv1 "github.com/wish/kcd/gok8s/client/clientset/versioned/typed/custom/v1"
+	fakecustomv1 "github.com/wish/kcd/gok8s/client/clientset/versioned/typed/custom/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

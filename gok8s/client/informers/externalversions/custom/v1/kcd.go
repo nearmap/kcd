@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ package v1
 import (
 	time "time"
 
-	custom_v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	versioned "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	internalinterfaces "github.com/nearmap/kcd/gok8s/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/nearmap/kcd/gok8s/client/listers/custom/v1"
+	custom_v1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	versioned "github.com/wish/kcd/gok8s/client/clientset/versioned"
+	internalinterfaces "github.com/wish/kcd/gok8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/wish/kcd/gok8s/client/listers/custom/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

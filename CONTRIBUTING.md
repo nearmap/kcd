@@ -9,7 +9,7 @@ We welcome all contributions and feedbacks.
 
 # Contributors
 
-We thank all of our [contributors](https://github.com/nearmap/kcd/graphs/contributors)!
+We thank all of our [contributors](https://github.com/wish/kcd/graphs/contributors)!
 
 **For the detailed history of contributions** 
 

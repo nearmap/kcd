@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/nearmap/kcd/events"
-	"github.com/nearmap/kcd/stats"
+	"github.com/wish/kcd/events"
+	"github.com/wish/kcd/stats"
 )
 
 // Options contains additional (optional) configuration for the controller

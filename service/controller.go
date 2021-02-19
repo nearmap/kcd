@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	conf "github.com/nearmap/kcd/config"
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	scheme "github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
-	informers "github.com/nearmap/kcd/gok8s/client/informers/externalversions"
-	customlister "github.com/nearmap/kcd/gok8s/client/listers/custom/v1"
+	conf "github.com/wish/kcd/config"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/wish/kcd/gok8s/client/clientset/versioned"
+	scheme "github.com/wish/kcd/gok8s/client/clientset/versioned/scheme"
+	informers "github.com/wish/kcd/gok8s/client/informers/externalversions"
+	customlister "github.com/wish/kcd/gok8s/client/listers/custom/v1"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	appsv1 "k8s.io/api/apps/v1"
@@ -470,6 +470,9 @@ func (c *CVController) newKCDSyncDeployment(kcd *kcd1.KCD, version string) *apps
 								},
 							},
 						},
+					},
+					NodeSelector: map[string]string{
+						"kops.k8s.io/instancegroup": "kcd",
 					},
 				},
 			},

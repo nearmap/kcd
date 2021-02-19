@@ -2,7 +2,7 @@ version: 2
 
 defaults: &defaults
   machine: true
-  working_directory: ~/go/src/github.com/nearmap/kcd
+  working_directory: ~/go/src/github.com/wish/kcd
 
 deploy-env: &deploy-env
   name: Tag current image as deploy candidate
@@ -39,8 +39,8 @@ jobs:
       - run:
           name: Go Report Card
           command: |
-              curl -X POST -F 'repo=github.com/nearmap/kcd'  https://goreportcard.au-api.nearmap.com/checks
-              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/nearmap/kcd"
+              curl -X POST -F 'repo=github.com/wish/kcd'  https://goreportcard.au-api.nearmap.com/checks
+              echo "Report is avaialble @ https://goreportcard.au-api.nearmap.com/report/github.com/wish/kcd"
       - deploy:
           name: Push application docker image
           command: |

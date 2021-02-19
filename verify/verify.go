@@ -3,9 +3,9 @@ package verify
 import (
 	"context"
 
-	kcd1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/registry"
-	"github.com/nearmap/kcd/state"
+	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/registry"
+	"github.com/wish/kcd/state"
 	"k8s.io/client-go/kubernetes"
 )
 

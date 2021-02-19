@@ -3,7 +3,7 @@ services:
   k8s:
     build:
       context: .
-    working_dir: /go/src/github.com/nearmap/kcd
+    working_dir: /go/src/github.com/wish/kcd
     entrypoint: env CGO_ENABLED=0 GOCACHE=/tmp go test ./...
     volumes:
-      - .:/go/src/github.com/nearmap/kcd
+      - .:/go/src/github.com/wish/kcd

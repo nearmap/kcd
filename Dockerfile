@@ -1,23 +1,25 @@
-FROM golang:alpine
+FROM golang:alpine AS builder
 
-ADD . /go/src/github.com/nearmap/kcd
-RUN go install github.com/nearmap/kcd
+RUN apk update && apk add --no-cache git && apk add --update git mercurial && rm -rf /var/cache/apk/*
+COPY . /go/src/github.com/wish/kcd
+WORKDIR /go/src/github.com/wish/kcd
 
-RUN rm -r /go/src/github.com/nearmap/kcd
+RUN export GO111MODULE=on && GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /go/bin/kcd
+
+#Actual Image
+FROM alpine:3.13.0
 
 VOLUME /go/src
 
-# TODO: this is dodgy it expects k8s files to always be available from runtime directory
-
-# need to package the yaml version file using tool chains properly
 RUN mkdir -p /kcd
 ADD ./k8s /kcd/k8s/
-ADD version /kcd/
+
+COPY --from=builder /go/bin/kcd /usr/local/bin
+RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
+
 
 WORKDIR /kcd
-
 EXPOSE 2019
-
 USER 1001
 
 ENTRYPOINT ["kcd"]

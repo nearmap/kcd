@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	clientset "github.com/nearmap/kcd/gok8s/client/clientset/versioned"
-	"github.com/nearmap/kcd/gok8s/workload"
+	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	clientset "github.com/wish/kcd/gok8s/client/clientset/versioned"
+	"github.com/wish/kcd/gok8s/workload"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

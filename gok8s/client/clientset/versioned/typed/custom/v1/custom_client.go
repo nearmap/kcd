@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
-	"github.com/nearmap/kcd/gok8s/client/clientset/versioned/scheme"
+	v1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/gok8s/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )

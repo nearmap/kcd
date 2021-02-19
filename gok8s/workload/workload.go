@@ -1,10 +1,11 @@
 package workload
 
 import (
+	"github.com/golang/glog"
 	"strings"
 	"time"
 
-	kcdv1 "github.com/nearmap/kcd/gok8s/apis/custom/v1"
+	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -77,7 +78,9 @@ type TemplateWorkload interface {
 // defined by the KCD resource.
 func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcdv1.KCD, versions ...string) (bool, error) {
 	match := false
+	glog.V(4).Infof("podSpec: %v kcd: %v", podSpec, kcd)
 	for _, c := range podSpec.Containers {
+		glog.V(4).Infof("Container: %v kcd Container Name: %v", c.Name, kcd.Spec.Container.Name)
 		if c.Name == kcd.Spec.Container.Name {
 			match = true
 			parts := strings.SplitN(c.Image, ":", 2)
