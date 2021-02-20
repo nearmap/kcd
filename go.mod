@@ -69,6 +69,4 @@ require (
 	k8s.io/kube-openapi v0.0.0-20180509051136-39cb288412c4 // indirect; latest from branch release-1.10
 )
 
-replace (
-	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d
-)
+replace bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d
