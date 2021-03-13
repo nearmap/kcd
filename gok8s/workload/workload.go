@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"github.com/pkg/errors"
+	kcdv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -94,6 +94,7 @@ func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcdv1.KCD, versions ...str
 
 			found := false
 			cver := parts[1]
+			glog.V(4).Infof("Current image tag from manifest: %v, %v", cver, c.Name)
 			for _, version := range versions {
 				if cver == version {
 					found = true
@@ -101,6 +102,7 @@ func CheckPodSpecVersion(podSpec corev1.PodSpec, kcd *kcdv1.KCD, versions ...str
 				}
 			}
 			if !found {
+				glog.V(4).Info("Version not found")
 				return false, nil
 			}
 		}

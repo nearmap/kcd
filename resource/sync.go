@@ -153,16 +153,19 @@ func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, versions
 	}
 	// if version changes then always process
 	if !containsCurrentVersion {
+		glog.V(4).Info("Service container version changed")
 		return true, nil
 	}
 
 	// if progressing then always process
 	if kcd.Status.CurrStatus == StatusProgressing {
+		glog.V(4).Info("KCD status progressing")
 		return true, nil
 	}
 
 	// don't attempt to rollout a failed state (since this may keep looping)
 	if kcd.Status.CurrStatus == StatusFailed {
+		glog.V(4).Info("KCD status failed")
 		return false, nil
 	}
 
