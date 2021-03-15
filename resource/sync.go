@@ -116,7 +116,8 @@ func (s *Syncer) initialState() state.StateFunc {
 			glog.Errorf("Failed to create deployer for kcd=%s: %v", s.kcd.Name, err)
 			return state.Error(errors.Wrap(err, "failed to create deployer"))
 		}
-
+		glog.V(4).Infof("Fetched versions: %v", versions)
+		glog.V(4).Infof("Curren kcd: %v", s.kcd)
 		process, err := s.shouldProcess(deployer, s.kcd, versions)
 		if err != nil {
 			glog.Errorf("Failed to determine whether workloads should be processed for kcd=%s: %v", s.kcd.Name, err)
