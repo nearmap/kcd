@@ -99,7 +99,7 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 		//	glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 		//	return false, nil
 		//}
-		glog.V(4).Infof("Check pod spev version %v, $v", pod.Name, pod.Namespace)
+		glog.V(4).Infof("Check pod spec version %v, $v", pod.Name, pod.Namespace)
 
 		ok, err := workload.CheckPodSpecVersion(pod.Spec, kcd, version)
 		if err != nil {
