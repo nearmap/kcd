@@ -3,6 +3,11 @@ package handler
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"k8s.io/api/admission/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"net/http"
 	"time"
 
@@ -18,12 +23,58 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/server/options"
+	_ "k8s.io/apimachinery/pkg/runtime/serializer"
+	_ "k8s.io/apimachinery/pkg/runtime"
 )
+
+//const (
+//	EnabledLabel = "kcd-version-patch.wish.com/enabled"
+//
+//	PathsAnnotationKey = "kcd-version-patch.wish.com/paths"
+//)
+
+var (
+	runtimeScheme = runtime.NewScheme()
+	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	deserializer  = codecs.UniversalDeserializer()
+)
+
 
 // StaticContentHandler returns a HandlerFunc that writes the given content
 // to the response.
 func StaticContentHandler(content string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, err := w.Write([]byte(content)); err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}
+}
+
+// VersionPatchHandler returns a HandlerFunc that writes the given content
+// to the response.
+func VersionPatchHandler(content string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		glog.V(1).Info("Enter mutation!!!!")
+		//var body []byte
+		//if r.Body != nil {
+		//	if data, err := ioutil.ReadAll(r.Body); err == nil {
+		//		body = data
+		//	}
+		//}
+
+		//var admissionResponse *v1beta1.AdmissionResponse
+		//ar := v1beta1.AdmissionReview{}
+		//if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
+		//	glog.Errorf("Can't decode body: %v", err)
+		//	admissionResponse = &v1beta1.AdmissionResponse{
+		//		Result: &metav1.Status{
+		//			Message: err.Error(),
+		//		},
+		//	}
+		//} else {
+			glog.V(1).Info("Mutate version!!!!")
+		//}
+
 		if _, err := w.Write([]byte(content)); err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
@@ -58,6 +109,7 @@ func NewServer(port int, version string, resourceProvider resource.Provider, his
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
+	mux.Handle(pat.Get("/mutate"), VersionPatchHandler("Mutate"))
 
 	kcdmux := goji.SubMux()
 	mux.Handle(pat.New("/kcd/*"), kcdmux)
