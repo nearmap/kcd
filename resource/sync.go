@@ -170,11 +170,6 @@ func (s *Syncer) shouldProcess(deployer deploy.Deployer, kcd *kcd1.KCD, versions
 		return false, nil
 	}
 
-	if kcd.Namespace == "hello-service" && containsCurrentVersion {
-		glog.V(4).Info("Service container version not changed, slipping....")
-		return false, nil
-	}
-
 	// for a success state, check that the workload versions are as expected (in case specs were changed
 	// behind our backs).
 	for _, wl := range deployer.Workloads() {
