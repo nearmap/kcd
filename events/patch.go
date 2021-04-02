@@ -3,16 +3,29 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/golang/glog"
+	"github.com/mitchellh/mapstructure"
 	"github.com/wish/kcd/registry/ecr"
 	"github.com/wish/kcd/stats"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
+
+const (
+
+	EnabledLabel = "kcd-version-patcher.wish.com/enabled"
+
+	PathsAnnotationKey = "kcd-version-patcher.wish.com/container"
+
+	ContainerPatchPath = "/spec/template/spec/containers"
+
+	VersionRegex = "[0-9a-f]{5,40}"
+)
 
 // objectWithMeta allows us to unmarshal just the ObjectMeta of a k8s object
 type objectWithMeta struct {
@@ -20,8 +33,8 @@ type objectWithMeta struct {
 }
 
 type containaerData struct {
-	name string `json:"name,omitempty"`
-	image string `json:"name,omitempty"`
+	Name string `mapstructure:"name"`
+	Image string `mapstructure:"image"`
 }
 
 type Record map[string]interface{}
@@ -34,43 +47,52 @@ type patchOperation struct {
 
 var versionRegex, _ = regexp.Compile(`[0-9a-f]{5,40}`)
 
-// Get the value addressed by `nameParts`
-func (r Record) Get(nameParts []string, cName string) (string, bool) {
+// Get the container image string alue addressed by `nameParts`
+func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 	// If no key is given, return nothing
 	if nameParts == nil || len(nameParts) <= 0 {
-		return nil, false
+		return "", "-1", false
 	}
 	val, ok := r[nameParts[0]]
 	if !ok {
-		return nil, ok
+		return "", "-1", ok
 	}
 
-	for _, namePart := range nameParts[1:] {
+	for _, pathName := range nameParts[1:] {
 		typedVal, ok := val.(map[string]interface{})
 		if !ok {
-			return nil, ok
+			return "", "-1", ok
 		}
-		val, ok = typedVal[namePart]
+		val, ok = typedVal[pathName]
 		if !ok {
-			return nil, ok
+			return "", "-1", ok
 		}
 	}
 
 	containers := val.([]interface{})
-
-	for _, container := range containers {
-		d := container.(containaerData)
-		if d.name == cName {
-			return d.image, true
+	matched := false
+	for idx, container := range containers {
+		var cd containaerData
+		mapstructure.Decode(container, &cd)
+		if cd.Name == cName {
+			matched = true
+			glog.Infof("Found specified container name, start patching: %s", cName)
+			return cd.Image, strconv.Itoa(idx), true
 		}
 	}
 
-	return "", false
+	if !matched {
+		glog.Infof("Could not find specified container name: %s", cName)
+	}
+
+	return "", "-1", false
 }
 
 
 func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.AdmissionResponse {
+
 	var newManifest objectWithMeta
+
 	if err := json.Unmarshal(req.Object.Raw, &newManifest); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
 		return &v1beta1.AdmissionResponse{
@@ -82,6 +104,38 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo)
+
+	// if no enabled labeld is there, we skip the patching and passing the request.
+	v, ok := newManifest.Labels[EnabledLabel]
+	if!ok {
+		glog.Info("No kcd-version-patcher.wish.com/enabled")
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+		}
+	}
+	// if enable label is not TRUE or not boolean, pass the checking
+	if b, err := strconv.ParseBool(v); err != nil {
+		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+		}
+	} else if !b {
+		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not TRUE: %v", v)
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+		}
+	}
+
+	pathAnnotations := newManifest.GetAnnotations()
+	containerName, ok := pathAnnotations[PathsAnnotationKey]
+	if !ok {
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+		}
+	}
+
+	// In case there is space inside
+	containerName = strings.TrimSpace(containerName)
 
 	var currentMap map[string]interface{}
 
@@ -104,7 +158,18 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	patches := patchForContainer("merchan-backend", Record(currentMap), Record(newMap), stats)
+	patches, ok := patchForContainer(containerName, Record(currentMap), Record(newMap), stats)
+
+	// if we tried to patch the container name specified in path, but not successful.
+	if !ok {
+		glog.Errorf("Patching service container %v is failed", Record(currentMap))
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Patching is not successful",
+			},
+		}
+	}
 
 	if len(patches) == 0 {
 		return &v1beta1.AdmissionResponse{
@@ -137,64 +202,71 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 // in replacement if already set in current
 func patchForContainer(cName string, current, replacement Record, stats stats.Stats) ([]patchOperation, bool) {
 
-	path := "/spec/template/spec/containers"
-
-	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	// We use constant path to retrieve the specified container
+	pathParts := strings.Split(strings.Trim(ContainerPatchPath, "/"), "/")
 
 	// If the current one doesn't have the value, we're okay to let this pass
-	imageRepo, ok := current.Get(pathParts, cName)
+	imageRepo, _, ok := current.Get(pathParts, cName)
 	if !ok {
-		return nil
+		glog.Infof("Error getting current image repo container name: %v", cName)
+		return nil, false
 	}
+
+	// Retrieve current tag from k8s config
+	imageData := strings.Split(imageRepo, ":")
+	curTag := imageData[1]
+	glog.Infof("Curren tag: %v for running container: %v", curTag, cName)
+	fmt.Printf("Curren tag: %s", curTag)
+
+	//We retrieve the image repo and index from replacement map
+	imageRepoFlux, idxFlux, ok := replacement.Get(pathParts, cName)
+	if !ok {
+		glog.Infof("Error getting new image repo container name applied by flux: %v", cName)
+		return nil, false
+	}
+	// Retrieve new tag applied by flux
+	imageDataFlux := strings.Split(imageRepoFlux, ":")
+	fluxTag := imageDataFlux[1]
+	// If current tag is already a SHA, no need to patch
+	if versionRegex.MatchString(fluxTag) {
+		glog.Infof("Already SHA tag of flux applied, no need to patch for container %v at version: %v", cName, curTag)
+		return nil, true
+	}
+
+	fmt.Printf("Flux tag: %s", fluxTag)
+
+	pathToPatch := strings.Join([]string{ContainerPatchPath, idxFlux, "image"}, "/")
 
 	patchOp := patchOperation{
-		Path:  path,
-		Value: imageRepo,
+		Path:  pathToPatch,
 	}
 
-	patches := []patchOperation{patchOp}
-
-	imageData := strings.Split(imageRepo, ":")
-	curVer := imageData[1]
-	ctx := c
-
-	if versionRegex.MatchString(curVer) {
-		glog.Infof("Already SHA tag, no need to patch for container %v at version: %v",  cName, curVer)
-		return patches, false
+	p, e := ecr.NewECR(imageRepoFlux, VersionRegex, stats)
+	if e != nil {
+		fmt.Println("3")
+		glog.Errorf("Unable to create ECR for iamge repo %v at version: %v", imageRepo, curTag)
+		return nil, false
+	}
+	if registry, e := p.RegistryFor(imageRepoFlux); e != nil {
+		fmt.Println("4")
+		glog.Errorf("Failed to build registry for image repo: %v", imageRepo)
+		return nil, false
 	} else {
-		p, e := ecr.NewECR(imageRepo, "[0-9a-f]{5,40}", stats)
-		if e != nil {
-			glog.Errorf("Unable to create ECR for iamge repo %v at version: %v", imageRepo, curVer)
-			return patches, false
+		versions, err := registry.Versions(context.Background(), fluxTag)
+		if err != nil {
+			fmt.Println("5")
+			glog.Errorf("Syncer failed to get version from registry using tag=%s", fluxTag)
 		}
-		if registry, e := p.RegistryFor(imageRepo); e != nil {
+		version := versions[0]
+		fmt.Printf("Fetched version: %s", version)
+		glog.Infof("Got registry versions for container=%s, tag=%s, rolloutVersion=%s", cName, fluxTag, version)
 
-		} else {
-			registry.Versions()
-		}
-	}
-
-
-
-
-	newV, ok := replacement.Get(pathParts)
-
-	if ok {
-		// If the replacement has the value and it matches, we need no patch
-		if reflect.DeepEqual(tagVersion, newV) {
-			return nil
-		}
-
-		// if the replacement has the path but they don't match, it needs to be replaced
-		glog.Infof("Replacing path=%s old=%v new=%v", path, currentV, newV)
+		patchOp.Value = imageDataFlux[0] + ":" + version
+		glog.Infof("Replacing path=%v old tag=%v to patched version=%v", pathToPatch, fluxTag, version)
 		patchOp.Op = "replace"
-	} else {
-		// if the replacement doesn't  have the path, we need to add it
-		glog.Infof("Setting path=%s value=%v", path, currentV)
-		patchOp.Op = "add"
+		patches := []patchOperation{patchOp}
+		return patches, true
 	}
-
-	return []patchOperation{patchOp}
 }
 
 
