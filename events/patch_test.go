@@ -48,32 +48,25 @@ func TestMutate(t *testing.T) {
 		in  *v1beta1.AdmissionRequest
 		out *admissionResponse
 	}{
-		//// malformed input
-		//{
-		//	in: &v1beta1.AdmissionRequest{
-		//		Object: runtime.RawExtension{
-		//			Raw: []byte(``),
-		//		},
-		//	},
-		//	out: &admissionResponse{
-		//		Allowed:       false,
-		//		StatusMessage: "unexpected end of JSON input",
-		//	},
-		//},
-		//
-		//// object with no labels -- which should be allowed
-		//{
-		//	in: &v1beta1.AdmissionRequest{
-		//		Object: runtime.RawExtension{
-		//			Raw: []byte(`{}`),
-		//		},
-		//	},
-		//	out: &admissionResponse{
-		//		Allowed: true,
-		//	},
-		//},
-
-		// object with labels enabling this hook with a path defined that doesn't exist in new
+		// disabled, no path
+		// admissionResponse:
+		// Allowed: true,
+		// StatusMessage: "Patching does not have defined boolean value enable: true or false",
+		{
+			in: &v1beta1.AdmissionRequest{
+				Object: runtime.RawExtension{
+					Raw: []byte(`{}`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				StatusMessage: "Patching does not have defined boolean value enable: true or false",
+			},
+		},
+		// enabled, correct path
+		// running container with SHA version, flux applied with SHA version
+		// admissionResponse:
+		// Allowed: true,
 		{
 			in: &v1beta1.AdmissionRequest{
 				Kind: metav1.GroupVersionKind{
@@ -95,7 +88,315 @@ func TestMutate(t *testing.T) {
 									"containers": [
 										{
 											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:a792cca8"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
 											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+			},
+		},
+		// enabled, no path
+		// No patch
+		// admissionResponse:
+		// Allowed: true,
+		// StatusMessage: "Patching does not have defined path",
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {},
+							"labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {},
+							"labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				StatusMessage: "Patching does not have defined path",
+			},
+		},
+		// enabled is not bool value, correct path
+		// No patch
+		// admissionResponse:
+		// Allowed: true,
+		// StatusMessage: "Patching enabled is not boolean value",
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "xxxx"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "xxx"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				StatusMessage: "Patching enabled is not boolean value",
+			},
+		},
+		// disabled, correct path
+		// No patch
+		// admissionResponse:
+		// Allowed: true,
+		// StatusMessage: "Patching is disabled",
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "false"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "false"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				StatusMessage: "Patching is disabled",
+			},
+		},
+		// enabled, incorrect path
+		// No patch
+		// admissionResponse:
+		// Allowed: true,
+		// StatusMessage: "Patching is not successful",
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-serv"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				StatusMessage: "Patching is not successful",
+			},
+		},
+		// enabled, correct path
+		// running container with SHA version, flux applied with tag version
+		// admissionResponse:
+		// [{"op":"replace","path":"/spec/template/spec/containers/0/image","value":"951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"}]
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
 										}
 									]
 								}
@@ -133,9 +434,10 @@ func TestMutate(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
+	for idx, test := range tests {
 		out := Mutate(test.in, nil)
 		if err := test.out.Validate(out); err != nil {
+			fmt.Println(idx)
 			t.Fatalf("Error: %v\n%v", err, out)
 		}
 	}

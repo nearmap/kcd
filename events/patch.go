@@ -107,10 +107,13 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 
 	// if no enabled labeld is there, we skip the patching and passing the request.
 	v, ok := newManifest.Labels[EnabledLabel]
-	if!ok {
-		glog.Info("No kcd-version-patcher.wish.com/enabled")
+	if !ok {
+		glog.Info("No label defined kcd-version-patcher.wish.com/enabled")
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Patching does not have defined boolean value enable: true or false",
+			},
 		}
 	}
 	// if enable label is not TRUE or not boolean, pass the checking
@@ -118,11 +121,17 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Patching enabled is not boolean value",
+			},
 		}
 	} else if !b {
 		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not TRUE: %v", v)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Patching is disabled",
+			},
 		}
 	}
 
@@ -131,6 +140,9 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 	if !ok {
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Patching does not have defined path",
+			},
 		}
 	}
 
