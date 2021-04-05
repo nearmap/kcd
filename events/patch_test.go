@@ -432,6 +432,83 @@ func TestMutate(t *testing.T) {
 				Patch:   `[{"op":"replace","path":"/spec/template/spec/containers/0/image","value":"951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"}]`,
 			},
 		},
+		// enabled, correct path
+		// multiple containers include sidecar, running container with SHA version, flux applied with tag version
+		// admissionResponse:
+		// [{"op":"replace","path":"/spec/template/spec/containers/0/image","value":"951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"}]
+		{
+			in: &v1beta1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{
+					Group:   "apps",
+					Version: "v1",
+					Kind:    "Deployment",
+				},
+				Object: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "test-sidecar-1",
+											"image": "test-sidecar-1-image"
+										},
+										{
+											"name": "test-sidecar-2",
+											"image": "test-sidecar-2-image"
+										},
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:dev"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`{
+					    "metadata": {
+					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
+					        "namespace": "hello-service",
+					        "name": "hello-service"
+				        },
+				        "spec": {
+							"template": {
+								"spec": {
+									"containers": [
+										{
+											"name": "test-sidecar-1",
+											"image": "test-sidecar-1-image"
+										},
+										{
+											"name": "test-sidecar-2",
+											"image": "test-sidecar-2-image"
+										},
+										{
+											"name": "hello-service",
+											"image": "951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"
+										}
+									]
+								}
+							}
+						}
+				    }`),
+				},
+			},
+			out: &admissionResponse{
+				Allowed: true,
+				Patch:   `[{"op":"replace","path":"/spec/template/spec/containers/2/image","value":"951896542015.dkr.ecr.us-west-1.amazonaws.com/contextlogic/hello-service:93ebd365"}]`,
+			},
+		},
 	}
 
 	for idx, test := range tests {
