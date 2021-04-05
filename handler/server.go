@@ -53,11 +53,10 @@ func StaticContentHandler(content string) http.HandlerFunc {
 	}
 }
 
-// VersionPatchHandler returns a HandlerFunc that writes the given content
-// to the response.
+// VersionPatchHandler returns a HandlerFunc that writes the given content to the response.
 func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		glog.V(1).Info("Enter mutation!!!!")
+		glog.V(4).Info("Enter mutation......")
 		var body []byte
 		if r.Body != nil {
 			if data, err := ioutil.ReadAll(r.Body); err == nil {
@@ -70,15 +69,14 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 			glog.Errorf("Can't decode body: %v", err)
 			admissionResponse = &v1beta1.AdmissionResponse{
+				Allowed: true,
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
 			}
 		} else {
-			glog.V(1).Info("Mutate version!!!!")
 			admissionResponse = events.Mutate(ar.Request, stats)
 		}
-
 
 		admissionReview := v1beta1.AdmissionReview{}
 		if admissionResponse != nil {

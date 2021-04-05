@@ -17,7 +17,6 @@ import (
 
 
 const (
-
 	EnabledLabel = "kcd-version-patcher.wish.com/enabled"
 
 	PathsAnnotationKey = "kcd-version-patcher.wish.com/container"
@@ -76,13 +75,13 @@ func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 		mapstructure.Decode(container, &cd)
 		if cd.Name == cName {
 			matched = true
-			glog.Infof("Found specified container name, start patching: %s", cName)
+			glog.V(4).Infof("Found specified container name, start patching: %s", cName)
 			return cd.Image, strconv.Itoa(idx), true
 		}
 	}
 
 	if !matched {
-		glog.Infof("Could not find specified container name: %s", cName)
+		glog.V(4).Infof("Could not find specified container name: %s", cName)
 	}
 
 	return "", "-1", false
@@ -102,13 +101,13 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
+	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo)
 
 	// if no enabled labeld is there, we skip the patching and passing the request.
 	v, ok := newManifest.Labels[EnabledLabel]
 	if !ok {
-		glog.Info("No label defined kcd-version-patcher.wish.com/enabled")
+		glog.V(4).Info("No label defined kcd-version-patcher.wish.com/enabled")
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 			Result: &metav1.Status{
@@ -118,7 +117,7 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 	}
 	// if enable label is not TRUE or not boolean, pass the checking
 	if b, err := strconv.ParseBool(v); err != nil {
-		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
+		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 			Result: &metav1.Status{
@@ -126,7 +125,7 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 			},
 		}
 	} else if !b {
-		glog.Infof("Label kcd-version-patcher.wish.com/enabled is not TRUE: %v", v)
+		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not true: %v", v)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 			Result: &metav1.Status{
@@ -198,7 +197,7 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+	glog.V(4).Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
 		Patch:   patchBytes,
@@ -207,7 +206,6 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 			return &pt
 		}(),
 	}
-
 }
 
 // patchForPath returns any patches required to get the value at `path` to match
@@ -220,20 +218,19 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 	// If the current one doesn't have the value, we're okay to let this pass
 	imageRepo, _, ok := current.Get(pathParts, cName)
 	if !ok {
-		glog.Infof("Error getting current image repo container name: %v", cName)
+		glog.V(4).Infof("Error getting current image repo container name: %v", cName)
 		return nil, false
 	}
 
 	// Retrieve current tag from k8s config
 	imageData := strings.Split(imageRepo, ":")
 	curTag := imageData[1]
-	glog.Infof("Curren tag: %v for running container: %v", curTag, cName)
-	fmt.Printf("Curren tag: %s", curTag)
+	glog.V(4).Infof("Current tag: %v for running container: %v", curTag, cName)
 
 	//We retrieve the image repo and index from replacement map
 	imageRepoFlux, idxFlux, ok := replacement.Get(pathParts, cName)
 	if !ok {
-		glog.Infof("Error getting new image repo container name applied by flux: %v", cName)
+		glog.Errorf("Error getting new image repo container name applied by flux: %v", cName)
 		return nil, false
 	}
 	// Retrieve new tag applied by flux
@@ -241,7 +238,7 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 	fluxTag := imageDataFlux[1]
 	// If current tag is already a SHA, no need to patch
 	if versionRegex.MatchString(fluxTag) {
-		glog.Infof("Already SHA tag of flux applied, no need to patch for container %v at version: %v", cName, curTag)
+		glog.V(4).Infof("Already SHA tag of flux applied, no need to patch for container %v at version: %v", cName, curTag)
 		return nil, true
 	}
 
@@ -255,26 +252,23 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 
 	p, e := ecr.NewECR(imageRepoFlux, VersionRegex, stats)
 	if e != nil {
-		fmt.Println("3")
 		glog.Errorf("Unable to create ECR for iamge repo %v at version: %v", imageRepo, curTag)
 		return nil, false
 	}
 	if registry, e := p.RegistryFor(imageRepoFlux); e != nil {
-		fmt.Println("4")
 		glog.Errorf("Failed to build registry for image repo: %v", imageRepo)
 		return nil, false
 	} else {
 		versions, err := registry.Versions(context.Background(), fluxTag)
 		if err != nil {
-			fmt.Println("5")
 			glog.Errorf("Syncer failed to get version from registry using tag=%s", fluxTag)
 		}
 		version := versions[0]
-		fmt.Printf("Fetched version: %s", version)
 		glog.Infof("Got registry versions for container=%s, tag=%s, rolloutVersion=%s", cName, fluxTag, version)
 
 		patchOp.Value = imageDataFlux[0] + ":" + version
 		glog.Infof("Replacing path=%v old tag=%v to patched version=%v", pathToPatch, fluxTag, version)
+		fmt.Printf("Fectched version: %s", version)
 		patchOp.Op = "replace"
 		patches := []patchOperation{patchOp}
 		return patches, true

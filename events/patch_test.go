@@ -124,7 +124,7 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		// enabled, no path
-		// No patch
+		// Action: No patch
 		// admissionResponse:
 		// Allowed: true,
 		// StatusMessage: "Patching does not have defined path",
@@ -186,7 +186,7 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		// enabled is not bool value, correct path
-		// No patch
+		// Action: No patch
 		// admissionResponse:
 		// Allowed: true,
 		// StatusMessage: "Patching enabled is not boolean value",
@@ -223,7 +223,7 @@ func TestMutate(t *testing.T) {
 					Raw: []byte(`{
 					    "metadata": {
 					        "annotations": {"kcd-version-patcher.wish.com/container": "hello-service"},
-					        "labels": {"kcd-version-patcher.wish.com/enabled": "xxx"},
+					        "labels": {"kcd-version-patcher.wish.com/enabled": "true"},
 					        "namespace": "hello-service",
 					        "name": "hello-service"
 				        },
@@ -248,7 +248,7 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		// disabled, correct path
-		// No patch
+		// Action: No patch
 		// admissionResponse:
 		// Allowed: true,
 		// StatusMessage: "Patching is disabled",
@@ -310,7 +310,7 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		// enabled, incorrect path
-		// No patch
+		// Action: No patch
 		// admissionResponse:
 		// Allowed: true,
 		// StatusMessage: "Patching is not successful",
