@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/mitchellh/mapstructure"
 	"github.com/wish/kcd/registry/ecr"
@@ -242,8 +241,6 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 		return nil, true
 	}
 
-	fmt.Printf("Flux tag: %s", fluxTag)
-
 	pathToPatch := strings.Join([]string{ContainerPatchPath, idxFlux, "image"}, "/")
 
 	patchOp := patchOperation{
@@ -268,7 +265,6 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 
 		patchOp.Value = imageDataFlux[0] + ":" + version
 		glog.Infof("Replacing path=%v old tag=%v to patched version=%v", pathToPatch, fluxTag, version)
-		fmt.Printf("Fectched version: %s", version)
 		patchOp.Op = "replace"
 		patches := []patchOperation{patchOp}
 		return patches, true
