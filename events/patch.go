@@ -46,7 +46,7 @@ type patchOperation struct {
 
 var versionRegex, _ = regexp.Compile(`[0-9a-f]{5,40}`)
 
-// Get the container image string alue addressed by `nameParts`
+// Get the container image string value addressed by nameParts
 func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 	// If no key is given, return nothing
 	if nameParts == nil || len(nameParts) <= 0 {
@@ -87,7 +87,7 @@ func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 	return "", "-1", false
 }
 
-
+// Mutate tag applied by flux to version
 func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.AdmissionResponse {
 
 	var newManifest objectWithMeta
@@ -208,7 +208,7 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 	}
 }
 
-// patchForPath returns any patches required to get the value at `path` to match
+// patchForPath returns any patches required to get the value at path to match
 // in replacement if already set in current
 func patchForContainer(cName string, current, replacement Record, stats stats.Stats) ([]patchOperation, bool) {
 

@@ -30,15 +30,10 @@ import (
 	"k8s.io/apiserver/pkg/server/options"
 )
 
-//const (
-//	EnabledLabel = "kcd-version-patch.wish.com/enabled"
-//
-//	PathsAnnotationKey = "kcd-version-patch.wish.com/paths"
-//)
 
 var (
-	runtimeScheme = runtime.NewScheme()
-	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	runtimeSchema = runtime.NewScheme()
+	codecs        = serializer.NewCodecFactory(runtimeSchema)
 	deserializer  = codecs.UniversalDeserializer()
 )
 
