@@ -212,7 +212,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		err = handler.NewServer(params.port, Version, resourceProvider, historyProvider, authOptions, stopCh)
+		err = handler.NewServer(params.port, Version, resourceProvider, historyProvider, authOptions, stopCh, stats)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}

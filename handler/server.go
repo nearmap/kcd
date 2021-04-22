@@ -2,23 +2,41 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/wish/kcd/events"
+	"github.com/wish/kcd/stats"
+	"io/ioutil"
+	"k8s.io/api/admission/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"net/http"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	"github.com/wish/kcd/history"
 	"github.com/wish/kcd/resource"
 	svc "github.com/wish/kcd/service"
-	"github.com/pkg/errors"
 	goji "goji.io"
 	"goji.io/pat"
+	_ "k8s.io/apimachinery/pkg/runtime"
+	_ "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/server/options"
 )
+
+
+var (
+	runtimeSchema = runtime.NewScheme()
+	codecs        = serializer.NewCodecFactory(runtimeSchema)
+	deserializer  = codecs.UniversalDeserializer()
+)
+
 
 // StaticContentHandler returns a HandlerFunc that writes the given content
 // to the response.
@@ -30,10 +48,54 @@ func StaticContentHandler(content string) http.HandlerFunc {
 	}
 }
 
+// VersionPatchHandler returns a HandlerFunc that writes the given content to the response.
+func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		glog.V(4).Info("Enter mutation......")
+		var body []byte
+		if r.Body != nil {
+			if data, err := ioutil.ReadAll(r.Body); err == nil {
+				body = data
+			}
+		}
+
+		var admissionResponse *v1beta1.AdmissionResponse
+		ar := v1beta1.AdmissionReview{}
+		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
+			glog.Errorf("Can't decode body: %v", err)
+			admissionResponse = &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		} else {
+			admissionResponse = events.Mutate(ar.Request, stats)
+		}
+
+		admissionReview := v1beta1.AdmissionReview{}
+		if admissionResponse != nil {
+			admissionReview.Response = admissionResponse
+			if ar.Request != nil {
+				admissionReview.Response.UID = ar.Request.UID
+			}
+		}
+
+		if resp, err := json.Marshal(admissionReview); err != nil {
+			glog.Errorf("Can't encode response: %v", err)
+			http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
+		} else {
+			if _, err := w.Write(resp); err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+		}
+	}
+}
+
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
 func NewServer(port int, version string, resourceProvider resource.Provider, historyProvider history.Provider,
-	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}) error {
+	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}, stats stats.Stats) error {
 
 	//authOptions := options.NewDelegatingAuthenticationOptions()
 	authenticatorConfig, err := authOptions.ToAuthenticationConfig()
@@ -58,6 +120,7 @@ func NewServer(port int, version string, resourceProvider resource.Provider, his
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
+	mux.Handle(pat.Get("/mutate"), VersionPatchHandler(stats))
 
 	kcdmux := goji.SubMux()
 	mux.Handle(pat.New("/kcd/*"), kcdmux)
