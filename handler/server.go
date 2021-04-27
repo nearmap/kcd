@@ -121,7 +121,7 @@ func NewServer(port int, certFile string, keyFile string, version string, resour
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Get("/mutate"), VersionPatchHandler(stats))
+	mux.Handle(pat.Post("/mutate"), VersionPatchHandler(stats))
 
 	kcdmux := goji.SubMux()
 	mux.Handle(pat.New("/kcd/*"), kcdmux)
