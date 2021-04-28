@@ -146,7 +146,7 @@ func NewServer(port int, certFile string, keyFile string, version string, resour
 		WriteTimeout: 1 * time.Minute,
 	}
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			if err.Error() != "http: Server closed" {
 				glog.V(2).Infof("Server error during ListenAndServe: %v", err)
 				close(stopCh)

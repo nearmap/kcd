@@ -132,7 +132,7 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().StringVar(&params.kcdImgRepo, "kcd-img-repo", "nearmap/kcd", "Name of the docker registry to used be controller. defaults to nearmap/kcd")
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
-	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
+	rc.Flags().IntVar(&params.port, "port", 443, "Port to run http server on")
 	rc.Flags().StringVar(&params.certFile, "tlsCertFile", "/etc/kcd-version-patch/certs/cert.pem", "File containing the x509 Certificate for HTTPS.")
 	rc.Flags().StringVar(&params.keyFile, "tlsKeyFile", "/etc/kcd-version-patch/certs/key.pem", "File containing the x509 private key to --tlsCertFile.")
 
