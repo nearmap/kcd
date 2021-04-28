@@ -114,6 +114,9 @@ type runParams struct {
 	rollback bool // unused
 
 	stats statsParams
+
+	certFile       string // path to the x509 certificate for https
+	keyFile        string // path to the x509 private key matching `CertFile`
 }
 
 func newRunCommand() *cobra.Command {
@@ -130,6 +133,9 @@ func newRunCommand() *cobra.Command {
 	rc.Flags().BoolVar(&params.history, "history", false, "unused")
 	rc.Flags().BoolVar(&params.rollback, "rollback", false, "unused")
 	rc.Flags().IntVar(&params.port, "port", 8081, "Port to run http server on")
+	rc.Flags().StringVar(&params.certFile, "tlsCertFile", "/etc/kcd-version-patch/certs/cert.pem", "File containing the x509 Certificate for HTTPS.")
+	rc.Flags().StringVar(&params.keyFile, "tlsKeyFile", "/etc/kcd-version-patch/certs/key.pem", "File containing the x509 private key to --tlsCertFile.")
+
 	(&params.stats).addFlags(rc)
 
 	rc.RunE = func(cmd *cobra.Command, args []string) (err error) {
@@ -212,7 +218,7 @@ func newRunCommand() *cobra.Command {
 				//return errors.Wrap(err, "Shutting down container version controller")
 			}
 		}()
-		err = handler.NewServer(params.port, Version, resourceProvider, historyProvider, authOptions, stopCh, stats)
+		err = handler.NewServer(params.port, params.certFile, params.keyFile, Version, resourceProvider, historyProvider, authOptions, stopCh, stats)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}

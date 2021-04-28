@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"github.com/wish/kcd/events"
@@ -94,7 +95,7 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
-func NewServer(port int, version string, resourceProvider resource.Provider, historyProvider history.Provider,
+func NewServer(port int, certFile string, keyFile string, version string, resourceProvider resource.Provider, historyProvider history.Provider,
 	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}, stats stats.Stats) error {
 
 	//authOptions := options.NewDelegatingAuthenticationOptions()
@@ -120,7 +121,7 @@ func NewServer(port int, version string, resourceProvider resource.Provider, his
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Get("/mutate"), VersionPatchHandler(stats))
+	mux.Handle(pat.Post("/mutate"), VersionPatchHandler(stats))
 
 	kcdmux := goji.SubMux()
 	mux.Handle(pat.New("/kcd/*"), kcdmux)
@@ -132,9 +133,15 @@ func NewServer(port int, version string, resourceProvider resource.Provider, his
 	kcdmux.Handle(pat.Post("/v1/namespaces/:namespace/resources/:name"), svc.NewResourceUpdateHandler(resourceProvider))
 	kcdmux.Handle(pat.Get("/v1/history/:name"), history.NewHandler(historyProvider))
 
+	pair, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		glog.Errorf("Filed to load key pair: %v", err)
+	}
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      mux,
+		TLSConfig: 	  &tls.Config{Certificates: []tls.Certificate{pair}},
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 1 * time.Minute,
 	}
