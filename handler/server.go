@@ -71,7 +71,9 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 				},
 			}
 		} else {
-			admissionResponse = events.Mutate(ar.Request, stats)
+			go func() {
+				admissionResponse = events.Mutate(ar.Request, stats)
+			}()
 		}
 
 		admissionReview := v1beta1.AdmissionReview{}
