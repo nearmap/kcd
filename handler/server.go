@@ -62,6 +62,7 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 
 		var admissionResponse *v1beta1.AdmissionResponse
 		ar := v1beta1.AdmissionReview{}
+		c := make(chan *v1beta1.AdmissionResponse, 1)
 		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 			glog.Errorf("Can't decode body: %v", err)
 			admissionResponse = &v1beta1.AdmissionResponse{
@@ -71,8 +72,13 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 				},
 			}
 		} else {
-			admissionResponse = events.Mutate(ar.Request, stats)
+			go func() {
+				admissionResponse = events.Mutate(ar.Request, stats)
+				c <- admissionResponse
+			}()
 		}
+
+		admissionResponse = <- c
 
 		admissionReview := v1beta1.AdmissionReview{}
 		if admissionResponse != nil {
