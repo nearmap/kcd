@@ -109,6 +109,8 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		glog.Infof("Current KCD for patching: %v", kcd)
 	}
 
+	glog.Infof("Current admission requesat: %v", req)
+
 	if err := json.Unmarshal(req.Object.Raw, &newManifest); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
 		return &v1beta1.AdmissionResponse{
