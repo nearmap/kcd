@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/golang/glog"
 	"github.com/mitchellh/mapstructure"
+	customv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"github.com/wish/kcd/registry/ecr"
 	"github.com/wish/kcd/stats"
 	"k8s.io/api/admission/v1beta1"
@@ -28,6 +29,10 @@ const (
 // objectWithMeta allows us to unmarshal just the ObjectMeta of a k8s object
 type objectWithMeta struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+}
+
+type kcdObjectMeta struct {
+	customv1.KCD `json:"kcd,omitempty" protobuf:"bytes,1,opt,name=kcd"`
 }
 
 type containaerData struct {
@@ -90,6 +95,19 @@ func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.AdmissionResponse {
 
 	var newManifest objectWithMeta
+
+	var kcd kcdObjectMeta
+
+	if err := json.Unmarshal(req.Object.Raw, &kcd); err != nil {
+		glog.Errorf("Could not unmarshal raw object: %v", err)
+		return &v1beta1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	} else {
+		glog.Infof("Current KCD for patching: %v", kcd)
+	}
 
 	if err := json.Unmarshal(req.Object.Raw, &newManifest); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
