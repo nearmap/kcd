@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/golang/glog"
 	"github.com/mitchellh/mapstructure"
-	customv1 "github.com/wish/kcd/gok8s/apis/custom/v1"
+	"github.com/wish/kcd/gok8s/client/clientset/versioned"
 	"github.com/wish/kcd/registry/ecr"
 	"github.com/wish/kcd/stats"
 	"k8s.io/api/admission/v1beta1"
@@ -19,7 +19,7 @@ import (
 const (
 	EnabledLabel = "kcd-version-patcher.wish.com/enabled"
 
-	PathsAnnotationKey = "kcd-version-patcher.wish.com/container"
+	KcdAppName = "kcdapp"
 
 	ContainerPatchPath = "/spec/template/spec/containers"
 
@@ -29,10 +29,6 @@ const (
 // objectWithMeta allows us to unmarshal just the ObjectMeta of a k8s object
 type objectWithMeta struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-}
-
-type kcdObjectMeta struct {
-	customv1.KCD `json:"kcd,omitempty" protobuf:"bytes,1,opt,name=kcd"`
 }
 
 type containaerData struct {
@@ -92,24 +88,8 @@ func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 }
 
 // Mutate tag applied by flux to version
-func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.AdmissionResponse {
-
+func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *versioned.Clientset) *v1beta1.AdmissionResponse {
 	var newManifest objectWithMeta
-
-	var kcd kcdObjectMeta
-
-	if err := json.Unmarshal(req.Object.Raw, &kcd); err != nil {
-		glog.Errorf("Could not unmarshal raw object: %v", err)
-		return &v1beta1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	} else {
-		glog.Infof("Current KCD for patching: %v", kcd)
-	}
-
-	glog.Infof("Current admission requesat: %v", req)
 
 	if err := json.Unmarshal(req.Object.Raw, &newManifest); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
@@ -120,8 +100,24 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo)
+	kcdAppName := newManifest.Labels[KcdAppName]
+	kcdName := kcdAppName + "-kcd"
+	kcd, err := customClient.CustomV1().KCDs(newManifest.Namespace).Get(kcdName, metav1.GetOptions{})
+
+	if err != nil {
+		glog.Errorf("Failed to find KCD resource in namespace=%s, name=%s, error=%v", newManifest.Namespace, newManifest.Name, err)
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Can not retrieve KCD resources",
+			},
+		}
+	} else {
+		glog.Infof("Kcd resource got: %v", kcd)
+	}
+
+	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v KCD=%v",
+		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo, kcd)
 
 	// if no enabled labeld is there, we skip the patching and passing the request.
 	v, ok := newManifest.Labels[EnabledLabel]
@@ -153,19 +149,8 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	pathAnnotations := newManifest.GetAnnotations()
-	containerName, ok := pathAnnotations[PathsAnnotationKey]
-	if !ok {
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching does not have defined path",
-			},
-		}
-	}
-
-	// In case there is space inside
-	containerName = strings.TrimSpace(containerName)
+	containerName := kcd.Spec.Container.Name
+	glog.V(4).Infof("KCD resource container name to patch %s", containerName)
 
 	var currentMap map[string]interface{}
 

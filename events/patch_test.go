@@ -512,7 +512,7 @@ func TestMutate(t *testing.T) {
 	}
 
 	for idx, test := range tests {
-		out := Mutate(test.in, nil)
+		out := Mutate(test.in, nil, nil)
 		if err := test.out.Validate(out); err != nil {
 			fmt.Println(idx)
 			t.Fatalf("Error: %v\n%v", err, out)
