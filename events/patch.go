@@ -100,8 +100,20 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *vers
 		}
 	}
 
-	kcdAppName := newManifest.Labels[KcdAppName]
-	kcdName := kcdAppName + "-kcd"
+	// We will use existing kcdapp label to locate container name
+	var kcdName string
+	if kcdAppName, ok := newManifest.Labels[KcdAppName]; !ok {
+		glog.Infof("Can not find kcdapp lable in manifest")
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Can not find kcdapp lable in manifest",
+			},
+		}
+	} else {
+		kcdName = kcdAppName + "-kcd"
+	}
+	// Retrieve kcd resource
 	kcd, err := customClient.CustomV1().KCDs(newManifest.Namespace).Get(kcdName, metav1.GetOptions{})
 
 	if err != nil {
@@ -119,35 +131,29 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *vers
 	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v KCD=%v",
 		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo, kcd)
 
-	// if no enabled labeld is there, we skip the patching and passing the request.
+	// We only check if any labels for disabling
 	v, ok := newManifest.Labels[EnabledLabel]
-	if !ok {
-		glog.V(4).Info("No label defined kcd-version-patcher.wish.com/enabled")
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching does not have defined boolean value enable: true or false",
-			},
+	if ok {
+		// if enable label is FALSE or not boolean, pass the checking
+		if b, err := strconv.ParseBool(v); err != nil {
+			glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: "Patching enabled is not boolean value",
+				},
+			}
+		} else if !b {
+			glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not true: %v", v)
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: "Patching is disabled",
+				},
+			}
 		}
 	}
-	// if enable label is not TRUE or not boolean, pass the checking
-	if b, err := strconv.ParseBool(v); err != nil {
-		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching enabled is not boolean value",
-			},
-		}
-	} else if !b {
-		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not true: %v", v)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching is disabled",
-			},
-		}
-	}
+
 
 	containerName := kcd.Spec.Container.Name
 	glog.V(4).Infof("KCD resource container name to patch %s", containerName)
