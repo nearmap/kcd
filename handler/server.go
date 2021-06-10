@@ -29,6 +29,7 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/server/options"
+	"github.com/wish/kcd/gok8s/client/clientset/versioned"
 )
 
 
@@ -50,7 +51,7 @@ func StaticContentHandler(content string) http.HandlerFunc {
 }
 
 // VersionPatchHandler returns a HandlerFunc that writes the given content to the response.
-func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
+func VersionPatchHandler(stats stats.Stats, customClient *versioned.Clientset) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		glog.V(4).Info("Enter mutation......")
 		var body []byte
@@ -73,7 +74,7 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 			}
 		} else {
 			go func() {
-				admissionResponse = events.Mutate(ar.Request, stats)
+				admissionResponse = events.Mutate(ar.Request, stats, customClient)
 				c <- admissionResponse
 			}()
 		}
@@ -102,7 +103,7 @@ func VersionPatchHandler(stats stats.Stats) http.HandlerFunc {
 // NewServer creates and starts an http server to serve alive and deployment status endpoints
 // if server fails to start then, stop channel is closed notifying all listeners to the channel
 func NewServer(port int, certFile string, keyFile string, version string, resourceProvider resource.Provider, historyProvider history.Provider,
-	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}, stats stats.Stats) error {
+	authOptions *options.DelegatingAuthenticationOptions, stopCh chan struct{}, stats stats.Stats, customClient *versioned.Clientset) error {
 
 	//authOptions := options.NewDelegatingAuthenticationOptions()
 	authenticatorConfig, err := authOptions.ToAuthenticationConfig()
@@ -127,7 +128,7 @@ func NewServer(port int, certFile string, keyFile string, version string, resour
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/alive"), StaticContentHandler("alive"))
 	mux.Handle(pat.Get("/version"), StaticContentHandler(version))
-	mux.Handle(pat.Post("/mutate"), VersionPatchHandler(stats))
+	mux.Handle(pat.Post("/mutate"), VersionPatchHandler(stats, customClient))
 
 	kcdmux := goji.SubMux()
 	mux.Handle(pat.New("/kcd/*"), kcdmux)

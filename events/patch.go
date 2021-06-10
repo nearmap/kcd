@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/golang/glog"
 	"github.com/mitchellh/mapstructure"
+	"github.com/wish/kcd/gok8s/client/clientset/versioned"
 	"github.com/wish/kcd/registry/ecr"
 	"github.com/wish/kcd/stats"
 	"k8s.io/api/admission/v1beta1"
@@ -18,7 +19,7 @@ import (
 const (
 	EnabledLabel = "kcd-version-patcher.wish.com/enabled"
 
-	PathsAnnotationKey = "kcd-version-patcher.wish.com/container"
+	KcdAppName = "kcdapp"
 
 	ContainerPatchPath = "/spec/template/spec/containers"
 
@@ -87,8 +88,7 @@ func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
 }
 
 // Mutate tag applied by flux to version
-func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.AdmissionResponse {
-
+func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *versioned.Clientset) *v1beta1.AdmissionResponse {
 	var newManifest objectWithMeta
 
 	if err := json.Unmarshal(req.Object.Raw, &newManifest); err != nil {
@@ -100,52 +100,63 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats) *v1beta1.Admission
 		}
 	}
 
-	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo)
+	// We will use existing kcdapp label to locate container name
+	var kcdName string
+	if kcdAppName, ok := newManifest.Labels[KcdAppName]; !ok {
+		glog.Infof("Can not find kcdapp label in manifest")
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Can not find kcdapp label in manifest",
+			},
+		}
+	} else {
+		kcdName = kcdAppName + "-kcd"
+	}
+	// Retrieve kcd resource
+	kcd, err := customClient.CustomV1().KCDs(newManifest.Namespace).Get(kcdName, metav1.GetOptions{})
 
-	// if no enabled labeld is there, we skip the patching and passing the request.
+	if err != nil {
+		glog.Errorf("Failed to find KCD resource in namespace=%s, name=%s, error=%v", newManifest.Namespace, newManifest.Name, err)
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Message: "Can not retrieve KCD resources",
+			},
+		}
+	} else {
+		glog.Infof("Kcd resource got: %v", kcd)
+	}
+
+	glog.V(4).Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v KCD=%v",
+		req.Kind, req.Namespace, req.Name, newManifest.Name, req.UID, req.Operation, req.UserInfo, kcd)
+
+	// We only check if any labels for disabling
 	v, ok := newManifest.Labels[EnabledLabel]
-	if !ok {
-		glog.V(4).Info("No label defined kcd-version-patcher.wish.com/enabled")
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching does not have defined boolean value enable: true or false",
-			},
-		}
-	}
-	// if enable label is not TRUE or not boolean, pass the checking
-	if b, err := strconv.ParseBool(v); err != nil {
-		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching enabled is not boolean value",
-			},
-		}
-	} else if !b {
-		glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not true: %v", v)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching is disabled",
-			},
+	if ok {
+		// if enable label is FALSE or not boolean, pass the checking
+		if b, err := strconv.ParseBool(v); err != nil {
+			glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not boolean: %v", v)
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: "Patching enabled is not boolean value",
+				},
+			}
+		} else if !b {
+			glog.V(4).Infof("Label kcd-version-patcher.wish.com/enabled is not true: %v", v)
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: "Patching is disabled",
+				},
+			}
 		}
 	}
 
-	pathAnnotations := newManifest.GetAnnotations()
-	containerName, ok := pathAnnotations[PathsAnnotationKey]
-	if !ok {
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-			Result: &metav1.Status{
-				Message: "Patching does not have defined path",
-			},
-		}
-	}
 
-	// In case there is space inside
-	containerName = strings.TrimSpace(containerName)
+	containerName := kcd.Spec.Container.Name
+	glog.V(4).Infof("KCD resource container name to patch %s", containerName)
 
 	var currentMap map[string]interface{}
 
