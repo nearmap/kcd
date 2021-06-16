@@ -195,6 +195,9 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *vers
 	if len(patches) == 0 {
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
+			Result: &metav1.Status{
+				Message: "No patching needed",
+			},
 		}
 	}
 
@@ -270,6 +273,7 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 		versions, err := registry.Versions(context.Background(), fluxTag)
 		if err != nil {
 			glog.Errorf("Syncer failed to get version from registry using tag=%s", fluxTag)
+			return nil , false
 		}
 		version := versions[0]
 		glog.Infof("Got registry versions for container=%s, tag=%s, rolloutVersion=%s", cName, fluxTag, version)
