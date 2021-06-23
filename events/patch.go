@@ -251,7 +251,7 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 	fluxTag := imageDataFlux[1]
 	// If current tag is already a SHA, no need to patch
 	if versionRegex.MatchString(fluxTag) {
-		glog.V(4).Infof("Already SHA tag of flux applied, no need to patch for container %v at version: %v", cName, curTag)
+		glog.V(4).Infof("Already SHA tag of flux applied, no need to patch for container %v at version: %v for request version %v", cName, curTag, fluxTag)
 		return nil, true
 	}
 
