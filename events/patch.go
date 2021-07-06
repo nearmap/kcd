@@ -103,7 +103,7 @@ func Mutate(req *v1beta1.AdmissionRequest, stats stats.Stats, customClient *vers
 	// We will use existing kcdapp label to locate container name
 	var kcdName string
 	if kcdAppName, ok := newManifest.Labels[KcdAppName]; !ok {
-		glog.Infof("Can not find kcdapp label in manifest")
+		glog.Infof("Can not find kcdapp label in manifest under name: %s and namespace: %s", newManifest.Name, newManifest.Namespace)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 			Result: &metav1.Status{
