@@ -175,7 +175,7 @@ func newKCDSyncCommand(root *regRoot) *cobra.Command {
 		// TODO: this needs a better strategy but hacking it for now
 		//
 		if kcd.Spec.VersionSyntax == "" {
-			kcd.Spec.VersionSyntax = "[0-9a-f]{5,40}"
+			kcd.Spec.VersionSyntax = ecr.VersionRegex
 		}
 		var registryProvider registry.Provider
 		switch registry.ProviderByRepo(kcd.Spec.ImageRepo) {
@@ -262,7 +262,7 @@ func newTagsCommand(root *regRoot) *cobra.Command {
 	var crProvider registry.Tagger
 	var params regTagParams
 	cmd.PersistentFlags().StringSliceVar(&params.tags, "tags", nil, "list of tags that needs to be added or removed")
-	cmd.PersistentFlags().StringVar(&params.verPat, "version-pattern", "[0-9a-f]{5,40}", "Regex pattern for container version")
+	cmd.PersistentFlags().StringVar(&params.verPat, "version-pattern", ecr.VersionRegex, "Regex pattern for container version")
 	cmd.PersistentFlags().StringVar(&params.version, "version", "", "sha/version tag of registry image that is being tagged")
 	cmd.PersistentFlags().StringVar(&params.username, "username", "", "username of dockerhub registry")
 	cmd.PersistentFlags().StringVar(&params.pwd, "passsword", "", "password of user of dockerhub registry")

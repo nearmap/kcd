@@ -2,12 +2,12 @@ package deploy
 
 import (
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	kcd1 "github.com/wish/kcd/gok8s/apis/custom/v1"
 	"github.com/wish/kcd/gok8s/workload"
 	k8s "github.com/wish/kcd/gok8s/workload"
 	"github.com/wish/kcd/registry"
 	"github.com/wish/kcd/state"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -99,7 +99,7 @@ func CheckPods(cs kubernetes.Interface, namespace string, target RolloutTarget, 
 		//	glog.V(2).Infof("Still waiting for rollout: pod %s phase is %v", pod.Name, pod.Status.Phase)
 		//	return false, nil
 		//}
-		glog.V(4).Infof("Check pod spec version %v, $v", pod.Name, pod.Namespace)
+		glog.V(4).Infof("Check pod spec version %v, %v", pod.Name, pod.Namespace)
 
 		ok, err := workload.CheckPodSpecVersion(pod.Spec, kcd, version)
 		if err != nil {
