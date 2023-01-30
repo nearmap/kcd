@@ -31,7 +31,7 @@ spec:
             versionSyntax:
               type: string
               ## default to regex for sha
-              # default: '[0-9a-f]{5,40}'
+              # default: '^[0-9a-f]{5,40}$'
             imageRepo:
               type: string
               pattern: '^[^:]*$'

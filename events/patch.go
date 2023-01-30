@@ -22,8 +22,7 @@ const (
 	KcdAppName = "kcdapp"
 
 	ContainerPatchPath = "/spec/template/spec/containers"
-
-	VersionRegex = "[0-9a-f]{5,40}"
+	
 )
 
 // objectWithMeta allows us to unmarshal just the ObjectMeta of a k8s object
@@ -44,7 +43,7 @@ type patchOperation struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-var versionRegex, _ = regexp.Compile(`[0-9a-f]{5,40}`)
+var versionRegex, _ = regexp.Compile(ecr.VersionRegex)
 
 // Get the container image string value addressed by nameParts
 func (r Record) Get(nameParts []string, cName string) (string, string, bool) {
@@ -261,7 +260,7 @@ func patchForContainer(cName string, current, replacement Record, stats stats.St
 		Path:  pathToPatch,
 	}
 
-	p, e := ecr.NewECR(imageRepoFlux, VersionRegex, stats)
+	p, e := ecr.NewECR(imageRepoFlux, ecr.VersionRegex, stats)
 	if e != nil {
 		glog.Errorf("Unable to create ECR for iamge repo %v at version: %v", imageRepo, curTag)
 		return nil, false

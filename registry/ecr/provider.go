@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+const VersionRegex = `^[0-9a-f]{5,40}$`
 var ecrRule, _ = regexp.Compile("([0-9]*).dkr.ecr.([a-z0-9-]*).amazonaws.com/([a-zA-Z0-9/\\_-]*)")
 
 // nameAccountRegionFromARN returns the name of the repo, the AWS Account ID and region
